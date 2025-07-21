@@ -11,9 +11,81 @@ from dash import dash_table
 from dash.dependencies import ALL
 import math
 import re
+import json
+import os
+from threading import Timer
 
 # Initialize global variables
 custom_metrics = {}  # Store custom metric formulas
+
+# Default portfolios (constant)
+DEFAULT_PORTFOLIOS = {
+    'Corporate Banking': {'lob': 'Corporate Banking', 'industry': None, 'property_type': None},
+    'CRE': {'lob': 'CRE', 'industry': None, 'property_type': None}
+}
+
+# Profile Management System
+PROFILES_FILE = 'data/user_profiles.json'
+current_user = 'Guest'  # Default user
+auto_save_timer = None
+
+def load_profiles():
+    """Load user profiles from file"""
+    if os.path.exists(PROFILES_FILE):
+        try:
+            with open(PROFILES_FILE, 'r') as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def save_profiles(profiles_data):
+    """Save user profiles to file"""
+    os.makedirs(os.path.dirname(PROFILES_FILE), exist_ok=True)
+    with open(PROFILES_FILE, 'w') as f:
+        json.dump(profiles_data, f, indent=2)
+
+def get_user_data(username):
+    """Get user-specific data (portfolios and custom metrics)"""
+    profiles = load_profiles()
+    if username in profiles:
+        return profiles[username]
+    return {'portfolios': {}, 'custom_metrics': {}}
+
+def save_user_data(username, portfolios_data, custom_metrics_data):
+    """Save user-specific data"""
+    profiles = load_profiles()
+    profiles[username] = {
+        'portfolios': portfolios_data,
+        'custom_metrics': custom_metrics_data,
+        'last_saved': datetime.now().isoformat()
+    }
+    save_profiles(profiles)
+
+def get_current_user_portfolios():
+    """Get portfolios for current user"""
+    if current_user == 'Guest':
+        return DEFAULT_PORTFOLIOS.copy()
+    else:
+        user_data = get_user_data(current_user)
+        user_portfolios = user_data.get('portfolios', {})
+        if not user_portfolios:
+            # Initialize with default portfolios for new users
+            return DEFAULT_PORTFOLIOS.copy()
+        return user_portfolios
+
+def auto_save_data():
+    """Auto-save current user data every 15 seconds"""
+    global auto_save_timer
+    if current_user != 'Guest':
+        save_user_data(current_user, portfolios, custom_metrics)
+    # Schedule next auto-save
+    auto_save_timer = Timer(15.0, auto_save_data)
+    auto_save_timer.start()
+
+# Initialize profiles and start auto-save
+user_profiles = load_profiles()
+auto_save_data()  # Start auto-save timer
 
 # Load data
 try:
@@ -24,14 +96,8 @@ try:
     # Get latest data for each facility (most recent reporting date)
     latest_facilities = facilities_df.sort_values('reporting_date').groupby('facility_id').tail(1)
     
-    # Initialize with two default portfolios
-    default_portfolios = {
-        'Corporate Banking': {'lob': 'Corporate Banking', 'industry': None, 'property_type': None},
-        'CRE': {'lob': 'CRE', 'industry': None, 'property_type': None}
-    }
-    
-    # Store portfolios in session
-    portfolios = default_portfolios.copy()
+    # Store portfolios in session (use default portfolios constant)
+    portfolios = DEFAULT_PORTFOLIOS.copy()
     available_portfolios = list(portfolios.keys())
     default_portfolio = available_portfolios[0] if len(available_portfolios) > 0 else 'Corporate Banking Portfolio'
     
@@ -384,17 +450,32 @@ def create_positions_panel(selected_portfolio):
     
     # Filter to current quarter snapshot
     portfolio_data = get_filtered_data(selected_portfolio)
-    portfolio_data = portfolio_data[portfolio_data['reporting_date'] == current_quarter_end]
+    if len(portfolio_data) == 0:
+        return html.Div("No data available for this portfolio.", className="p-4 positions-panel")
     
-    all_data = pd.concat([get_filtered_data(pname) for pname in portfolios.keys()]).drop_duplicates()
-    all_data = all_data[all_data['reporting_date'] == current_quarter_end]
+    # Only filter by reporting_date if the column exists and has data
+    if 'reporting_date' in portfolio_data.columns and len(portfolio_data) > 0:
+        portfolio_data = portfolio_data[portfolio_data['reporting_date'] == current_quarter_end]
+    
+    # Get all data for comparison, with safe filtering
+    all_portfolios_data = []
+    for pname in portfolios.keys():
+        pdata = get_filtered_data(pname)
+        if len(pdata) > 0 and 'reporting_date' in pdata.columns:
+            pdata = pdata[pdata['reporting_date'] == current_quarter_end]
+            all_portfolios_data.append(pdata)
+    
+    if all_portfolios_data:
+        all_data = pd.concat(all_portfolios_data).drop_duplicates()
+    else:
+        all_data = pd.DataFrame()
 
     if len(portfolio_data) == 0:
         return html.Div("No data available for this portfolio.", className="p-4 positions-panel")
 
     # Portfolio name and % of total
-    total_balance_all = all_data['balance'].sum()
-    total_balance = portfolio_data['balance'].sum()
+    total_balance_all = all_data['balance'].sum() if len(all_data) > 0 and 'balance' in all_data.columns else 0
+    total_balance = portfolio_data['balance'].sum() if 'balance' in portfolio_data.columns else 0
     pct_of_total = (total_balance / total_balance_all * 100) if total_balance_all > 0 else 0
 
     # Portfolio totals
@@ -828,7 +909,6 @@ def create_vintage_analysis_sidebar(selected_portfolio):
                 )
             ], className="form-group"),
             
-            
         ], className="p-4")
     ], className="sidebar")
 
@@ -837,10 +917,6 @@ def create_vintage_analysis_content(selected_portfolio):
     return html.Div([
         # Default Rate Chart
         html.Div([
-            html.Div([
-                html.Label("Analysis:", className="form-label"),
-                html.Span("Quarterly Cohort Default Rates", style={"fontWeight": "bold", "marginLeft": "10px"})
-            ], className="form-group", style={"width": "50%", "marginBottom": "10px"}),
             dcc.Graph(id='vintage-analysis-chart', config={'displayModeBar': False})
         ], className="chart-card", style={"marginBottom": "20px"}),
     ], className="main-content")
@@ -900,40 +976,55 @@ def create_financial_trends_sidebar(selected_portfolio):
 def get_portfolio_metrics(selected_portfolio):
     """Get appropriate metrics based on portfolio type and available data columns"""
     global custom_metrics
-    # Get numeric columns from facilities data (excluding ID, date, and categorical columns)
-    exclude_cols = ['facility_id', 'obligor_name', 'origination_date', 'maturity_date', 'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa']
-    numeric_cols = [col for col in facilities_df.columns if col not in exclude_cols]
     
-    # Filter out columns that are mostly null for the selected portfolio
+    # Common metrics available for all portfolio types
+    common_metrics = ['balance', 'obligor_rating']
+    
+    # Portfolio-specific metrics based on actual facilities.csv columns
+    corporate_banking_metrics = ['free_cash_flow', 'fixed_charge_coverage', 'cash_flow_leverage', 'liquidity', 'profitability', 'growth']
+    cre_metrics = ['noi', 'property_value', 'dscr', 'ltv']
+    
+    # Get all available columns from the dataframe
+    exclude_cols = ['facility_id', 'obligor_name', 'origination_date', 'maturity_date', 'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa', 'sir']
+    all_numeric_cols = [col for col in facilities_df.columns if col not in exclude_cols]
+    
+    # Determine which metrics to show based on portfolio type
+    available_cols = common_metrics.copy()
+    
     if selected_portfolio and selected_portfolio in portfolios:
-        portfolio_data = get_filtered_data(selected_portfolio)
-        if len(portfolio_data) > 0:
-            # Only include columns that have data for this portfolio
-            available_cols = []
-            for col in numeric_cols:
-                if col in portfolio_data.columns:
-                    # Check if column has meaningful data (not all null/empty)
-                    non_null_count = portfolio_data[col].notna().sum()
-                    if non_null_count > 0:
-                        available_cols.append(col)
-            
-            # Create human-readable labels
-            metric_options = []
-            for col in available_cols:
-                # Exclude SIR from Financial Trends metric selection
-                if col != 'sir':
-                    # Convert snake_case to Title Case
-                    label = col.replace('_', ' ').title()
-                    metric_options.append({'label': label, 'value': col})
-            
-            # Add custom metrics
-            for metric_name, formula in custom_metrics.items():
-                metric_options.append({'label': f"{metric_name} (Custom)", 'value': metric_name})
-            
-            return metric_options
+        portfolio_criteria = portfolios[selected_portfolio]
+        lob = portfolio_criteria.get('lob')
+        
+        if lob == 'Corporate Banking':
+            # Add Corporate Banking specific metrics
+            for metric in corporate_banking_metrics:
+                if metric in all_numeric_cols:
+                    available_cols.append(metric)
+        elif lob == 'CRE':
+            # Add CRE specific metrics
+            for metric in cre_metrics:
+                if metric in all_numeric_cols:
+                    available_cols.append(metric)
+        else:
+            # For mixed or custom portfolios, include all relevant metrics
+            available_cols.extend([col for col in corporate_banking_metrics + cre_metrics if col in all_numeric_cols])
+    else:
+        # Default: show all available metrics
+        available_cols = all_numeric_cols
     
-    # Default to all numeric columns if no portfolio selected (excluding SIR)
-    return [{'label': col.replace('_', ' ').title(), 'value': col} for col in numeric_cols if col != 'sir']
+    # Create human-readable labels
+    metric_options = []
+    for col in available_cols:
+        if col in facilities_df.columns:
+            # Convert snake_case to Title Case
+            label = col.replace('_', ' ').title()
+            metric_options.append({'label': label, 'value': col})
+    
+    # Add custom metrics
+    for metric_name, formula in custom_metrics.items():
+        metric_options.append({'label': f"{metric_name} (Custom)", 'value': metric_name})
+    
+    return metric_options
 
 def create_financial_trends_content(selected_portfolio):
     """Create the Financial Trends tab content"""
@@ -1026,10 +1117,19 @@ def create_layout(selected_portfolio=None):
             html.Div([
                 html.H1("Portfolio Performance Dashboard", className="header-title"),
                 html.Div([
-                    html.A("Quick Nav", href="#", className="btn btn-outline"),
-                    html.A("Profile", href="#", className="btn btn-outline"),
-                    html.A("Login", href="#", className="btn btn-primary")
-                ], className="header-actions", style={"marginLeft": "auto", "justifyContent": "flex-end", "display": "flex"})
+                    # Profile Dropdown
+                    html.Div([
+                        dcc.Dropdown(
+                            id='profile-dropdown',
+                            options=[{'label': 'Guest', 'value': 'Guest'}],
+                            value='Guest',
+                            className="profile-dropdown",
+                            style={"width": "120px", "marginRight": "10px"}
+                        )
+                    ], style={"display": "inline-block"}),
+                    # Login/Register Button
+                    html.Button("Login/Register", id="login-btn", className="btn btn-primary", n_clicks=0)
+                ], className="header-actions", style={"marginLeft": "auto", "justifyContent": "flex-end", "display": "flex", "alignItems": "center"})
             ], className="header-content")
         ], className="header"),
         # Tab Navigation
@@ -1044,7 +1144,101 @@ def create_layout(selected_portfolio=None):
         # Main content
         html.Div([
             html.Div(id='tab-content-container')
-        ], className="main-container")
+        ], className="main-container"),
+        
+        # Login/Register Modal
+        html.Div([
+            html.Div([
+                html.H3("Login / Register", style={"marginBottom": "20px", "color": "#333", "textAlign": "center"}),
+                dcc.Input(
+                    id="username-input",
+                    type="text",
+                    placeholder="Enter username",
+                    style={"width": "100%", "padding": "12px", "marginBottom": "20px", "border": "1px solid #ddd", "borderRadius": "4px", "fontSize": "16px"}
+                ),
+                html.Div([
+                    html.Button("Login", id="login-submit", className="btn btn-primary", style={"marginRight": "10px", "padding": "10px 20px"}),
+                    html.Button("Register", id="register-submit", className="btn btn-secondary", style={"marginRight": "10px", "padding": "10px 20px"}),
+                    html.Button("Cancel", id="login-cancel", className="btn btn-outline", style={"padding": "10px 20px"})
+                ], style={"textAlign": "center", "marginBottom": "30px"}),
+                
+                # Separator line
+                html.Hr(style={"margin": "20px 0", "border": "1px solid #eee"}),
+                
+                # Delete Profile Section
+                html.Div([
+                    html.H4("Delete Profile", style={"marginBottom": "15px", "color": "#ef4444", "textAlign": "center", "fontSize": "18px"}),
+                    dcc.Dropdown(
+                        id="delete-profile-dropdown",
+                        placeholder="Select profile to delete...",
+                        style={"marginBottom": "15px"},
+                        className="form-select"
+                    ),
+                    html.Div([
+                        html.Button("Delete Profile", id="delete-profile-btn", className="btn btn-danger", style={"padding": "8px 16px"})
+                    ], style={"textAlign": "center"})
+                ], style={"marginTop": "20px"})
+            ], style={
+                "backgroundColor": "white",
+                "padding": "40px",
+                "borderRadius": "8px",
+                "width": "400px",
+                "maxWidth": "90vw",
+                "position": "absolute",
+                "top": "50%",
+                "left": "50%",
+                "transform": "translate(-50%, -50%)",
+                "boxShadow": "0 10px 25px rgba(0, 0, 0, 0.2)",
+                "zIndex": "1001"
+            })
+        ], id="login-modal", style={
+            "position": "fixed",
+            "top": "0",
+            "left": "0",
+            "width": "100%",
+            "height": "100%",
+            "backgroundColor": "rgba(0, 0, 0, 0.5)",
+            "zIndex": "1000",
+            "display": "none"
+        }),
+        
+        # Auto-save Notification
+        html.Div([
+            html.Div([
+                html.Span("💾", style={"marginRight": "8px", "fontSize": "16px"}),
+                html.Span("Data auto-saved", id="save-message")
+            ], style={
+                "backgroundColor": "#10b981",
+                "color": "white",
+                "padding": "10px 20px",
+                "borderRadius": "6px",
+                "boxShadow": "0 2px 4px rgba(0, 0, 0, 0.1)",
+                "fontSize": "14px",
+                "fontWeight": "500"
+            })
+        ], id="save-notification", style={
+            "position": "fixed",
+            "bottom": "20px",
+            "right": "20px",
+            "zIndex": "1000",
+            "opacity": "0",
+            "transition": "opacity 0.3s ease"
+        }),
+        
+        # Interval component for auto-save notifications
+        dcc.Interval(
+            id='auto-save-interval',
+            interval=30*1000,  # 30 seconds
+            n_intervals=0
+        ),
+        
+        # Interval component for hiding notifications
+        dcc.Interval(
+            id='hide-notification-interval',
+            interval=1*1000,  # 1 second
+            n_intervals=0,
+            disabled=True
+        )
     ])
 
 # Callbacks
@@ -1859,8 +2053,35 @@ def update_vintage_analysis_chart(portfolio, selected_quarters, analysis_type, s
             fig.add_annotation(text="Select a metric to view metric trends", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
             return fig
         
-        # Get filtered data
-        portfolio_data = get_filtered_data(portfolio)
+        # Get filtered data - use full historical data for vintage analysis
+        if portfolio not in portfolios:
+            portfolio_data = pd.DataFrame()
+        else:
+            portfolio_criteria = portfolios[portfolio]
+            portfolio_data = facilities_df.copy()  # Use full historical data
+            
+            # Filter by LOB
+            if portfolio_criteria['lob']:
+                portfolio_data = portfolio_data[portfolio_data['lob'] == portfolio_criteria['lob']]
+            
+            # Filter by industry (for Corporate Banking)
+            if portfolio_criteria['lob'] == 'Corporate Banking' and portfolio_criteria['industry']:
+                if isinstance(portfolio_criteria['industry'], list):
+                    industry_series = pd.Series(portfolio_data['industry'])
+                    portfolio_data = portfolio_data[industry_series.astype(str).isin([str(i) for i in portfolio_criteria['industry']])]
+                else:
+                    portfolio_data = portfolio_data[portfolio_data['industry'] == portfolio_criteria['industry']]
+            
+            # Filter by property type (for CRE)
+            if portfolio_criteria['lob'] == 'CRE' and portfolio_criteria['property_type']:
+                if isinstance(portfolio_criteria['property_type'], list):
+                    portfolio_data = portfolio_data[portfolio_data['cre_property_type'].isin(portfolio_criteria['property_type'])]
+                else:
+                    portfolio_data = portfolio_data[portfolio_data['cre_property_type'] == portfolio_criteria['property_type']]
+            
+            # Ensure date columns are datetime
+            portfolio_data['origination_date'] = pd.to_datetime(portfolio_data['origination_date'])
+            portfolio_data['reporting_date'] = pd.to_datetime(portfolio_data['reporting_date'])
         
         if len(portfolio_data) == 0:
             fig = go.Figure()
@@ -1914,6 +2135,9 @@ def create_quarterly_cohort_chart(data, selected_quarters, analysis_type='defaul
 def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
     """Create metric trend chart for quarterly cohorts"""
     
+    # Track the actual maximum quarters we'll have data for across all selected cohorts
+    actual_max_quarters = 0
+    
     for i, quarter in enumerate(selected_quarters):
         # Parse quarter (e.g., "2022Q1")
         year = int(quarter[:4])
@@ -1924,6 +2148,13 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
             quarter_end = pd.Timestamp(year=year+1, month=1, day=1) - pd.Timedelta(days=1)
         else:
             quarter_end = pd.Timestamp(year=year, month=q*3+1, day=1) - pd.Timedelta(days=1)
+        
+        # Calculate available quarters for this specific cohort
+        max_reporting_date = data['reporting_date'].max()
+        cohort_max_quarters = ((max_reporting_date.year - year) * 4 + 
+                              (max_reporting_date.quarter - q)) + 1
+        cohort_max_quarters = max(1, min(cohort_max_quarters, 20))  # Cap at reasonable limit
+        actual_max_quarters = max(actual_max_quarters, cohort_max_quarters)
         
         # Define trailing 4 quarters start date
         trailing_start_year = year
@@ -1936,7 +2167,7 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
         
         trailing_start = pd.Timestamp(year=trailing_start_year, month=(trailing_start_q-1)*3+1, day=1)
         
-        # Get cohort: obligors originated in trailing 4 quarters (including current)
+        # Get cohort: obligors originated in trailing 4 quarters (including current) with rating < 17
         cohort_data = data[
             (data['origination_date'] >= trailing_start) & 
             (data['origination_date'] <= quarter_end)
@@ -1945,15 +2176,20 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
         if len(cohort_data) == 0:
             continue
             
-        # Get unique obligors in cohort
-        cohort_obligors = cohort_data['obligor_name'].unique()
+        # Get unique non-defaulted obligors at origination (rating < 17)
+        cohort_obligors = cohort_data[cohort_data['obligor_rating'] < 17]['obligor_name'].unique()
         cohort_size = len(cohort_obligors)
         
-        # Calculate metric averages by quarter since cohort quarter
-        quarters_since_orig = list(range(8))  # 0, 1, 2, ..., 7
+        if cohort_size == 0:
+            continue
+        
+        # Calculate metric averages by quarter since cohort quarter  
+        # Use the maximum available quarters for this specific cohort
+        cohort_quarters = min(cohort_max_quarters, actual_max_quarters)
+        quarters_since_orig = list(range(cohort_quarters))
         metric_values = []
         
-        for q_idx in range(8):
+        for q_idx in range(cohort_quarters):
             # Calculate target reporting quarter
             target_year = year
             target_q = q + q_idx
@@ -1966,44 +2202,42 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
             # Get data for this reporting quarter
             if target_q == 1:
                 quarter_start = pd.Timestamp(year=target_year, month=1, day=1)
-                quarter_end_target = pd.Timestamp(year=target_year, month=4, day=1) - pd.Timedelta(days=1)
+                quarter_end_target = pd.Timestamp(year=target_year, month=3, day=31)
             elif target_q == 2:
                 quarter_start = pd.Timestamp(year=target_year, month=4, day=1)
-                quarter_end_target = pd.Timestamp(year=target_year, month=7, day=1) - pd.Timedelta(days=1)
+                quarter_end_target = pd.Timestamp(year=target_year, month=6, day=30)
             elif target_q == 3:
                 quarter_start = pd.Timestamp(year=target_year, month=7, day=1)
-                quarter_end_target = pd.Timestamp(year=target_year, month=10, day=1) - pd.Timedelta(days=1)
+                quarter_end_target = pd.Timestamp(year=target_year, month=9, day=30)
             else:  # target_q == 4
                 quarter_start = pd.Timestamp(year=target_year, month=10, day=1)
-                quarter_end_target = pd.Timestamp(year=target_year+1, month=1, day=1) - pd.Timedelta(days=1)
+                quarter_end_target = pd.Timestamp(year=target_year, month=12, day=31)
             
-            # Get metric data for cohort obligors in this quarter
+            # Get metric data for cohort obligors in this quarter, excluding defaults (rating 17)
             quarter_data = data[
                 (data['obligor_name'].isin(cohort_obligors)) &
                 (data['reporting_date'] >= quarter_start) &
-                (data['reporting_date'] <= quarter_end_target)
+                (data['reporting_date'] <= quarter_end_target) &
+                (data['obligor_rating'] < 17)  # Exclude defaulted obligors
             ]
             
             if len(quarter_data) > 0 and metric in quarter_data.columns:
-                # Calculate average metric for this quarter
+                # Calculate average metric for remaining non-default population
                 metric_avg = quarter_data[metric].mean()
                 metric_values.append(metric_avg)
             else:
                 metric_values.append(None)
         
-        # Filter out None values for plotting
-        valid_quarters = []
-        valid_values = []
-        for q_idx, value in enumerate(metric_values):
-            if value is not None:
-                valid_quarters.append(q_idx)
-                valid_values.append(value)
+        # Include all quarters for this cohort, replacing None with NaN for proper plotting
+        plot_quarters = list(range(cohort_quarters))
+        plot_values = [value if value is not None else None for value in metric_values]
         
-        if valid_quarters:
+        # Only plot if we have at least one valid data point
+        if any(v is not None for v in plot_values):
             # Add trace to chart
             fig.add_trace(go.Scatter(
-                x=valid_quarters,
-                y=valid_values,
+                x=plot_quarters,
+                y=plot_values,
                 mode='lines+markers',
                 name=f'{quarter} (n={cohort_size})',
                 line=dict(color=colors[i % len(colors)], width=3),
@@ -2029,7 +2263,7 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
             tickmode='linear',
             tick0=0,
             dtick=1,
-            range=[0, 7],
+            range=[0, max(1, actual_max_quarters-1)],
             showgrid=False,
             color='#374151'
         ),
@@ -2045,6 +2279,9 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
 def create_default_rates_chart(fig, data, selected_quarters, colors):
     """Create default rates chart for quarterly cohorts"""
     
+    # Track the actual maximum quarters we'll have data for across all selected cohorts
+    actual_max_quarters = 0
+    
     for i, quarter in enumerate(selected_quarters):
         # Parse quarter (e.g., "2022Q1")
         year = int(quarter[:4])
@@ -2055,6 +2292,13 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
             quarter_end = pd.Timestamp(year=year+1, month=1, day=1) - pd.Timedelta(days=1)
         else:
             quarter_end = pd.Timestamp(year=year, month=q*3+1, day=1) - pd.Timedelta(days=1)
+        
+        # Calculate available quarters for this specific cohort
+        max_reporting_date = data['reporting_date'].max()
+        cohort_max_quarters = ((max_reporting_date.year - year) * 4 + 
+                              (max_reporting_date.quarter - q)) + 1
+        cohort_max_quarters = max(1, min(cohort_max_quarters, 20))  # Cap at reasonable limit
+        actual_max_quarters = max(actual_max_quarters, cohort_max_quarters)
         
         # Define trailing 4 quarters start date
         # Go back 3 quarters from current quarter to get 4 quarters total
@@ -2082,9 +2326,10 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
             continue
             
         # Calculate default rates by quarter since cohort quarter
-        # Initialize 8 quarters of data
-        quarters_since_orig = list(range(8))  # 0, 1, 2, ..., 7
-        default_counts = [0] * 8  # Count of defaults by quarter
+        # Use the maximum available quarters for this specific cohort
+        cohort_quarters = min(cohort_max_quarters, actual_max_quarters)
+        quarters_since_orig = list(range(cohort_quarters))
+        default_counts = [0] * cohort_quarters  # Count of defaults by quarter
         
         # Track defaults for each obligor
         defaults_by_quarter = {}  # quarter_index -> set of defaulted obligors
@@ -2100,16 +2345,16 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
                 quarters_diff = ((first_default_date.year - year) * 4 + 
                                (first_default_date.quarter - q))
                 
-                # Only track if within our 8-quarter window and not negative
-                if 0 <= quarters_diff < 8:
+                # Only track if within our dynamic quarter window and not negative
+                if 0 <= quarters_diff < cohort_quarters:
                     # Add this obligor to defaults for this quarter and all subsequent quarters
-                    for q_idx in range(quarters_diff, 8):
+                    for q_idx in range(quarters_diff, cohort_quarters):
                         if q_idx not in defaults_by_quarter:
                             defaults_by_quarter[q_idx] = set()
                         defaults_by_quarter[q_idx].add(obligor)
         
         # Convert to cumulative default counts
-        for q_idx in range(8):
+        for q_idx in range(cohort_quarters):
             if q_idx in defaults_by_quarter:
                 default_counts[q_idx] = len(defaults_by_quarter[q_idx])
         
@@ -2144,7 +2389,7 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
             tickmode='linear',
             tick0=0,
             dtick=1,
-            range=[0, 7],
+            range=[0, max(1, actual_max_quarters-1)],
             showgrid=False,  # Remove gridlines
             color='#374151'
         ),
@@ -2157,6 +2402,241 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
     )
     
     return fig
+
+# Profile Management Callbacks
+@callback(
+    [Output('login-modal', 'style'),
+     Output('profile-dropdown', 'options'),
+     Output('profile-dropdown', 'value'),
+     Output('delete-profile-dropdown', 'options')],
+    [Input('login-btn', 'n_clicks'),
+     Input('login-submit', 'n_clicks'),
+     Input('register-submit', 'n_clicks'),
+     Input('delete-profile-btn', 'n_clicks'),
+     Input('login-cancel', 'n_clicks'),
+     Input('profile-dropdown', 'value')],
+    [State('username-input', 'value'),
+     State('delete-profile-dropdown', 'value')],
+    prevent_initial_call=False
+)
+def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_clicks, cancel_clicks, 
+                      selected_profile, username, delete_profile_selection):
+    """Handle login modal and profile switching"""
+    global current_user, portfolios, custom_metrics
+    
+    ctx = callback_context
+    if not ctx.triggered:
+        # Initial call - return default state
+        profiles = load_profiles()
+        profile_options = [{'label': 'Guest', 'value': 'Guest'}]
+        profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
+        delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
+        hidden_modal_style = {
+            "position": "fixed", "top": "0", "left": "0", "width": "100%", 
+            "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
+            "zIndex": "1000", "display": "none"
+        }
+        return hidden_modal_style, profile_options, current_user, delete_options
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Load current profiles
+    profiles = load_profiles()
+    profile_options = [{'label': 'Guest', 'value': 'Guest'}]
+    profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
+    delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
+    
+    # Default modal style (hidden)
+    hidden_modal_style = {
+        "position": "fixed", "top": "0", "left": "0", "width": "100%", 
+        "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
+        "zIndex": "1000", "display": "none"
+    }
+    
+    if trigger_id == 'login-btn':
+        # Show modal
+        show_modal_style = {
+            "position": "fixed", "top": "0", "left": "0", "width": "100%", 
+            "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
+            "zIndex": "1000", "display": "block"
+        }
+        return show_modal_style, profile_options, current_user, delete_options
+    
+    elif trigger_id == 'delete-profile-btn' and delete_profile_selection:
+        # Delete profile using dropdown selection
+        profiles = load_profiles()
+        if delete_profile_selection in profiles and delete_profile_selection != 'Guest':
+            del profiles[delete_profile_selection]
+            save_profiles(profiles)
+            
+            # Switch back to Guest if deleting current user
+            if current_user == delete_profile_selection:
+                current_user = 'Guest'
+                portfolios.clear()
+                portfolios.update(DEFAULT_PORTFOLIOS.copy())
+                custom_metrics.clear()
+            
+            # Update profile options and hide modal
+            profile_options = [{'label': 'Guest', 'value': 'Guest'}]
+            profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
+            updated_delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
+            
+            return hidden_modal_style, profile_options, current_user, updated_delete_options
+        else:
+            # Cannot delete Guest or non-existent profile
+            return hidden_modal_style, profile_options, current_user, delete_options
+    
+    elif trigger_id == 'login-cancel':
+        # Hide modal
+        return hidden_modal_style, profile_options, current_user, delete_options
+    
+    elif trigger_id in ['login-submit', 'register-submit'] and username:
+        # Handle login/register
+        if trigger_id == 'register-submit' or username not in profiles:
+            # Register new user or auto-register
+            profiles[username] = {'portfolios': {}, 'custom_metrics': {}, 'created': datetime.now().isoformat()}
+            save_profiles(profiles)
+        
+        # Switch to user
+        current_user = username
+        user_data = get_user_data(username)
+        portfolios.update(user_data.get('portfolios', {}))
+        custom_metrics.update(user_data.get('custom_metrics', {}))
+        
+        # Hide modal and update profile options
+        profile_options = [{'label': 'Guest', 'value': 'Guest'}]
+        profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
+        updated_delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
+        
+        return hidden_modal_style, profile_options, current_user, updated_delete_options
+    
+    elif trigger_id == 'profile-dropdown' and selected_profile:
+        # Profile switching is handled by separate callback
+        # Just return the current state
+        return hidden_modal_style, profile_options, selected_profile, delete_options
+    
+    return hidden_modal_style, profile_options, current_user, delete_options
+
+@callback(
+    [Output('portfolio-dropdown', 'options', allow_duplicate=True),
+     Output('portfolio-dropdown', 'value', allow_duplicate=True)],
+    Input('profile-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def update_portfolio_dropdowns_on_profile_change(selected_profile):
+    """Update main portfolio dropdowns when profile changes"""
+    global current_user, portfolios, custom_metrics
+    
+    if selected_profile:
+        current_user = selected_profile
+        
+        # Get profile-specific portfolios
+        if current_user == 'Guest':
+            portfolios.clear()
+            portfolios.update(DEFAULT_PORTFOLIOS.copy())
+            custom_metrics.clear()
+            
+            # Remove any custom metric columns from dataframe
+            custom_metric_cols = [col for col in facilities_df.columns if col not in ['facility_id', 'obligor_name', 'balance', 'interest_rate', 'lob', 'industry', 'cre_property_type', 'obligor_rating', 'msa', 'origination_date', 'maturity_date', 'reporting_date', 'ltv', 'dscr', 'tier_1_capital_ratio', 'free_cash_flow', 'current_ratio', 'debt_to_equity', 'sir']]
+            for col in custom_metric_cols:
+                if col in facilities_df.columns:
+                    facilities_df.drop(columns=[col], inplace=True)
+        else:
+            user_data = get_user_data(current_user)
+            portfolios.clear()
+            user_portfolios = user_data.get('portfolios', {})
+            if user_portfolios:
+                portfolios.update(user_portfolios)
+            else:
+                portfolios.update(DEFAULT_PORTFOLIOS.copy())
+            custom_metrics.clear()
+            custom_metrics.update(user_data.get('custom_metrics', {}))
+            
+            # Recalculate custom metrics for the dataframe
+            for metric_name, formula in custom_metrics.items():
+                try:
+                    # Get available columns for calculation
+                    exclude_cols = ['facility_id', 'obligor_name', 'origination_date', 'maturity_date', 'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa']
+                    available_cols = [col for col in facilities_df.columns if col not in exclude_cols]
+                    
+                    # Create bulk formula for calculation
+                    bulk_formula = formula
+                    for col in available_cols:
+                        if col in bulk_formula:
+                            bulk_formula = bulk_formula.replace(col, f"facilities_df['{col}']")
+                    
+                    # Calculate and add to dataframe
+                    result = eval(bulk_formula)
+                    if hasattr(result, 'dtype') and result.dtype == bool:
+                        result = result.astype(int)
+                    facilities_df[metric_name] = result
+                except:
+                    # If bulk calculation fails, skip this metric
+                    pass
+        
+        # Create portfolio options
+        portfolio_options = [{'label': name, 'value': name} for name in portfolios.keys()]
+        default_portfolio = list(portfolios.keys())[0] if portfolios else None
+        
+        return portfolio_options, default_portfolio
+    
+    return no_update, no_update
+
+@callback(
+    [Output('save-notification', 'style'),
+     Output('save-message', 'children'),
+     Output('hide-notification-interval', 'disabled')],
+    Input('auto-save-interval', 'n_intervals'),
+    prevent_initial_call=True
+)
+def show_auto_save_notification(n_intervals):
+    """Show auto-save notification"""
+    if current_user != 'Guest' and n_intervals > 0:
+        # Save current data
+        save_user_data(current_user, portfolios, custom_metrics)
+        
+        # Show notification and enable hide timer
+        return ({
+            "position": "fixed", "bottom": "20px", "right": "20px", 
+            "zIndex": "1000", "opacity": "1", "transition": "opacity 0.3s ease",
+            "display": "block"
+        }, f"Profile '{current_user}' auto-saved", False)
+    
+    # Hide notification and disable timer
+    return ({
+        "position": "fixed", "bottom": "20px", "right": "20px", 
+        "zIndex": "1000", "opacity": "0", "transition": "opacity 0.3s ease",
+        "display": "none"
+    }, "Data auto-saved", True)
+
+# Auto-hide notification after 3 seconds
+@callback(
+    [Output('save-notification', 'style', allow_duplicate=True),
+     Output('hide-notification-interval', 'disabled', allow_duplicate=True)],
+    Input('hide-notification-interval', 'n_intervals'),
+    prevent_initial_call=True
+)
+def hide_notification_after_delay(n_intervals):
+    """Hide notification after 3 seconds"""
+    if n_intervals > 0:
+        return ({
+            "position": "fixed", "bottom": "20px", "right": "20px", 
+            "zIndex": "1000", "opacity": "0", "transition": "opacity 0.3s ease",
+            "display": "none"
+        }, True)  # Hide notification and disable timer
+    return no_update, no_update
+
+# Update vintage analysis dropdown when portfolio dropdown changes
+@callback(
+    [Output('vintage-portfolio-dropdown', 'options', allow_duplicate=True),
+     Output('vintage-portfolio-dropdown', 'value', allow_duplicate=True)],
+    Input('portfolio-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def update_vintage_dropdown_from_main(selected_portfolio):
+    """Update vintage portfolio dropdown when main portfolio changes"""
+    portfolio_options = [{'label': name, 'value': name} for name in portfolios.keys()]
+    return portfolio_options, selected_portfolio
 
 app.layout = create_layout()
 

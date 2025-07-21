@@ -3,7 +3,9 @@
     "allow": [
       "Bash(python3:*)",
       "Bash(python:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(sed:*)",
+      "Bash(cut:*)"
     ],
     "deny": []
   }
