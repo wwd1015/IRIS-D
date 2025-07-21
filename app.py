@@ -1,3 +1,16 @@
+#!/usr/bin/env python3
+"""
+Portfolio Performance Dashboard
+
+A comprehensive portfolio performance dashboard for Corporate Banking and Commercial Real Estate 
+portfolios built with Dash and Python. Features custom metrics, user profiles, and interactive 
+visualizations for portfolio analysis.
+
+Author: Portfolio Management Team
+Version: 1.0
+Dependencies: dash, pandas, numpy, plotly
+"""
+
 import dash
 from dash import dcc, html, Input, Output, callback, State, no_update, callback_context, MATCH
 import plotly.graph_objs as go
@@ -15,7 +28,7 @@ import json
 import os
 from threading import Timer
 
-# Initialize global variables
+# Global Variables
 custom_metrics = {}  # Store custom metric formulas
 
 # Default portfolios (constant)
@@ -90,8 +103,6 @@ auto_save_data()  # Start auto-save timer
 # Load data
 try:
     facilities_df = pd.read_csv('data/facilities.csv')
-    covenants_df = pd.read_csv('data/covenants.csv')
-    alerts_df = pd.read_csv('data/alerts.csv')
     
     # Get latest data for each facility (most recent reporting date)
     latest_facilities = facilities_df.sort_values('reporting_date').groupby('facility_id').tail(1)
