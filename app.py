@@ -27,6 +27,9 @@ import re
 import json
 import os
 from threading import Timer
+from sqlalchemy import create_engine
+from datatidy import DataTidy
+import yaml
 
 # Global Variables
 custom_metrics = {}  # Store custom metric formulas
@@ -96,13 +99,62 @@ def auto_save_data():
     auto_save_timer = Timer(15.0, auto_save_data)
     auto_save_timer.start()
 
+# Data Loading Functions - Integrated directly into app
+def load_facilities_data():
+    """
+    Load facilities data using DataTidy transformations with fallback
+    Returns: pd.DataFrame: Processed facilities data
+    """
+    db_path = 'data/bank_risk.db'
+    config_path = 'data/datatidy_config.yaml'
+    
+    if not os.path.exists(db_path):
+        raise FileNotFoundError(f"Database not found: {db_path}. Please run db_data_generator.py first.")
+    
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"DataTidy config not found: {config_path}. Please run db_data_generator.py first.")
+    
+    try:
+        print("Loading facilities data from database via DataTidy...")
+        
+        # Load DataTidy config
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Process with DataTidy
+        dt = DataTidy()
+        dt.load_config(config)
+        df = dt.process_data()
+        
+        print(f"✓ Loaded {len(df)} facility records from database via DataTidy")
+        derived_fields = [col for col in df.columns if col in ['balance_millions', 'risk_category']]
+        if derived_fields:
+            print(f"✓ DataFrame includes derived fields: {derived_fields}")
+        return df
+        
+    except Exception as e:
+        print(f"DataTidy processing failed: {e}")
+        print("Falling back to direct database query...")
+        
+        try:
+            # Direct database fallback
+            engine = create_engine(f'sqlite:///{db_path}')
+            df = pd.read_sql('SELECT * FROM raw_facilities ORDER BY facility_id, reporting_date', engine)
+            print(f"✓ Loaded {len(df)} facility records from database (direct query)")
+            return df
+        except Exception as e2:
+            raise Exception(f"Both DataTidy and direct database query failed. DataTidy error: {e}. Database error: {e2}")
+
 # Initialize profiles and start auto-save
 user_profiles = load_profiles()
 auto_save_data()  # Start auto-save timer
 
-# Load data
+# Load data using integrated DataTidy pipeline
 try:
-    facilities_df = pd.read_csv('data/facilities.csv')
+    print("=== Bank Risk Dashboard - Integrated DataTidy Processing ===")
+    
+    # Load facilities data directly with integrated processing
+    facilities_df = load_facilities_data()
     
     # Get latest data for each facility (most recent reporting date)
     latest_facilities = facilities_df.sort_values('reporting_date').groupby('facility_id').tail(1)
@@ -112,8 +164,12 @@ try:
     available_portfolios = list(portfolios.keys())
     default_portfolio = available_portfolios[0] if len(available_portfolios) > 0 else 'Corporate Banking Portfolio'
     
-except FileNotFoundError:
-    print("Data files not found. Please run data_generator.py first.")
+    print(f"✓ Loaded {len(facilities_df)} facility records")
+    print(f"✓ Integrated pipeline: Database -> DataTidy -> DataFrame -> Dashboard")
+    
+except Exception as e:
+    print(f"✗ Data loading failed: {e}")
+    print("Please run db_data_generator.py to create database and DataTidy config.")
     # Create dummy data for testing
     facilities_df = pd.DataFrame({
         'facility_id': ['F001', 'F002', 'F003'],

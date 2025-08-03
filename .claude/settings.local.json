@@ -6,7 +6,14 @@
       "Bash(grep:*)",
       "Bash(sed:*)",
       "Bash(cut:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "WebFetch(domain:pypi.org)",
+      "Bash(pip install:*)",
+      "Bash(sqlite3:*)",
+      "Bash(timeout:*)",
+      "Bash(lsof:*)",
+      "Bash(kill:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }
