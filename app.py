@@ -188,28 +188,50 @@ except Exception as e:
 
 # Initialize the Dash app with modern styling
 app = dash.Dash(__name__, suppress_callback_exceptions=True, assets_folder='assets')
+server = app.server  # Flask server for custom routes
 
-# Custom HTML template with modern styling
+# Custom HTML template with Tailwind CSS and dark mode support
 app.index_string = '''
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>Portfolio Performance Dashboard</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-        {%metas%}
-        {%favicon%}
-        {%css%}
-    </head>
-    <body>
-        {%app_entry%}
-        <footer>
-            {%config%}
-            {%scripts%}
-            {%renderer%}
-        </footer>
-    </body>
+<html lang="en" class="no-js">
+  <head>
+    <meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Bank Risk Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: { extend: {
+          colors: {
+            ink: { 900:'#0f172a',800:'#1e293b',700:'#334155',600:'#475569',500:'#64748b',100:'#e2e8f0',50:'#f1f5f9' },
+            brand: {500:'#8b5cf6',400:'#a855f7',300:'#c4b5fd'}
+          },
+          boxShadow: { soft: '0 2px 10px rgba(15,23,42,.06)'}
+        }}
+      };
+      // theme bootstrap (before paint)
+      (function(){
+        const s = localStorage.getItem('theme');
+        if (s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    {%metas%}
+    {%favicon%}
+    {%css%}
+  </head>
+  <body class="bg-ink-50 text-ink-800 dark:bg-ink-900 dark:text-slate-200 font-[Inter,system-ui]">
+    <div id="root">{%app_entry%}</div>
+    <footer>
+      {%config%}
+      {%scripts%}
+      {%renderer%}
+    </footer>
+  </body>
 </html>
 '''
 
@@ -252,87 +274,97 @@ def get_filtered_data(portfolio_name):
     return filtered_data
 
 def create_portfolio_sidebar(selected_portfolio):
-    """Create the portfolio selection sidebar with modern styling"""
-    return html.Div([
+    """Create the portfolio selection sidebar with modern Tailwind styling"""
+    return html.Section([
+        html.Header([
+            html.H2("Portfolios", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
         html.Div([
-            html.H3("Portfolios", className="sidebar-title"),
             dcc.Dropdown(
                 id='portfolio-dropdown',
                 options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
                 value=selected_portfolio,
                 placeholder="Select portfolio...",
-                className="form-select"
-            )
-        ], className="sidebar-header"),
-        # Always visible Portfolio Creator & Manager Section
-        html.Div([
-            html.H4("Create New Portfolio", className="sidebar-title"),
+                className="text-xs",
+                style={"marginBottom": "16px", "fontSize": "12px"}
+            ),
+            
+            # Portfolio Creator & Manager Section
             html.Div([
-                html.Label("Line of Business", className="form-label"),
-                dcc.Dropdown(
-                    id='lob-dropdown',
-                    options=[
-                        {'label': 'Corporate Banking', 'value': 'Corporate Banking'},
-                        {'label': 'CRE', 'value': 'CRE'}
-                    ],
-                    placeholder="Select LOB...",
-                    className="form-select"
-                )
-            ], className="form-group"),
-            html.Div([
-                html.Label("Industry", className="form-label"),
-                dcc.Dropdown(
-                    id='industry-dropdown',
-                    options=[],
-                    placeholder="Select Industry...",
-                    className="form-select",
-                    multi=True
-                )
-            ], className="form-group", id='industry-group', style={'display': 'none'}),
-            html.Div([
-                html.Label("Property Type", className="form-label"),
-                dcc.Dropdown(
-                    id='property-type-dropdown',
-                    options=[],
-                    placeholder="Select Property Type...",
-                    className="form-select",
-                    multi=True
-                )
-            ], className="form-group", id='property-type-group', style={'display': 'none'}),
-            html.Div([
-                html.Label("OR Select Obligors Directly", className="form-label"),
-                dcc.Dropdown(
-                    id='obligor-dropdown',
-                    options=[],
-                    placeholder="Select obligors...",
-                    className="form-select",
-                    multi=True
-                )
-            ], className="form-group", id='obligor-group'),
-            html.Div([
-                html.Label("Portfolio Name", className="form-label"),
-                dcc.Input(
-                    id='portfolio-name-input',
-                    type='text',
-                    placeholder="Enter portfolio name...",
-                    className="form-input"
-                )
-            ], className="form-group"),
-            html.Button("Save Portfolio", id='save-portfolio-btn', className="btn btn-primary btn-lg"),
-            html.Hr(),
-            html.H4("Delete Portfolio", className="sidebar-title", style={"marginTop": "2rem"}),
-            html.Div([
-                html.Label("Select Portfolio to Delete", className="form-label"),
-                dcc.Dropdown(
-                    id='delete-portfolio-dropdown',
-                    options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios if portfolio not in ['Corporate Banking', 'CRE']],
-                    placeholder="Select portfolio to delete...",
-                    className="form-select"
-                )
-            ], className="form-group"),
-            html.Button("Delete Portfolio", id='delete-portfolio-btn', className="btn btn-outline btn-lg")
-        ], className="p-4")
-    ], className="sidebar")
+                html.H3("Create New Portfolio", className="text-sm font-semibold mb-3 text-brand-500"),
+                html.Div([
+                    html.Label("Line of Business", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Dropdown(
+                        id='lob-dropdown',
+                        options=[
+                            {'label': 'Corporate Banking', 'value': 'Corporate Banking'},
+                            {'label': 'CRE', 'value': 'CRE'}
+                        ],
+                        placeholder="Select LOB...",
+                        className="text-xs mb-3"
+                    )
+                ], className="mb-3"),
+                html.Div([
+                    html.Label("Industry", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Dropdown(
+                        id='industry-dropdown',
+                        options=[],
+                        placeholder="Select Industry...",
+                        className="text-xs",
+                        multi=True
+                    )
+                ], className="mb-3", id='industry-group', style={'display': 'none'}),
+                html.Div([
+                    html.Label("Property Type", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Dropdown(
+                        id='property-type-dropdown',
+                        options=[],
+                        placeholder="Select Property Type...",
+                        className="text-xs",
+                        multi=True
+                    )
+                ], className="mb-3", id='property-type-group', style={'display': 'none'}),
+                html.Div([
+                    html.Label("OR Select Obligors Directly", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Dropdown(
+                        id='obligor-dropdown',
+                        options=[],
+                        placeholder="Select obligors...",
+                        className="text-xs",
+                        multi=True
+                    )
+                ], className="mb-3", id='obligor-group'),
+                html.Div([
+                    html.Label("Portfolio Name", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Input(
+                        id='portfolio-name-input',
+                        type='text',
+                        placeholder="Enter portfolio name...",
+                        className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                    )
+                ], className="mb-3"),
+                html.Button("Save Portfolio", id='save-portfolio-btn', 
+                           className="w-full mb-4 px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
+                
+                # Separator
+                html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
+                
+                # Delete Portfolio Section
+                html.H3("Delete Portfolio", className="text-sm font-semibold mb-3 text-red-600"),
+                html.Div([
+                    html.Label("Select Portfolio to Delete", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Dropdown(
+                        id='delete-portfolio-dropdown',
+                        options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios if portfolio not in ['Corporate Banking', 'CRE']],
+                        placeholder="Select portfolio to delete...",
+                        className="text-xs"
+                    )
+                ], className="mb-3"),
+                html.Button("Delete Portfolio", id='delete-portfolio-btn', 
+                           className="w-full px-3 py-2 text-xs border border-red-300 text-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900 transition-colors")
+            ], className="space-y-3 mt-4")
+        ], className="p-4 flex-1 overflow-auto")
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
 
 def create_charts(selected_portfolio):
     """Create charts for the selected portfolio with dark theme and purple styling"""
@@ -511,7 +543,7 @@ def create_watchlist_table(selected_portfolio):
     ], className="table-container")
 
 def create_positions_panel(selected_portfolio):
-    """Create portfolio positions panel styled to match the screenshot's rightmost column"""
+    """Create portfolio positions panel with modern Tailwind styling"""
     # Get current quarter end data only
     current_quarter_end = facilities_df['reporting_date'].max()
     
@@ -569,61 +601,61 @@ def create_positions_panel(selected_portfolio):
         if percent > 0:
             rating_rows.append(
                 html.Div([
-                    html.Span(f"{rating}"),
-                    html.Span(f"{percent:.1f}%", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"})
+                    html.Span(f"{rating}", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{percent:.1f}%", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between")
             )
 
     return html.Div([
         html.Div([
             html.Div([
-                html.Span("Portfolio", style={"fontWeight": "bold"}),
+                html.Span("Portfolio", className="text-xs font-semibold text-ink-800 dark:text-slate-200"),
                 html.Div([
-                    html.Span(selected_portfolio),
-                    html.Span(f"{pct_of_total:.1f}%", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between", "marginTop": "4px"})
+                    html.Span(selected_portfolio, className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{pct_of_total:.1f}%", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between mt-1")
             ]),
-            html.Hr(style={"margin": "8px 0"}),
+            html.Hr(className="my-2 border-slate-200 dark:border-ink-700"),
             html.Div([
-                html.Span("Portfolio Totals", style={"fontWeight": "bold"}),
+                html.Span("Portfolio Totals", className="text-xs font-semibold text-ink-800 dark:text-slate-200"),
                 html.Div([
-                    html.Span("Total Balance"),
-                    html.Span(f"${total_balance:,.0f}", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"}),
+                    html.Span("Total Balance", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"${total_balance:,.0f}", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between"),
                 html.Div([
-                    html.Span("Avg Risk Rating"),
-                    html.Span(f"{avg_rating:.2f}" if avg_rating is not None else "N/A", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"}),
+                    html.Span("Avg Risk Rating", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{avg_rating:.2f}" if avg_rating is not None else "N/A", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between"),
                 html.Div([
-                    html.Span("Avg Maturity (Yrs)"),
-                    html.Span(f"{avg_maturity_yrs:.2f}", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"})
-            ], style={"marginTop": "8px"}),
-            html.Hr(style={"margin": "8px 0"}),
+                    html.Span("Avg Maturity (Yrs)", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{avg_maturity_yrs:.2f}", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between")
+            ], className="mt-2 space-y-1"),
+            html.Hr(className="my-2 border-slate-200 dark:border-ink-700"),
             html.Div([
-                html.Span("Eff. Maturities", style={"fontWeight": "bold"}),
+                html.Span("Eff. Maturities", className="text-xs font-semibold text-ink-800 dark:text-slate-200"),
                 html.Div([
-                    html.Span("1-3 Yrs"),
-                    html.Span(f"{maturity_percents[0]:.2f}%", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"}),
+                    html.Span("1-3 Yrs", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{maturity_percents[0]:.2f}%", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between"),
                 html.Div([
-                    html.Span("3-5 Yrs"),
-                    html.Span(f"{maturity_percents[1]:.2f}%", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"}),
+                    html.Span("3-5 Yrs", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{maturity_percents[1]:.2f}%", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between"),
                 html.Div([
-                    html.Span(">5 Yrs"),
-                    html.Span(f"{maturity_percents[2]:.2f}%", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"}),
+                    html.Span(">5 Yrs", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{maturity_percents[2]:.2f}%", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between"),
                 html.Div([
-                    html.Span("N/A"),
-                    html.Span(f"{na_percent:.2f}%", style={"float": "right"})
-                ], style={"display": "flex", "justifyContent": "space-between"})
-            ], style={"marginTop": "8px"}),
-            html.Hr(style={"margin": "8px 0"}),
+                    html.Span("N/A", className="text-xs text-ink-700 dark:text-slate-300"),
+                    html.Span(f"{na_percent:.2f}%", className="text-xs text-ink-600 dark:text-slate-400")
+                ], className="flex justify-between")
+            ], className="mt-2 space-y-1"),
+            html.Hr(className="my-2 border-slate-200 dark:border-ink-700"),
             html.Div([
-                html.Span("Ratings", style={"fontWeight": "bold"}),
+                html.Span("Ratings", className="text-xs font-semibold text-ink-800 dark:text-slate-200"),
                 *rating_rows
-            ], style={"marginTop": "8px"})
+            ], className="mt-2 space-y-1")
         ], className="p-4")
     ], className="chart-card positions-panel")
 
@@ -638,55 +670,61 @@ def create_main_content(selected_portfolio):
     else:
         pie_chart_title = "Holdings by Property Type"
     
-    return html.Div([
+    return html.Section([
         html.Div([
             html.Div([
-                html.H3("Top 10 Holdings by Borrowers", className="chart-title"),
                 html.Div([
-                    dcc.Graph(
-                        figure=bar_fig, 
-                        config={'displayModeBar': False},
-                        className="dash-graph"
-                    )
-                ])
-            ], className="chart-card"),
+                    html.H3("Top 10 Holdings by Borrowers", className="text-sm font-semibold"),
+                    html.Div("Asset Type = Corporate Banking", className="text-xs text-ink-500 dark:text-slate-400")
+                ], className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-ink-700"),
+                dcc.Graph(
+                    figure=bar_fig, 
+                    config={'displayModeBar': False}
+                )
+            ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 p-4"),
             html.Div([
-                html.H3(pie_chart_title, className="chart-title"),
                 html.Div([
-                    dcc.Graph(
-                        figure=pie_fig, 
-                        config={'displayModeBar': False},
-                        className="dash-graph"
-                    )
-                ])
-            ], className="chart-card")
-        ], className="charts-grid"),
+                    html.H3(pie_chart_title, className="text-sm font-semibold"),
+                    html.Div("Portfolio Distribution", className="text-xs text-ink-500 dark:text-slate-400")
+                ], className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-ink-700"),
+                dcc.Graph(
+                    figure=pie_fig, 
+                    config={'displayModeBar': False}
+                )
+            ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 p-4")
+        ], className="grid grid-cols-1 xl:grid-cols-2 gap-4"),
         html.Div([
-            html.H3("Credit Watchlist", className="chart-title"),
+            html.Div([
+                html.H3("Credit Watchlist", className="text-sm font-semibold"),
+                html.Div("High Risk Facilities", className="text-xs text-ink-500 dark:text-slate-400")
+            ], className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-ink-700 mb-4"),
             create_watchlist_table(selected_portfolio)
-        ], className="chart-card credit-watchlist-card")
-    ], className="main-content")
+        ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 p-4 mt-4")
+    ])
 
 def create_holdings_sidebar(selected_portfolio):
-    """Create simplified sidebar for Holdings tab"""
-    return html.Div([
+    """Create simplified sidebar for Holdings tab with consistent styling"""
+    return html.Section([
+        html.Header([
+            html.H2("Holdings", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
         html.Div([
-            html.H3("Portfolios", className="sidebar-title"),
             html.Div([
-                html.Label("Portfolio:", className="form-label"),
+                html.Label("Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='portfolio-dropdown',
                     options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
                     value=selected_portfolio,
                     placeholder="Select portfolio...",
-                    className="form-select"
+                    className="text-xs",
+                    style={"fontSize": "12px"}
                 )
-            ], className="form-group"),
-            html.Hr(),
-            html.H4("Filters", className="sidebar-title"),
+            ], className="mb-4"),
+            html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
+            html.H3("Filters", className="text-sm font-semibold mb-3 text-brand-500"),
             html.Div(id='holdings-filters-container', children=create_holdings_filters(selected_portfolio))
-        ], className="p-4")
-    ], className="sidebar")
+        ], className="p-4 flex-1 overflow-auto")
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
 
 def create_holdings_filters(selected_portfolio):
     """Create dynamic filters based on portfolio type"""
@@ -701,32 +739,34 @@ def create_holdings_filters(selected_portfolio):
     obligor_options = sorted(portfolio_data['obligor_name'].unique())
     filters.append(
         html.Div([
-            html.Label("Obligor:", className="form-label"),
+            html.Label("Obligor:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
             dcc.Dropdown(
                 id='holdings-obligor-filter',
                 options=[{'label': obligor, 'value': obligor} for obligor in obligor_options],
                 value=None,
                 placeholder="All obligors...",
-                className="form-select",
+                className="text-xs",
+                style={"fontSize": "12px"},
                 multi=True
             )
-        ], className="form-group")
+        ], className="mb-3")
     )
     
     # Rating filter (common to all portfolios)
     rating_options = sorted(portfolio_data['obligor_rating'].unique())
     filters.append(
         html.Div([
-            html.Label("Rating:", className="form-label"),
+            html.Label("Rating:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
             dcc.Dropdown(
                 id='holdings-rating-filter',
                 options=[{'label': str(rating), 'value': rating} for rating in rating_options],
                 value=None,
                 placeholder="All ratings...",
-                className="form-select",
+                className="text-xs",
+                style={"fontSize": "12px"},
                 multi=True
             )
-        ], className="form-group")
+        ], className="mb-3")
     )
     
     # Portfolio-specific filters
@@ -735,16 +775,17 @@ def create_holdings_filters(selected_portfolio):
         industry_options = sorted(portfolio_data['industry'].dropna().unique())
         filters.append(
             html.Div([
-                html.Label("Industry:", className="form-label"),
+                html.Label("Industry:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='holdings-industry-filter',
                     options=[{'label': industry, 'value': industry} for industry in industry_options],
                     value=None,
                     placeholder="All industries...",
-                    className="form-select",
+                    className="text-xs",
+                    style={"fontSize": "12px"},
                     multi=True
                 )
-            ], className="form-group")
+            ], className="mb-3")
         )
     
     elif portfolio_criteria['lob'] == 'CRE':
@@ -752,32 +793,34 @@ def create_holdings_filters(selected_portfolio):
         property_options = sorted(portfolio_data['cre_property_type'].dropna().unique())
         filters.append(
             html.Div([
-                html.Label("Property Type:", className="form-label"),
+                html.Label("Property Type:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='holdings-property-filter',
                     options=[{'label': prop_type, 'value': prop_type} for prop_type in property_options],
                     value=None,
                     placeholder="All property types...",
-                    className="form-select",
+                    className="text-xs",
+                    style={"fontSize": "12px"},
                     multi=True
                 )
-            ], className="form-group")
+            ], className="mb-3")
         )
         
         # MSA filter for CRE
         msa_options = sorted(portfolio_data['msa'].dropna().unique())
         filters.append(
             html.Div([
-                html.Label("MSA:", className="form-label"),
+                html.Label("MSA:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='holdings-msa-filter',
                     options=[{'label': msa, 'value': msa} for msa in msa_options],
                     value=None,
                     placeholder="All MSAs...",
-                    className="form-select",
+                    className="text-xs",
+                    style={"fontSize": "12px"},
                     multi=True
                 )
-            ], className="form-group")
+            ], className="mb-3")
         )
     
     # Balance range filter
@@ -904,7 +947,7 @@ def create_holdings_table(selected_portfolio, rating_filter=None, obligor_filter
 def create_holdings_content(selected_portfolio):
     """Create the Holdings tab content"""
     return html.Div([
-        html.Div(id='holdings-table-container', children=create_holdings_table(selected_portfolio))
+        html.Div(id='holdings-table-container', children=create_holdings_table(selected_portfolio)),
     ], className="main-content")
 
 def create_vintage_analysis_sidebar(selected_portfolio):
@@ -926,22 +969,26 @@ def create_vintage_analysis_sidebar(selected_portfolio):
     # Default to last 3 quarters
     default_quarters = [opt['value'] for opt in quarterly_options[-3:]] if len(quarterly_options) >= 3 else [opt['value'] for opt in quarterly_options]
     
-    return html.Div([
+    return html.Section([
+        html.Header([
+            html.H2("Vintage Analysis", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
         html.Div([
             # Portfolio Selection
             html.Div([
-                html.Label("Portfolio:", className="form-label"),
+                html.Label("Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='vintage-portfolio-dropdown',
                     options=[{'label': portfolio, 'value': portfolio} for portfolio in portfolios.keys()],
                     value=selected_portfolio or default_portfolio,
-                    className="customDropdown"
+                    className="text-xs",
+                    style={"fontSize": "12px"}
                 )
-            ], className="form-group"),
+            ], className="mb-3"),
             
             # Analysis Type Selection
             html.Div([
-                html.Label("Analysis Type:", className="form-label"),
+                html.Label("Analysis Type:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='vintage-analysis-type',
                     options=[
@@ -949,35 +996,38 @@ def create_vintage_analysis_sidebar(selected_portfolio):
                         {'label': 'Metric Trend', 'value': 'metric_trend'}
                     ],
                     value='default_rates',
-                    className="customDropdown"
+                    className="text-xs",
+                    style={"fontSize": "12px"}
                 )
-            ], className="form-group"),
+            ], className="mb-3"),
             
             # Metric Selection (conditional)
             html.Div([
-                html.Label("Metric:", className="form-label"),
+                html.Label("Metric:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='vintage-metric-dropdown',
                     options=[],
                     value=None,
-                    className="customDropdown"
+                    className="text-xs",
+                    style={"fontSize": "12px"}
                 )
-            ], className="form-group", id='vintage-metric-selector', style={'display': 'none'}),
+            ], className="mb-3", id='vintage-metric-selector', style={'display': 'none'}),
             
             # Quarterly Cohort Selection
             html.Div([
-                html.Label("Select Quarterly Cohorts:", className="form-label"),
+                html.Label("Select Quarterly Cohorts:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='vintage-vintage-quarters',
                     options=quarterly_options,
                     value=default_quarters,
                     multi=True,
-                    className="customDropdown"
+                    className="text-xs",
+                    style={"fontSize": "12px"}
                 )
-            ], className="form-group"),
+            ], className="mb-3")
             
-        ], className="p-4")
-    ], className="sidebar")
+        ], className="p-4 flex-1 overflow-auto")
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
 
 def create_vintage_analysis_content(selected_portfolio):
     """Create the vintage analysis chart content area using Financial Trends structure"""
@@ -989,56 +1039,61 @@ def create_vintage_analysis_content(selected_portfolio):
     ], className="main-content")
 
 def create_financial_trends_sidebar(selected_portfolio):
-    """Create simplified sidebar for Financial Trends tab"""
-    return html.Div([
+    """Create simplified sidebar for Financial Trends tab with consistent styling"""
+    return html.Section([
+        html.Header([
+            html.H2("Financial Trends", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
         html.Div([
-            html.H3("Portfolios", className="sidebar-title"),
             html.Div([
-                html.Label("Portfolio:", className="form-label"),
+                html.Label("Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='portfolio-dropdown',
                     options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
                     value=selected_portfolio,
                     placeholder="Select portfolio...",
-                    className="form-select"
+                    className="text-xs",
+                    style={"fontSize": "12px"}
                 )
-            ], className="form-group"),
+            ], className="mb-3"),
             html.Div([
-                html.Label("Benchmark Portfolio:", className="form-label"),
+                html.Label("Benchmark Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='financial-trends-benchmark-dropdown',
                     options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
                     value=None,
                     placeholder="Select benchmark portfolio...",
-                    className="form-select"
+                    className="text-xs",
+                    style={"fontSize": "12px"}
                 )
-            ], className="form-group"),
-            html.Hr(),
-            html.H4("Create Custom Metric", className="sidebar-title", style={"marginTop": "2rem"}),
+            ], className="mb-4"),
+            html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
+            html.H3("Create Custom Metric", className="text-sm font-semibold mb-3 text-brand-500"),
             html.Div([
-                html.Label("Formula:", className="form-label"),
+                html.Label("Formula:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 html.P("Supports conditions & backticks. Use == for equality. Examples: (obligor_rating == 14) * 1, `free cash flow` / liquidity", 
-                       className="form-label", style={"fontSize": "0.8rem", "color": "#6b7280", "marginBottom": "0.5rem"}),
+                       className="text-xs text-ink-500 dark:text-slate-400 mb-2"),
                 dcc.Input(
                     id='custom-metric-formula',
                     type='text',
                     placeholder="e.g., (obligor_rating == 14) * 1",
-                    className="form-input"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 )
-            ], className="form-group"),
+            ], className="mb-3"),
             html.Div([
-                html.Label("Metric Name:", className="form-label"),
+                html.Label("Metric Name:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Input(
                     id='custom-metric-name',
                     type='text',
                     placeholder="Enter metric name...",
-                    className="form-input"
+                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 )
-            ], className="form-group"),
-            html.Button("Create Metric", id='create-metric-btn', className="btn btn-primary btn-lg"),
-            html.Div(id='metric-creation-alert', style={"marginTop": "1rem"})
-        ], className="p-4")
-    ], className="sidebar")
+            ], className="mb-3"),
+            html.Button("Create Metric", id='create-metric-btn', 
+                       className="w-full px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
+            html.Div(id='metric-creation-alert', className="mt-3")
+        ], className="p-4 flex-1 overflow-auto")
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
 
 def get_portfolio_metrics(selected_portfolio):
     """Get appropriate metrics based on portfolio type and available data columns"""
@@ -1175,43 +1230,51 @@ def create_financial_trends_content(selected_portfolio):
     ], className="main-content")
 
 def create_layout(selected_portfolio=None):
-    """Create the main layout with dark theme and three-column design"""
+    """Create the main layout with modern Tailwind styling"""
     if selected_portfolio is None:
         selected_portfolio = default_portfolio
-    return html.Div([
-        # Header
-        html.Div([
+    return html.Div(className="min-h-screen", children=[
+        # Modern Header with Tailwind styling
+        html.Header([
             html.Div([
-                html.H1("Portfolio Performance Dashboard", className="header-title"),
                 html.Div([
-                    # Profile Dropdown
-                    html.Div([
-                        dcc.Dropdown(
-                            id='profile-dropdown',
-                            options=[{'label': 'Guest', 'value': 'Guest'}],
-                            value='Guest',
-                            className="profile-dropdown",
-                            style={"width": "120px", "marginRight": "10px"}
-                        )
-                    ], style={"display": "inline-block"}),
-                    # Login/Register Button
-                    html.Button("Login/Register", id="login-btn", className="btn btn-primary", n_clicks=0)
-                ], className="header-actions", style={"marginLeft": "auto", "justifyContent": "flex-end", "display": "flex", "alignItems": "center"})
-            ], className="header-content")
-        ], className="header"),
-        # Tab Navigation
-        html.Div([
-            dcc.Tabs(id="main-tabs", value="portfolio-summary", children=[
-                dcc.Tab(label="Portfolio Summary", value="portfolio-summary", className="tab"),
-                dcc.Tab(label="Holdings", value="holdings", className="tab"),
-                dcc.Tab(label="Financial Trends", value="financial-trends", className="tab"),
-                dcc.Tab(label="Vintage Analysis", value="vintage-analysis", className="tab")
-            ], className="tabs-container")
-        ], className="tabs-wrapper"),
-        # Main content
-        html.Div([
+                    html.Div(className="h-6 w-6 rounded bg-brand-500"),
+                    html.Div("Bank Risk Dashboard", className="text-sm text-ink-600 dark:text-slate-300"),
+                    html.Span("PROD", className="text-[10px] font-semibold text-white bg-brand-500 rounded px-1.5 py-0.5")
+                ], className="flex items-center gap-3"),
+                html.Div([
+                    # Profile Dropdown with modern styling
+                    dcc.Dropdown(
+                        id='profile-dropdown',
+                        options=[{'label': 'Guest', 'value': 'Guest'}],
+                        value='Guest',
+                        className="text-xs",
+                        style={"width": "120px", "fontSize": "12px"}
+                    ),
+                    html.Button("Login/Register", id="login-btn", n_clicks=0,
+                                className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700"),
+                    html.Button("Dark", id="theme-toggle", n_clicks=0,
+                                className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700"),
+                    html.Div(className="h-8 w-8 rounded-full bg-slate-300")
+                ], className="flex items-center gap-2 text-ink-600 text-sm")
+            ], className="flex h-14 items-center justify-between gap-3"),
+            # Navigation tabs row
+            html.Nav([
+                html.Button("Portfolio Summary", id="tab-portfolio-summary", n_clicks=0, 
+                           className="px-3 py-1.5 rounded bg-ink-900 text-white"),
+                html.Button("Holdings", id="tab-holdings", n_clicks=0,
+                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
+                html.Button("Financial Trends", id="tab-financial-trends", n_clicks=0,
+                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
+                html.Button("Vintage Analysis", id="tab-vintage-analysis", n_clicks=0,
+                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700")
+            ], className="flex items-center gap-2 overflow-x-auto py-2 text-sm text-ink-600 dark:text-slate-300")
+        ], className="sticky top-0 z-40 bg-white/90 dark:bg-ink-800/80 backdrop-blur border-b border-slate-200 dark:border-ink-700 mx-auto max-w-[1600px] px-5"),
+        
+        # Main content with 3-column grid layout
+        html.Main([
             html.Div(id='tab-content-container')
-        ], className="main-container"),
+        ], className="mx-auto max-w-[1600px] px-5 py-4"),
         
         # Login/Register Modal
         html.Div([
@@ -1308,42 +1371,69 @@ def create_layout(selected_portfolio=None):
         )
     ])
 
-# Callbacks
+# Tab navigation callbacks
 @callback(
-    Output('tab-content-container', 'children'),
-    Input('main-tabs', 'value')
+    [Output('tab-content-container', 'children'),
+     Output('tab-portfolio-summary', 'className'),
+     Output('tab-holdings', 'className'),
+     Output('tab-financial-trends', 'className'),
+     Output('tab-vintage-analysis', 'className')],
+    [Input('tab-portfolio-summary', 'n_clicks'),
+     Input('tab-holdings', 'n_clicks'),
+     Input('tab-financial-trends', 'n_clicks'),
+     Input('tab-vintage-analysis', 'n_clicks')],
+    prevent_initial_call=False
 )
-def update_tab_content(active_tab):
-    """Update tab content based on selected tab"""
+def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, vintage_clicks):
+    """Update tab content based on button clicks"""
+    ctx = callback_context
+    if not ctx.triggered:
+        active_tab = 'portfolio-summary'
+    else:
+        button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+        active_tab = button_id.replace('tab-', '')
+    
+    # Define button classes
+    active_class = "px-3 py-1.5 rounded bg-ink-900 text-white"
+    inactive_class = "px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"
+    
+    # Set classes for all buttons
+    summary_class = active_class if active_tab == 'portfolio-summary' else inactive_class
+    holdings_class = active_class if active_tab == 'holdings' else inactive_class
+    trends_class = active_class if active_tab == 'financial-trends' else inactive_class
+    vintage_class = active_class if active_tab == 'vintage-analysis' else inactive_class
+    
     selected_portfolio = default_portfolio
         
     if active_tab == 'portfolio-summary':
-        return html.Div([
+        content = html.Div([
             create_portfolio_sidebar(selected_portfolio),
             html.Div(id='main-content-container', children=create_main_content(selected_portfolio)),
             html.Div(id='positions-panel-container', children=create_positions_panel(selected_portfolio))
-        ], className="grid-layout")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_340px] gap-4")
     elif active_tab == 'holdings':
-        return html.Div([
+        content = html.Div([
             create_holdings_sidebar(selected_portfolio),
             create_holdings_content(selected_portfolio)
-        ], className="grid-layout-two-column")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
     elif active_tab == 'financial-trends':
-        return html.Div([
+        content = html.Div([
             create_financial_trends_sidebar(selected_portfolio),
             create_financial_trends_content(selected_portfolio)
-        ], className="grid-layout-two-column")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
     elif active_tab == 'vintage-analysis':
-        return html.Div([
+        content = html.Div([
             create_vintage_analysis_sidebar(selected_portfolio),
             create_vintage_analysis_content(selected_portfolio)
-        ], className="grid-layout-two-column")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
     else:
-        return html.Div([
+        content = html.Div([
             create_portfolio_sidebar(selected_portfolio),
             html.Div(id='main-content-container', children=create_main_content(selected_portfolio)),
             html.Div(id='positions-panel-container', children=create_positions_panel(selected_portfolio))
-        ], className="grid-layout")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_340px] gap-4")
+    
+    return content, summary_class, holdings_class, trends_class, vintage_class
 
 @callback(
     Output('positions-panel-container', 'children'),
@@ -1754,14 +1844,16 @@ def toggle_facility_expansion(n_clicks, current_style, selected_portfolio):
         
         # Create row for this metric
         metric_row = html.Tr([
-            html.Td(metric_label, style={
-                "fontWeight": "bold", 
-                "backgroundColor": "#f8f9fa",
-                "position": "sticky",
-                "left": "0",
-                "minWidth": "150px",
-                "maxWidth": "150px"
-            }),
+            html.Td(metric_label, 
+                style={
+                    "fontWeight": "bold", 
+                    "backgroundColor": "#f8f9fa",
+                    "position": "sticky",
+                    "left": "0",
+                    "minWidth": "150px",
+                    "maxWidth": "150px"
+                }
+            ),
             *[html.Td(value, style={"textAlign": "center", "minWidth": "100px"}) for value in metric_data]
         ])
         
@@ -1802,7 +1894,7 @@ def toggle_facility_expansion(n_clicks, current_style, selected_portfolio):
             "border": "1px solid #dee2e6",
             "borderRadius": "4px"
         })
-    ], style={"padding": "10px", "backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6"})], {"display": "block"}, "▲"
+    ], style={"padding": "10px", "backgroundColor": "#f8f9fa", "border": "1px solid #dee2e6", "position": "relative"})], {"display": "block"}, "▲"
 
 # Holdings filters update callback
 @callback(
@@ -2706,6 +2798,28 @@ def update_vintage_dropdown_from_main(selected_portfolio):
     return portfolio_options, selected_portfolio
 
 app.layout = create_layout()
+
+# Dark mode toggle functionality
+app.clientside_callback(
+    """
+    function(n_clicks){
+      const root = document.documentElement;
+      if (!window._themeInit){
+        const s = localStorage.getItem('theme');
+        if (s === 'dark') root.classList.add('dark');
+        window._themeInit = true;
+      }
+      if (n_clicks && n_clicks > 0){
+        const isDark = root.classList.toggle('dark');
+        localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      }
+      return '';
+    }
+    """,
+    Output("theme-toggle", "title"),  # throwaway output
+    Input("theme-toggle", "n_clicks"),
+)
+
 
 if __name__ == '__main__':
     print("Dash is running on http://127.0.0.1:8050/")

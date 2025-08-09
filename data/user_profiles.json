@@ -1,18 +1,1 @@
-{
-  "Wendi": {
-    "portfolios": {
-      "Corporate Banking": {
-        "lob": "Corporate Banking",
-        "industry": null,
-        "property_type": null
-      },
-      "CRE": {
-        "lob": "CRE",
-        "industry": null,
-        "property_type": null
-      }
-    },
-    "custom_metrics": {},
-    "last_saved": "2025-08-03T19:59:40.529886"
-  }
-}
+{}

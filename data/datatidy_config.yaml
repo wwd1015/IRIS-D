@@ -26,25 +26,34 @@ output:
       source: balance
       transformation: round(balance, 2)
       type: float
+      nullable: true
       validation:
         min: 0
+        required: false
         required: true
     balance_millions:
       source: balance
       transformation: round(balance / 1000000, 2)
       type: float
+      nullable: true
       validation:
         min: 0
+        required: false
     cash_flow_leverage:
       source: cash_flow_leverage
       transformation: round(cash_flow_leverage, 2) if cash_flow_leverage is not None
         else None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
     cre_property_type:
       source: cre_property_type
       transformation: cre_property_type.str.strip() if cre_property_type is not None
         else None
       type: string
+      nullable: true
       validation:
         allowed_values:
         - Office
@@ -58,6 +67,10 @@ output:
       source: dscr
       transformation: round(dscr, 2) if dscr is not None else None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
     facility_id:
       source: facility_id
       transformation: facility_id.str.upper()
@@ -70,23 +83,37 @@ output:
       transformation: round(fixed_charge_coverage, 2) if fixed_charge_coverage is
         not None else None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
     free_cash_flow:
       source: free_cash_flow
       transformation: round(free_cash_flow, 2) if free_cash_flow is not None else
         None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
     growth:
       source: growth
       transformation: round(growth, 3) if growth is not None else None
       type: float
+      nullable: true
     industry:
       source: industry
       transformation: industry.str.strip() if industry is not None else None
       type: string
+      nullable: true
     liquidity:
       source: liquidity
       transformation: round(liquidity, 2) if liquidity is not None else None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
     lob:
       source: lob
       type: string
@@ -111,10 +138,15 @@ output:
       source: msa
       transformation: msa.str.strip() if msa is not None else None
       type: string
+      nullable: true
     noi:
       source: noi
       transformation: round(noi, 2) if noi is not None else None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
     obligor_name:
       source: obligor_name
       transformation: obligor_name.str.strip().str.title()
@@ -139,11 +171,16 @@ output:
       source: profitability
       transformation: round(profitability, 3) if profitability is not None else None
       type: float
+      nullable: true
     property_value:
       source: property_value
       transformation: round(property_value, 2) if property_value is not None else
         None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
     reporting_date:
       source: reporting_date
       type: string
@@ -158,13 +195,33 @@ output:
       source: sir
       transformation: round(sir, 2) if sir is not None else None
       type: float
+      nullable: true
+      validation:
+        min: 0
+        required: false
 sort:
 - column: facility_id
   order: asc
 - column: reporting_date
   order: asc
 validation:
-  business_rules: []
+  business_rules:
+  - condition: lob == "Corporate Banking"
+    description: Corporate Banking facilities must have industry specified
+    name: corporate_banking_fields
+    required_fields:
+    - industry
+  - condition: lob == "CRE"
+    description: CRE facilities must have property type and MSA specified
+    name: cre_fields
+    required_fields:
+    - cre_property_type
+    - msa
+  - condition: obligor_rating == 17
+    description: Defaulted loans (rating 17) must have SIR value
+    name: defaulted_loans_have_sir
+    required_fields:
+    - sir
   required_columns:
   - facility_id
   - obligor_name

@@ -13,7 +13,10 @@
       "Bash(timeout:*)",
       "Bash(lsof:*)",
       "Bash(kill:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(pkill:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }
