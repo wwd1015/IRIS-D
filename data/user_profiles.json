@@ -1,1 +1,18 @@
-{}
+{
+  "Wendi Wang": {
+    "portfolios": {
+      "Corporate Banking": {
+        "lob": "Corporate Banking",
+        "industry": null,
+        "property_type": null
+      },
+      "CRE": {
+        "lob": "CRE",
+        "industry": null,
+        "property_type": null
+      }
+    },
+    "custom_metrics": {},
+    "last_saved": "2025-08-15T10:29:00.054828"
+  }
+}

@@ -1189,44 +1189,211 @@ def create_financial_trends_content(selected_portfolio):
         # First Chart
         html.Div([
             html.Div([
-                html.Label("Metric 1:", className="form-label"),
-                dcc.Dropdown(
-                    id='financial-trends-metric-dropdown-1',
-                    options=metrics_options,
-                    value=default_metric_1,
-                    className="form-select"
-                )
-            ], className="form-group", style={"width": "30%", "marginBottom": "10px"}),
-            dcc.Graph(id='financial-trends-chart-1', config={'displayModeBar': False})
+                html.Div([
+                    html.Label("Metric 1:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-metric-dropdown-1',
+                        options=metrics_options,
+                        value=default_metric_1,
+                        className="form-select"
+                    )
+                ], style={"width": "40%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("Aggregation:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-agg-dropdown-1',
+                        options=[
+                            {'label': 'Average', 'value': 'avg'},
+                            {'label': 'Sum', 'value': 'sum'}
+                        ],
+                        value='avg',
+                        className="form-select"
+                    )
+                ], style={"width": "25%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("", className="form-label", style={"visibility": "hidden"}),
+                    html.Button("Download Data", id="download-btn-1", className="btn btn-outline", 
+                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
+                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
+            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
+            html.Div([
+                dcc.Download(id="download-data-1"),
+                dcc.Graph(id='financial-trends-chart-1', config={'displayModeBar': False})
+            ])
         ], className="chart-card", style={"marginBottom": "20px"}),
         
         # Second Chart
         html.Div([
             html.Div([
-                html.Label("Metric 2:", className="form-label"),
-                dcc.Dropdown(
-                    id='financial-trends-metric-dropdown-2',
-                    options=metrics_options,
-                    value=default_metric_2,
-                    className="form-select"
-                )
-            ], className="form-group", style={"width": "30%", "marginBottom": "10px"}),
-            dcc.Graph(id='financial-trends-chart-2', config={'displayModeBar': False})
+                html.Div([
+                    html.Label("Metric 2:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-metric-dropdown-2',
+                        options=metrics_options,
+                        value=default_metric_2,
+                        className="form-select"
+                    )
+                ], style={"width": "40%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("Aggregation:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-agg-dropdown-2',
+                        options=[
+                            {'label': 'Average', 'value': 'avg'},
+                            {'label': 'Sum', 'value': 'sum'}
+                        ],
+                        value='avg',
+                        className="form-select"
+                    )
+                ], style={"width": "25%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("", className="form-label", style={"visibility": "hidden"}),
+                    html.Button("Download Data", id="download-btn-2", className="btn btn-outline", 
+                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
+                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
+            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
+            html.Div([
+                dcc.Download(id="download-data-2"),
+                dcc.Graph(id='financial-trends-chart-2', config={'displayModeBar': False})
+            ])
         ], className="chart-card", style={"marginBottom": "20px"}),
         
         # Third Chart
         html.Div([
             html.Div([
-                html.Label("Metric 3:", className="form-label"),
-                dcc.Dropdown(
-                    id='financial-trends-metric-dropdown-3',
-                    options=metrics_options,
-                    value=default_metric_3,
-                    className="form-select"
-                )
-            ], className="form-group", style={"width": "30%", "marginBottom": "10px"}),
-            dcc.Graph(id='financial-trends-chart-3', config={'displayModeBar': False})
+                html.Div([
+                    html.Label("Metric 3:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-metric-dropdown-3',
+                        options=metrics_options,
+                        value=default_metric_3,
+                        className="form-select"
+                    )
+                ], style={"width": "40%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("Aggregation:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-agg-dropdown-3',
+                        options=[
+                            {'label': 'Average', 'value': 'avg'},
+                            {'label': 'Sum', 'value': 'sum'}
+                        ],
+                        value='avg',
+                        className="form-select"
+                    )
+                ], style={"width": "25%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("", className="form-label", style={"visibility": "hidden"}),
+                    html.Button("Download Data", id="download-btn-3", className="btn btn-outline", 
+                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
+                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
+            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
+            html.Div([
+                dcc.Download(id="download-data-3"),
+                dcc.Graph(id='financial-trends-chart-3', config={'displayModeBar': False})
+            ])
         ], className="chart-card")
+    ], className="main-content")
+
+def create_financial_trend_details_sidebar(selected_portfolio):
+    """Create sidebar for Financial Trend Details tab with test.py styling"""
+    return html.Div([
+        html.Div([
+            html.H2("Financial Trend Details", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+        html.Div([
+            # View filter matching test.py
+            html.Div([
+                html.Label("View", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='ft-details-view-dropdown',
+                    options=[
+                        {'label': "Moody's Industry", 'value': 'moodys_industry'},
+                        {'label': 'LOB', 'value': 'lob'},
+                        {'label': 'Individual Deals', 'value': 'individual'}
+                    ],
+                    value='individual',
+                    className="text-xs",
+                    style={"fontSize": "12px"}
+                )
+            ], className="mb-4"),
+            
+            # Time period filters
+            html.Div([
+                html.Label("Primary Period", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='ft-details-primary-period',
+                    options=[
+                        {'label': 'Current Quarter', 'value': 'current'},
+                        {'label': 'Previous Quarter', 'value': 'previous'},
+                        {'label': 'Year to Date', 'value': 'ytd'}
+                    ],
+                    value='current',
+                    className="text-xs",
+                    style={"fontSize": "12px"}
+                )
+            ], className="mb-4"),
+            
+            html.Div([
+                html.Label("Comparison Period", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='ft-details-comparison-period',
+                    options=[
+                        {'label': 'Prior Year', 'value': 'prior_year'},
+                        {'label': 'Prior Quarter', 'value': 'prior_quarter'},
+                        {'label': 'Year-Start vs Year-End', 'value': 'year_comparison'}
+                    ],
+                    value='prior_year',
+                    className="text-xs",
+                    style={"fontSize": "12px"}
+                )
+            ], className="mb-4"),
+            
+            # Financial type filter
+            html.Div([
+                html.Label("Financial Type", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='ft-details-financial-type',
+                    options=[
+                        {'label': 'Monthly', 'value': 'monthly'},
+                        {'label': 'Quarterly', 'value': 'quarterly'},
+                        {'label': 'Annual', 'value': 'annual'}
+                    ],
+                    value='quarterly',
+                    className="text-xs",
+                    style={"fontSize": "12px"}
+                )
+            ], className="mb-4"),
+        ], className="p-4")
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden")
+
+def create_financial_trend_details_content(selected_portfolio):
+    """Create Financial Trend Details content with test.py table styling"""
+    return html.Div([
+        # Main card with table following test.py pattern
+        html.Div([
+            # Card header matching test.py
+            html.Div([
+                html.Div([
+                    html.H3("Financial Trend Details (DL)", className="text-sm font-semibold text-ink-700 dark:text-slate-300"),
+                    html.Div("Individual Deal Level Financial Comparison", className="text-xs text-ink-500 dark:text-slate-400")
+                ], className="flex-1"),
+                html.Div("Filters are illustrative only", className="text-xs text-ink-500 dark:text-slate-400")
+            ], className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-700"),
+            
+            # Table container with horizontal scroll
+            html.Div([
+                html.Div(id='financial-trend-details-table')
+            ], className="overflow-x-auto"),
+            
+            # Footer matching test.py
+            html.Div([
+                html.Div("1 of 124", className="text-xs text-ink-600 dark:text-slate-400"),
+                html.Div("100 per page", className="text-xs text-ink-600 dark:text-slate-400")
+            ], className="flex justify-between items-center p-3 border-t border-slate-200 dark:border-ink-700 bg-white dark:bg-ink-800")
+            
+        ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden")
+        
     ], className="main-content")
 
 def create_layout(selected_portfolio=None):
@@ -1239,32 +1406,34 @@ def create_layout(selected_portfolio=None):
             html.Div([
                 html.Div([
                     html.Div(className="h-6 w-6 rounded bg-brand-500"),
-                    html.Div("Bank Risk Dashboard", className="text-sm text-ink-600 dark:text-slate-300"),
-                    html.Span("PROD", className="text-[10px] font-semibold text-white bg-brand-500 rounded px-1.5 py-0.5")
+                    html.Div("Portfolio Performance Dashboard", className="text-sm text-ink-600 dark:text-slate-300"),
+                    html.Span("Dev", className="text-[10px] font-semibold text-black bg-yellow-400 rounded px-1.5 py-0.5")
                 ], className="flex items-center gap-3"),
                 html.Div([
-                    # Profile Dropdown with modern styling
-                    dcc.Dropdown(
-                        id='profile-dropdown',
-                        options=[{'label': 'Guest', 'value': 'Guest'}],
-                        value='Guest',
-                        className="text-xs",
-                        style={"width": "120px", "fontSize": "12px"}
-                    ),
                     html.Button("Login/Register", id="login-btn", n_clicks=0,
-                                className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700"),
+                                className="px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700"),
+                    html.Button(
+                        id="profile-avatar-btn",
+                        children="G",
+                        n_clicks=0,
+                        className="ml-2 h-8 w-8 rounded-full bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 flex items-center justify-center cursor-pointer",
+                        title="Switch Profile"
+                    ),
                     html.Button("Dark", id="theme-toggle", n_clicks=0,
                                 className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700"),
-                    html.Div(className="h-8 w-8 rounded-full bg-slate-300")
+                    html.Button("Contact", id="contact-btn", n_clicks=0,
+                                className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700")
                 ], className="flex items-center gap-2 text-ink-600 text-sm")
             ], className="flex h-14 items-center justify-between gap-3"),
             # Navigation tabs row
             html.Nav([
                 html.Button("Portfolio Summary", id="tab-portfolio-summary", n_clicks=0, 
                            className="px-3 py-1.5 rounded bg-ink-900 text-white"),
+                html.Button("Portfolio Trend", id="tab-financial-trends", n_clicks=0,
+                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
                 html.Button("Holdings", id="tab-holdings", n_clicks=0,
                            className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
-                html.Button("Financial Trends", id="tab-financial-trends", n_clicks=0,
+                html.Button("Financial Trend", id="tab-financial-trend-details", n_clicks=0,
                            className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
                 html.Button("Vintage Analysis", id="tab-vintage-analysis", n_clicks=0,
                            className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700")
@@ -1332,6 +1501,116 @@ def create_layout(selected_portfolio=None):
             "display": "none"
         }),
         
+        # Profile Switching Dialog
+        html.Div([
+            html.Div([
+                html.H3("Switch Profile", style={"marginBottom": "20px", "color": "#333", "textAlign": "center"}),
+                html.Div([
+                    html.Label("Select Profile:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "10px", "display": "block"}),
+                    dcc.Dropdown(
+                        id="profile-switch-dropdown",
+                        placeholder="Choose a profile...",
+                        style={"marginBottom": "20px"},
+                        className="form-select"
+                    )
+                ]),
+                html.Div([
+                    html.Button("Switch", id="profile-switch-confirm", className="btn btn-primary", style={"marginRight": "10px", "padding": "10px 20px"}),
+                    html.Button("Cancel", id="profile-switch-cancel", className="btn btn-outline", style={"padding": "10px 20px"})
+                ], style={"textAlign": "center"})
+            ], style={
+                "backgroundColor": "white",
+                "padding": "30px",
+                "borderRadius": "8px",
+                "width": "350px",
+                "maxWidth": "90vw",
+                "position": "absolute",
+                "top": "50%",
+                "left": "50%",
+                "transform": "translate(-50%, -50%)",
+                "boxShadow": "0 10px 25px rgba(0, 0, 0, 0.2)",
+                "zIndex": "1001"
+            })
+        ], id="profile-switch-modal", style={
+            "position": "fixed",
+            "top": "0",
+            "left": "0",
+            "width": "100%",
+            "height": "100%",
+            "backgroundColor": "rgba(0, 0, 0, 0.5)",
+            "zIndex": "1000",
+            "display": "none"
+        }),
+        
+        # Contact Modal
+        html.Div([
+            html.Div([
+                html.H3("Contact & Support", style={"marginBottom": "20px", "color": "#333", "textAlign": "center"}),
+                
+                # Contact Information Section
+                html.Div([
+                    html.H4("📧 Contact Information", style={"fontSize": "16px", "fontWeight": "600", "color": "#374151", "marginBottom": "15px"}),
+                    html.P("For technical support and inquiries:", style={"marginBottom": "10px", "color": "#6B7280"}),
+                    html.Div([
+                        html.Strong("Email: "),
+                        html.A("support@portfolio-dashboard.com", href="mailto:support@portfolio-dashboard.com", 
+                              style={"color": "#2563EB", "textDecoration": "none"})
+                    ], style={"marginBottom": "10px"}),
+                    html.Div([
+                        html.Strong("Phone: "),
+                        html.Span("+1 (555) 123-4567")
+                    ], style={"marginBottom": "20px"})
+                ]),
+                
+                # Bug Report Section  
+                html.Div([
+                    html.H4("🐛 Report Issues", style={"fontSize": "16px", "fontWeight": "600", "color": "#374151", "marginBottom": "15px"}),
+                    html.P("Found a bug or have feedback? Let us know!", style={"marginBottom": "15px", "color": "#6B7280"}),
+                    html.A("Submit Bug Report", 
+                          href="https://github.com/your-repo/issues/new", 
+                          target="_blank",
+                          className="inline-block px-4 py-2 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 transition-colors",
+                          style={"textDecoration": "none", "marginBottom": "20px"})
+                ]),
+                
+                # Feedback Section
+                html.Div([
+                    html.H4("💭 Feedback", style={"fontSize": "16px", "fontWeight": "600", "color": "#374151", "marginBottom": "15px"}),
+                    html.P("Help us improve by sharing your thoughts:", style={"marginBottom": "15px", "color": "#6B7280"}),
+                    html.A("Provide Feedback", 
+                          href="https://forms.google.com/feedback-form", 
+                          target="_blank",
+                          className="inline-block px-4 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors",
+                          style={"textDecoration": "none", "marginBottom": "20px"})
+                ]),
+                
+                html.Div([
+                    html.Button("Close", id="contact-close", className="btn btn-outline", style={"padding": "10px 20px"})
+                ], style={"textAlign": "center"})
+            ], style={
+                "backgroundColor": "white",
+                "padding": "30px",
+                "borderRadius": "8px",
+                "width": "400px",
+                "maxWidth": "90vw",
+                "position": "absolute",
+                "top": "50%",
+                "left": "50%",
+                "transform": "translate(-50%, -50%)",
+                "boxShadow": "0 10px 25px rgba(0, 0, 0, 0.2)",
+                "zIndex": "1001"
+            })
+        ], id="contact-modal", style={
+            "position": "fixed",
+            "top": "0",
+            "left": "0",
+            "width": "100%",
+            "height": "100%",
+            "backgroundColor": "rgba(0, 0, 0, 0.5)",
+            "zIndex": "1000",
+            "display": "none"
+        }),
+        
         # Auto-save Notification
         html.Div([
             html.Div([
@@ -1377,14 +1656,16 @@ def create_layout(selected_portfolio=None):
      Output('tab-portfolio-summary', 'className'),
      Output('tab-holdings', 'className'),
      Output('tab-financial-trends', 'className'),
+     Output('tab-financial-trend-details', 'className'),
      Output('tab-vintage-analysis', 'className')],
     [Input('tab-portfolio-summary', 'n_clicks'),
      Input('tab-holdings', 'n_clicks'),
      Input('tab-financial-trends', 'n_clicks'),
+     Input('tab-financial-trend-details', 'n_clicks'),
      Input('tab-vintage-analysis', 'n_clicks')],
     prevent_initial_call=False
 )
-def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, vintage_clicks):
+def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_clicks, vintage_clicks):
     """Update tab content based on button clicks"""
     ctx = callback_context
     if not ctx.triggered:
@@ -1401,6 +1682,7 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, vintage_c
     summary_class = active_class if active_tab == 'portfolio-summary' else inactive_class
     holdings_class = active_class if active_tab == 'holdings' else inactive_class
     trends_class = active_class if active_tab == 'financial-trends' else inactive_class
+    details_class = active_class if active_tab == 'financial-trend-details' else inactive_class
     vintage_class = active_class if active_tab == 'vintage-analysis' else inactive_class
     
     selected_portfolio = default_portfolio
@@ -1421,6 +1703,11 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, vintage_c
             create_financial_trends_sidebar(selected_portfolio),
             create_financial_trends_content(selected_portfolio)
         ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+    elif active_tab == 'financial-trend-details':
+        content = html.Div([
+            create_financial_trend_details_sidebar(selected_portfolio),
+            create_financial_trend_details_content(selected_portfolio)
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
     elif active_tab == 'vintage-analysis':
         content = html.Div([
             create_vintage_analysis_sidebar(selected_portfolio),
@@ -1433,7 +1720,7 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, vintage_c
             html.Div(id='positions-panel-container', children=create_positions_panel(selected_portfolio))
         ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_340px] gap-4")
     
-    return content, summary_class, holdings_class, trends_class, vintage_class
+    return content, summary_class, holdings_class, trends_class, details_class, vintage_class
 
 @callback(
     Output('positions-panel-container', 'children'),
@@ -1604,11 +1891,14 @@ def update_main_content(selected_portfolio):
     Input('financial-trends-benchmark-dropdown', 'value'),
     Input('financial-trends-metric-dropdown-1', 'value'),
     Input('financial-trends-metric-dropdown-2', 'value'),
-    Input('financial-trends-metric-dropdown-3', 'value')
+    Input('financial-trends-metric-dropdown-3', 'value'),
+    Input('financial-trends-agg-dropdown-1', 'value'),
+    Input('financial-trends-agg-dropdown-2', 'value'),
+    Input('financial-trends-agg-dropdown-3', 'value')
 )
-def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metric1, metric2, metric3):
+def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metric1, metric2, metric3, agg1, agg2, agg3):
     # Helper to get time series for a portfolio and metric
-    def get_timeseries(portfolio_name, metric):
+    def get_timeseries(portfolio_name, metric, agg_method='avg'):
         # Use facilities_df directly
         df = facilities_df.copy()
         
@@ -1650,12 +1940,15 @@ def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metr
         
         group = df.groupby(date_col)
         
-        # Calculate aggregated average across all facilities in the portfolio at each time point
-        ts = group[metric].mean()
+        # Calculate aggregated value based on selected method
+        if agg_method == 'sum':
+            ts = group[metric].sum()
+        else:  # default to 'avg'
+            ts = group[metric].mean()
         
         return ts
     # Build chart for a metric
-    def build_chart(metric, chart_id):
+    def build_chart(metric, chart_id, agg_method='avg'):
         if not metric:
             # Return empty chart if no metric specified
             fig = go.Figure()
@@ -1670,8 +1963,8 @@ def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metr
             fig.add_annotation(text="Select a metric to view chart", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
             return fig
             
-        ts_main = get_timeseries(selected_portfolio, metric)
-        ts_bench = get_timeseries(benchmark_portfolio, metric) if benchmark_portfolio else None
+        ts_main = get_timeseries(selected_portfolio, metric, agg_method)
+        ts_bench = get_timeseries(benchmark_portfolio, metric, agg_method) if benchmark_portfolio else None
         fig = go.Figure()
         if not ts_main.empty:
             fig.add_trace(go.Scatter(
@@ -1728,9 +2021,9 @@ def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metr
         # If no data, show placeholder
         fig.add_annotation(text="No data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         return fig
-    return (build_chart(metric1, 'financial-trends-chart-1'), 
-            build_chart(metric2, 'financial-trends-chart-2'), 
-            build_chart(metric3, 'financial-trends-chart-3'))
+    return (build_chart(metric1, 'financial-trends-chart-1', agg1 or 'avg'), 
+            build_chart(metric2, 'financial-trends-chart-2', agg2 or 'avg'), 
+            build_chart(metric3, 'financial-trends-chart-3', agg3 or 'avg'))
 
 # Callback to update metric dropdowns based on portfolio selection
 @callback(
@@ -1751,6 +2044,193 @@ def update_metric_options(selected_portfolio):
     default_metric_3 = metrics_options[2]['value'] if len(metrics_options) > 2 else 'balance'
     
     return metrics_options, metrics_options, metrics_options, default_metric_1, default_metric_2, default_metric_3
+
+# Financial Trend Details callbacks
+@callback(
+    Output('financial-trend-details-table', 'children'),
+    [Input('ft-details-view-dropdown', 'value'),
+     Input('ft-details-primary-period', 'value'),
+     Input('ft-details-comparison-period', 'value'),
+     Input('ft-details-financial-type', 'value')],
+    prevent_initial_call=True
+)
+def update_financial_trend_details_table(view_type, primary_period, comparison_period, financial_type):
+    """Update the Financial Trend Details table based on filters using actual dataset"""
+    
+    if not facilities_df.empty:
+        # Get all data for time series comparison
+        df = facilities_df.copy()
+        
+        # Sort by reporting date to get time series data
+        df = df.sort_values(['facility_id', 'reporting_date'])
+        
+        # Get unique reporting dates
+        unique_dates = sorted(df['reporting_date'].unique())
+        
+        if len(unique_dates) < 2:
+            # If we don't have enough time periods, just show current data
+            details_data = df.groupby('facility_id').last().reset_index()
+        else:
+            # Get current period (latest) and prior period data
+            current_date = unique_dates[-1]
+            prior_date = unique_dates[-2] if len(unique_dates) >= 2 else unique_dates[-1]
+            
+            current_data = df[df['reporting_date'] == current_date].set_index('facility_id')
+            prior_data = df[df['reporting_date'] == prior_date].set_index('facility_id')
+            
+            # Merge current and prior data
+            details_list = []
+            for facility_id in current_data.index:
+                current_row = current_data.loc[facility_id]
+                prior_row = prior_data.loc[facility_id] if facility_id in prior_data.index else current_row
+                
+                # Calculate changes for available metrics
+                balance_change = ((current_row.get('balance', 0) - prior_row.get('balance', 0)) / prior_row.get('balance', 1)) if prior_row.get('balance', 0) != 0 else 0
+                
+                details_list.append({
+                    'facility_id': facility_id,
+                    'obligor_name': current_row.get('obligor_name', ''),
+                    'lob': current_row.get('lob', ''),
+                    'industry': current_row.get('industry', ''),
+                    'cre_property_type': current_row.get('cre_property_type', ''),
+                    'obligor_rating': current_row.get('obligor_rating', ''),
+                    'balance_current': current_row.get('balance', 0),
+                    'balance_prior': prior_row.get('balance', 0),
+                    'balance_change': balance_change,
+                    'origination_date': current_row.get('origination_date', ''),
+                    'maturity_date': current_row.get('maturity_date', ''),
+                    'reporting_date': current_row.get('reporting_date', ''),
+                    # Corporate Banking specific metrics
+                    'free_cash_flow': current_row.get('free_cash_flow', None),
+                    'fixed_charge_coverage': current_row.get('fixed_charge_coverage', None),
+                    'cash_flow_leverage': current_row.get('cash_flow_leverage', None),
+                    'liquidity': current_row.get('liquidity', None),
+                    'profitability': current_row.get('profitability', None),
+                    'growth': current_row.get('growth', None),
+                    # CRE specific metrics
+                    'noi': current_row.get('noi', None),
+                    'property_value': current_row.get('property_value', None),
+                    'dscr': current_row.get('dscr', None),
+                    'ltv': current_row.get('ltv', None),
+                    'sir': current_row.get('sir', None),
+                })
+            
+            details_data = pd.DataFrame(details_list)
+        
+        # Apply view filter
+        if view_type == 'lob':
+            # Group by LOB if requested
+            pass  # Show all data grouped by LOB
+        elif view_type == 'moodys_industry':
+            # Group by industry if requested
+            pass  # Show all data grouped by industry
+        # For 'individual', show all individual deals
+        
+        # Define columns based on actual dataset
+        columns = [
+            {"name": "Facility ID", "id": "facility_id"},
+            {"name": "Obligor Name", "id": "obligor_name"},
+            {"name": "LOB", "id": "lob"},
+            {"name": "Industry", "id": "industry"},
+            {"name": "Property Type", "id": "cre_property_type"},
+            {"name": "Rating", "id": "obligor_rating", "type": "numeric"},
+            {"name": "Current Balance", "id": "balance_current", "type": "numeric", 
+             "format": {"specifier": "$,.0f"}},
+            {"name": "Prior Balance", "id": "balance_prior", "type": "numeric",
+             "format": {"specifier": "$,.0f"}},
+            {"name": "Balance Change %", "id": "balance_change", "type": "numeric", 
+             "format": {"specifier": "+.1%"}},
+            {"name": "Origination Date", "id": "origination_date"},
+            {"name": "Maturity Date", "id": "maturity_date"},
+            {"name": "Free Cash Flow", "id": "free_cash_flow", "type": "numeric", 
+             "format": {"specifier": ".2f"}},
+            {"name": "Fixed Charge Coverage", "id": "fixed_charge_coverage", "type": "numeric", 
+             "format": {"specifier": ".2f"}},
+            {"name": "Cash Flow Leverage", "id": "cash_flow_leverage", "type": "numeric", 
+             "format": {"specifier": ".2f"}},
+            {"name": "Liquidity", "id": "liquidity", "type": "numeric", 
+             "format": {"specifier": ".2f"}},
+            {"name": "Profitability", "id": "profitability", "type": "numeric", 
+             "format": {"specifier": ".3f"}},
+            {"name": "Growth", "id": "growth", "type": "numeric", 
+             "format": {"specifier": ".3f"}},
+            {"name": "NOI", "id": "noi", "type": "numeric", 
+             "format": {"specifier": "$,.0f"}},
+            {"name": "Property Value", "id": "property_value", "type": "numeric", 
+             "format": {"specifier": "$,.0f"}},
+            {"name": "DSCR", "id": "dscr", "type": "numeric", 
+             "format": {"specifier": ".2f"}},
+            {"name": "LTV", "id": "ltv", "type": "numeric", 
+             "format": {"specifier": ".2f"}},
+            {"name": "SIR", "id": "sir", "type": "numeric", 
+             "format": {"specifier": "$,.0f"}},
+        ]
+        
+        # Create DataTable with test.py styling
+        table = dash_table.DataTable(
+            data=details_data.to_dict('records'),
+            columns=columns,
+            page_size=25,
+            fixed_rows={'headers': True},
+            style_table={
+                'overflowX': 'auto',
+                'minWidth': '1200px',
+                'width': '100%'
+            },
+            style_header={
+                'backgroundColor': '#f8fafc',
+                'borderBottom': '1px solid #e6ebf2',
+                'fontWeight': 600,
+                'textAlign': 'left',
+                'padding': '10px 12px',
+                'position': 'sticky',
+                'top': 0,
+                'color': '#475569',
+                'fontFamily': 'Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif',
+                'fontSize': 13
+            },
+            style_cell={
+                'padding': '10px 12px',
+                'whiteSpace': 'nowrap',
+                'borderBottom': '1px solid #f1f5f9',
+                'fontFamily': 'Inter,Segoe UI,Roboto,Helvetica,Arial,sans-serif',
+                'fontSize': 13,
+                'textAlign': 'left'
+            },
+            style_data_conditional=[
+                # Positive balance changes in green
+                {'if': {'filter_query': '{balance_change} > 0', 'column_id': 'balance_change'}, 
+                 'color': '#0f9d58'},
+                {'if': {'filter_query': '{growth} > 0', 'column_id': 'growth'}, 
+                 'color': '#0f9d58'},
+                {'if': {'filter_query': '{profitability} > 0', 'column_id': 'profitability'}, 
+                 'color': '#0f9d58'},
+                
+                # Negative changes in red
+                {'if': {'filter_query': '{balance_change} < 0', 'column_id': 'balance_change'}, 
+                 'color': '#d93025'},
+                {'if': {'filter_query': '{growth} < 0', 'column_id': 'growth'}, 
+                 'color': '#d93025'},
+                {'if': {'filter_query': '{profitability} < 0', 'column_id': 'profitability'}, 
+                 'color': '#d93025'},
+                
+                # High risk ratings (>12) in red
+                {'if': {'filter_query': '{obligor_rating} > 12', 'column_id': 'obligor_rating'}, 
+                 'color': '#d93025'},
+                
+                # Default ratings (17) in red with bold
+                {'if': {'filter_query': '{obligor_rating} = 17', 'column_id': 'obligor_rating'}, 
+                 'color': '#d93025', 'fontWeight': 'bold'},
+            ],
+            filter_action='native',
+            sort_action='native',
+            style_as_list_view=True,
+        )
+        
+        return table
+    
+    else:
+        return html.Div("No data available", className="p-4 text-center text-ink-500")
 
 # Holdings tab callbacks
 @callback(
@@ -2565,44 +3045,49 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
 # Profile Management Callbacks
 @callback(
     [Output('login-modal', 'style'),
-     Output('profile-dropdown', 'options'),
-     Output('profile-dropdown', 'value'),
+     Output('profile-avatar-btn', 'children'),
      Output('delete-profile-dropdown', 'options')],
     [Input('login-btn', 'n_clicks'),
      Input('login-submit', 'n_clicks'),
      Input('register-submit', 'n_clicks'),
      Input('delete-profile-btn', 'n_clicks'),
-     Input('login-cancel', 'n_clicks'),
-     Input('profile-dropdown', 'value')],
+     Input('login-cancel', 'n_clicks')],
     [State('username-input', 'value'),
      State('delete-profile-dropdown', 'value')],
     prevent_initial_call=False
 )
 def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_clicks, cancel_clicks, 
-                      selected_profile, username, delete_profile_selection):
+                      username, delete_profile_selection):
     """Handle login modal and profile switching"""
     global current_user, portfolios, custom_metrics
     
     ctx = callback_context
+    def get_user_initials(username):
+        """Get user initials for avatar display"""
+        if not username or username == 'Guest':
+            return 'G'
+        # Take first letter of each word, max 2 letters
+        words = username.split()
+        if len(words) >= 2:
+            return (words[0][0] + words[1][0]).upper()
+        else:
+            return username[0].upper()
+    
     if not ctx.triggered:
         # Initial call - return default state
         profiles = load_profiles()
-        profile_options = [{'label': 'Guest', 'value': 'Guest'}]
-        profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
         delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
         hidden_modal_style = {
             "position": "fixed", "top": "0", "left": "0", "width": "100%", 
             "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
             "zIndex": "1000", "display": "none"
         }
-        return hidden_modal_style, profile_options, current_user, delete_options
+        return hidden_modal_style, get_user_initials(current_user), delete_options
     
     trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
     
     # Load current profiles
     profiles = load_profiles()
-    profile_options = [{'label': 'Guest', 'value': 'Guest'}]
-    profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
     delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
     
     # Default modal style (hidden)
@@ -2619,7 +3104,7 @@ def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_c
             "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
             "zIndex": "1000", "display": "block"
         }
-        return show_modal_style, profile_options, current_user, delete_options
+        return show_modal_style, get_user_initials(current_user), delete_options
     
     elif trigger_id == 'delete-profile-btn' and delete_profile_selection:
         # Delete profile using dropdown selection
@@ -2636,18 +3121,16 @@ def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_c
                 custom_metrics.clear()
             
             # Update profile options and hide modal
-            profile_options = [{'label': 'Guest', 'value': 'Guest'}]
-            profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
             updated_delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
             
-            return hidden_modal_style, profile_options, current_user, updated_delete_options
+            return hidden_modal_style, get_user_initials(current_user), updated_delete_options
         else:
             # Cannot delete Guest or non-existent profile
-            return hidden_modal_style, profile_options, current_user, delete_options
+            return hidden_modal_style, get_user_initials(current_user), delete_options
     
     elif trigger_id == 'login-cancel':
         # Hide modal
-        return hidden_modal_style, profile_options, current_user, delete_options
+        return hidden_modal_style, get_user_initials(current_user), delete_options
     
     elif trigger_id in ['login-submit', 'register-submit'] and username:
         # Handle login/register
@@ -2663,28 +3146,163 @@ def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_c
         custom_metrics.update(user_data.get('custom_metrics', {}))
         
         # Hide modal and update profile options
-        profile_options = [{'label': 'Guest', 'value': 'Guest'}]
-        profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
         updated_delete_options = [{'label': name, 'value': name} for name in profiles.keys() if name != 'Guest']
         
-        return hidden_modal_style, profile_options, current_user, updated_delete_options
+        return hidden_modal_style, get_user_initials(current_user), updated_delete_options
     
-    elif trigger_id == 'profile-dropdown' and selected_profile:
-        # Profile switching is handled by separate callback
-        # Just return the current state
-        return hidden_modal_style, profile_options, selected_profile, delete_options
+    return hidden_modal_style, get_user_initials(current_user), delete_options
+
+# Profile switching dialog callbacks
+@callback(
+    [Output('profile-switch-modal', 'style'),
+     Output('profile-switch-dropdown', 'options'),
+     Output('profile-switch-dropdown', 'value')],
+    [Input('profile-avatar-btn', 'n_clicks'),
+     Input('profile-switch-confirm', 'n_clicks'),
+     Input('profile-switch-cancel', 'n_clicks')],
+    [State('profile-switch-dropdown', 'value')],
+    prevent_initial_call=True
+)
+def handle_profile_switch_modal(avatar_clicks, confirm_clicks, cancel_clicks, selected_profile):
+    """Handle profile switching dialog"""
+    global current_user, portfolios, custom_metrics
     
-    return hidden_modal_style, profile_options, current_user, delete_options
+    ctx = callback_context
+    if not ctx.triggered:
+        return no_update, no_update, no_update
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Load profiles for dropdown options
+    profiles = load_profiles()
+    profile_options = [{'label': 'Guest', 'value': 'Guest'}]
+    profile_options.extend([{'label': name, 'value': name} for name in profiles.keys()])
+    
+    # Default modal style (hidden)
+    hidden_modal_style = {
+        "position": "fixed", "top": "0", "left": "0", "width": "100%", 
+        "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
+        "zIndex": "1000", "display": "none"
+    }
+    
+    if trigger_id == 'profile-avatar-btn':
+        # Show profile switch modal
+        show_modal_style = {
+            "position": "fixed", "top": "0", "left": "0", "width": "100%", 
+            "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
+            "zIndex": "1000", "display": "block"
+        }
+        return show_modal_style, profile_options, current_user
+    
+    elif trigger_id == 'profile-switch-confirm' and selected_profile:
+        # Switch to selected profile
+        current_user = selected_profile
+        
+        # Get profile-specific portfolios
+        if current_user == 'Guest':
+            portfolios.clear()
+            portfolios.update(DEFAULT_PORTFOLIOS.copy())
+            custom_metrics.clear()
+        else:
+            user_data = get_user_data(current_user)
+            portfolios.clear()
+            user_portfolios = user_data.get('portfolios', {})
+            if user_portfolios:
+                portfolios.update(user_portfolios)
+            else:
+                portfolios.update(DEFAULT_PORTFOLIOS.copy())
+            custom_metrics.clear()
+            custom_metrics.update(user_data.get('custom_metrics', {}))
+        
+        # Hide modal
+        return hidden_modal_style, profile_options, selected_profile
+    
+    elif trigger_id == 'profile-switch-cancel':
+        # Hide modal without changes
+        return hidden_modal_style, profile_options, current_user
+    
+    return hidden_modal_style, profile_options, current_user
+
+# Contact modal callback
+@callback(
+    Output('contact-modal', 'style'),
+    [Input('contact-btn', 'n_clicks'),
+     Input('contact-close', 'n_clicks')],
+    prevent_initial_call=True
+)
+def handle_contact_modal(contact_clicks, close_clicks):
+    """Handle contact modal display"""
+    ctx = callback_context
+    if not ctx.triggered:
+        return no_update
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Default modal style (hidden)
+    hidden_modal_style = {
+        "position": "fixed",
+        "top": "0",
+        "left": "0",
+        "width": "100%",
+        "height": "100%",
+        "backgroundColor": "rgba(0, 0, 0, 0.5)",
+        "zIndex": "1000",
+        "display": "none"
+    }
+    
+    if trigger_id == 'contact-btn':
+        # Show contact modal
+        show_modal_style = {
+            "position": "fixed",
+            "top": "0",
+            "left": "0",
+            "width": "100%",
+            "height": "100%",
+            "backgroundColor": "rgba(0, 0, 0, 0.5)",
+            "zIndex": "1000",
+            "display": "block"
+        }
+        return show_modal_style
+    
+    elif trigger_id == 'contact-close':
+        # Hide contact modal
+        return hidden_modal_style
+    
+    return hidden_modal_style
+
+@callback(
+    Output('profile-avatar-btn', 'children', allow_duplicate=True),
+    Input('profile-switch-confirm', 'n_clicks'),
+    State('profile-switch-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def update_avatar_on_profile_switch(confirm_clicks, selected_profile):
+    """Update avatar initials when profile is switched"""
+    if confirm_clicks and selected_profile:
+        def get_user_initials(username):
+            if not username or username == 'Guest':
+                return 'G'
+            words = username.split()
+            if len(words) >= 2:
+                return (words[0][0] + words[1][0]).upper()
+            else:
+                return username[0].upper()
+        return get_user_initials(selected_profile)
+    return no_update
 
 @callback(
     [Output('portfolio-dropdown', 'options', allow_duplicate=True),
      Output('portfolio-dropdown', 'value', allow_duplicate=True)],
-    Input('profile-dropdown', 'value'),
+    Input('profile-switch-confirm', 'n_clicks'),
+    State('profile-switch-dropdown', 'value'),
     prevent_initial_call=True
 )
-def update_portfolio_dropdowns_on_profile_change(selected_profile):
+def update_portfolio_dropdowns_on_profile_change(confirm_clicks, selected_profile):
     """Update main portfolio dropdowns when profile changes"""
     global current_user, portfolios, custom_metrics
+    
+    if not confirm_clicks or not selected_profile:
+        return no_update, no_update
     
     if selected_profile:
         current_user = selected_profile
@@ -2796,6 +3414,190 @@ def update_vintage_dropdown_from_main(selected_portfolio):
     """Update vintage portfolio dropdown when main portfolio changes"""
     portfolio_options = [{'label': name, 'value': name} for name in portfolios.keys()]
     return portfolio_options, selected_portfolio
+
+# Download callbacks for Portfolio Trends charts
+@callback(
+    Output('download-data-1', 'data'),
+    Input('download-btn-1', 'n_clicks'),
+    State('portfolio-dropdown', 'value'),
+    State('financial-trends-benchmark-dropdown', 'value'),
+    State('financial-trends-metric-dropdown-1', 'value'),
+    State('financial-trends-agg-dropdown-1', 'value'),
+    prevent_initial_call=True
+)
+def download_chart_1_data(n_clicks, selected_portfolio, benchmark_portfolio, metric, agg_method):
+    if n_clicks and metric and selected_portfolio:
+        # Get the same data used in the chart
+        def get_download_data(portfolio_name, metric, agg_method='avg'):
+            df = facilities_df.copy()
+            if portfolio_name not in portfolios:
+                return pd.DataFrame()
+            
+            # Apply portfolio filters
+            criteria = portfolios[portfolio_name]
+            if 'lob' in df.columns and criteria.get('lob'):
+                df = df[df['lob'] == criteria['lob']]
+            if 'industry' in df.columns and criteria.get('lob') == 'Corporate Banking' and criteria.get('industry'):
+                if isinstance(criteria['industry'], list):
+                    df = df[df['industry'].astype(str).isin([str(i) for i in criteria['industry']])]
+                else:
+                    df = df[df['industry'] == criteria['industry']]
+            if 'cre_property_type' in df.columns and criteria.get('lob') == 'CRE' and criteria.get('property_type'):
+                if isinstance(criteria['property_type'], list):
+                    df = df[df['cre_property_type'].astype(str).isin([str(i) for i in criteria['property_type']])]
+                else:
+                    df = df[df['cre_property_type'] == criteria['property_type']]
+            if 'obligor_name' in df.columns and criteria.get('obligors'):
+                if isinstance(criteria['obligors'], list):
+                    df = df[df['obligor_name'].astype(str).isin([str(i) for i in criteria['obligors']])]
+                else:
+                    df = df[df['obligor_name'] == criteria['obligors']]
+            
+            if metric not in df.columns or 'reporting_date' not in df.columns:
+                return pd.DataFrame()
+            
+            df['reporting_date'] = pd.to_datetime(df['reporting_date'])
+            group = df.groupby('reporting_date')
+            
+            if agg_method == 'sum':
+                ts = group[metric].sum()
+            else:
+                ts = group[metric].mean()
+            
+            return pd.DataFrame({'Date': ts.index, metric: ts.values})
+        
+        main_data = get_download_data(selected_portfolio, metric, agg_method or 'avg')
+        
+        if benchmark_portfolio:
+            bench_data = get_download_data(benchmark_portfolio, metric, agg_method or 'avg')
+            if not bench_data.empty:
+                main_data = main_data.merge(bench_data, on='Date', suffixes=('_Selected', '_Benchmark'), how='outer')
+        
+        return dcc.send_data_frame(main_data.to_csv, f"portfolio_trends_chart1_{metric}_{agg_method or 'avg'}.csv", index=False)
+    
+    return no_update
+
+@callback(
+    Output('download-data-2', 'data'),
+    Input('download-btn-2', 'n_clicks'),
+    State('portfolio-dropdown', 'value'),
+    State('financial-trends-benchmark-dropdown', 'value'),
+    State('financial-trends-metric-dropdown-2', 'value'),
+    State('financial-trends-agg-dropdown-2', 'value'),
+    prevent_initial_call=True
+)
+def download_chart_2_data(n_clicks, selected_portfolio, benchmark_portfolio, metric, agg_method):
+    if n_clicks and metric and selected_portfolio:
+        # Reuse the same logic as chart 1
+        def get_download_data(portfolio_name, metric, agg_method='avg'):
+            df = facilities_df.copy()
+            if portfolio_name not in portfolios:
+                return pd.DataFrame()
+            
+            # Apply portfolio filters
+            criteria = portfolios[portfolio_name]
+            if 'lob' in df.columns and criteria.get('lob'):
+                df = df[df['lob'] == criteria['lob']]
+            if 'industry' in df.columns and criteria.get('lob') == 'Corporate Banking' and criteria.get('industry'):
+                if isinstance(criteria['industry'], list):
+                    df = df[df['industry'].astype(str).isin([str(i) for i in criteria['industry']])]
+                else:
+                    df = df[df['industry'] == criteria['industry']]
+            if 'cre_property_type' in df.columns and criteria.get('lob') == 'CRE' and criteria.get('property_type'):
+                if isinstance(criteria['property_type'], list):
+                    df = df[df['cre_property_type'].astype(str).isin([str(i) for i in criteria['property_type']])]
+                else:
+                    df = df[df['cre_property_type'] == criteria['property_type']]
+            if 'obligor_name' in df.columns and criteria.get('obligors'):
+                if isinstance(criteria['obligors'], list):
+                    df = df[df['obligor_name'].astype(str).isin([str(i) for i in criteria['obligors']])]
+                else:
+                    df = df[df['obligor_name'] == criteria['obligors']]
+            
+            if metric not in df.columns or 'reporting_date' not in df.columns:
+                return pd.DataFrame()
+            
+            df['reporting_date'] = pd.to_datetime(df['reporting_date'])
+            group = df.groupby('reporting_date')
+            
+            if agg_method == 'sum':
+                ts = group[metric].sum()
+            else:
+                ts = group[metric].mean()
+            
+            return pd.DataFrame({'Date': ts.index, metric: ts.values})
+        
+        main_data = get_download_data(selected_portfolio, metric, agg_method or 'avg')
+        
+        if benchmark_portfolio:
+            bench_data = get_download_data(benchmark_portfolio, metric, agg_method or 'avg')
+            if not bench_data.empty:
+                main_data = main_data.merge(bench_data, on='Date', suffixes=('_Selected', '_Benchmark'), how='outer')
+        
+        return dcc.send_data_frame(main_data.to_csv, f"portfolio_trends_chart2_{metric}_{agg_method or 'avg'}.csv", index=False)
+    
+    return no_update
+
+@callback(
+    Output('download-data-3', 'data'),
+    Input('download-btn-3', 'n_clicks'),
+    State('portfolio-dropdown', 'value'),
+    State('financial-trends-benchmark-dropdown', 'value'),
+    State('financial-trends-metric-dropdown-3', 'value'),
+    State('financial-trends-agg-dropdown-3', 'value'),
+    prevent_initial_call=True
+)
+def download_chart_3_data(n_clicks, selected_portfolio, benchmark_portfolio, metric, agg_method):
+    if n_clicks and metric and selected_portfolio:
+        # Reuse the same logic as chart 1
+        def get_download_data(portfolio_name, metric, agg_method='avg'):
+            df = facilities_df.copy()
+            if portfolio_name not in portfolios:
+                return pd.DataFrame()
+            
+            # Apply portfolio filters
+            criteria = portfolios[portfolio_name]
+            if 'lob' in df.columns and criteria.get('lob'):
+                df = df[df['lob'] == criteria['lob']]
+            if 'industry' in df.columns and criteria.get('lob') == 'Corporate Banking' and criteria.get('industry'):
+                if isinstance(criteria['industry'], list):
+                    df = df[df['industry'].astype(str).isin([str(i) for i in criteria['industry']])]
+                else:
+                    df = df[df['industry'] == criteria['industry']]
+            if 'cre_property_type' in df.columns and criteria.get('lob') == 'CRE' and criteria.get('property_type'):
+                if isinstance(criteria['property_type'], list):
+                    df = df[df['cre_property_type'].astype(str).isin([str(i) for i in criteria['property_type']])]
+                else:
+                    df = df[df['cre_property_type'] == criteria['property_type']]
+            if 'obligor_name' in df.columns and criteria.get('obligors'):
+                if isinstance(criteria['obligors'], list):
+                    df = df[df['obligor_name'].astype(str).isin([str(i) for i in criteria['obligors']])]
+                else:
+                    df = df[df['obligor_name'] == criteria['obligors']]
+            
+            if metric not in df.columns or 'reporting_date' not in df.columns:
+                return pd.DataFrame()
+            
+            df['reporting_date'] = pd.to_datetime(df['reporting_date'])
+            group = df.groupby('reporting_date')
+            
+            if agg_method == 'sum':
+                ts = group[metric].sum()
+            else:
+                ts = group[metric].mean()
+            
+            return pd.DataFrame({'Date': ts.index, metric: ts.values})
+        
+        main_data = get_download_data(selected_portfolio, metric, agg_method or 'avg')
+        
+        if benchmark_portfolio:
+            bench_data = get_download_data(benchmark_portfolio, metric, agg_method or 'avg')
+            if not bench_data.empty:
+                main_data = main_data.merge(bench_data, on='Date', suffixes=('_Selected', '_Benchmark'), how='outer')
+        
+        return dcc.send_data_frame(main_data.to_csv, f"portfolio_trends_chart3_{metric}_{agg_method or 'avg'}.csv", index=False)
+    
+    return no_update
 
 app.layout = create_layout()
 
