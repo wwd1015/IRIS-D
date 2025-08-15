@@ -1,18 +1,27 @@
 {
   "Wendi Wang": {
-    "portfolios": {
-      "Corporate Banking": {
-        "lob": "Corporate Banking",
-        "industry": null,
-        "property_type": null
-      },
-      "CRE": {
-        "lob": "CRE",
-        "industry": null,
-        "property_type": null
-      }
-    },
+    "portfolios": {},
     "custom_metrics": {},
-    "last_saved": "2025-08-15T10:29:00.054828"
+    "role": "SAG",
+    "last_saved": "2025-08-15T11:27:41.362954"
+  },
+  "YY": {
+    "portfolios": {},
+    "custom_metrics": {},
+    "role": "CRE SCO",
+    "last_saved": "2025-08-15T11:28:12.526608"
+  },
+  "Test": {
+    "portfolios": {},
+    "custom_metrics": {},
+    "role": "CRE SCO",
+    "created": "2025-08-15T11:08:24.839426"
+  },
+  "Corp SCO": {
+    "portfolios": {},
+    "custom_metrics": {},
+    "role": "Corp SCO",
+    "created": "2025-08-15T11:23:50.435557",
+    "last_saved": "2025-08-15T11:30:12.523249"
   }
 }

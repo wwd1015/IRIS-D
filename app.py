@@ -43,6 +43,51 @@ DEFAULT_PORTFOLIOS = {
 # Profile Management System
 PROFILES_FILE = 'data/user_profiles.json'
 current_user = 'Guest'  # Default user
+
+def get_current_user_role():
+    """Get the current user's role"""
+    if current_user == 'Guest':
+        return 'Guest'
+    
+    user_data = get_user_data(current_user)
+    return user_data.get('role', 'BA')  # Default to BA if role not found
+
+def create_role_based_navigation():
+    """Create navigation tabs based on user role - all tabs present but visibility controlled"""
+    user_role = get_current_user_role()
+    print(f"DEBUG: Creating navigation for user '{current_user}' with role '{user_role}'")
+    
+    # Base tabs available to all users
+    base_tabs = [
+        html.Button("Portfolio Summary", id="tab-portfolio-summary", n_clicks=0, 
+                   className="px-3 py-1.5 rounded bg-ink-900 text-white"),
+        html.Button("Portfolio Trend", id="tab-financial-trends", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
+        html.Button("Holdings", id="tab-holdings", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
+        html.Button("Financial Trend", id="tab-financial-trend-details", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
+        html.Button("Vintage Analysis", id="tab-vintage-analysis", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700")
+    ]
+    
+    # All role-specific tabs - always present but hidden based on role
+    role_specific_tabs = [
+        html.Button("SIR Analysis", id="tab-sir-analysis", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700",
+                   style={"display": "inline-block" if user_role == 'SAG' else "none"}),
+        html.Button("Location Analysis", id="tab-location-analysis", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700",
+                   style={"display": "inline-block" if user_role == 'CRE SCO' else "none"}),
+        html.Button("Financial Projection", id="tab-financial-projection", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700",
+                   style={"display": "inline-block" if user_role == 'Corp SCO' else "none"}),
+        html.Button("Model Backtesting", id="tab-model-backtesting", n_clicks=0,
+                   className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700",
+                   style={"display": "inline-block" if user_role == 'BA' else "none"})
+    ]
+    
+    return base_tabs + role_specific_tabs
 auto_save_timer = None
 
 def load_profiles():
@@ -69,13 +114,22 @@ def get_user_data(username):
     return {'portfolios': {}, 'custom_metrics': {}}
 
 def save_user_data(username, portfolios_data, custom_metrics_data):
-    """Save user-specific data"""
+    """Save user-specific data while preserving existing fields like role"""
     profiles = load_profiles()
-    profiles[username] = {
-        'portfolios': portfolios_data,
-        'custom_metrics': custom_metrics_data,
-        'last_saved': datetime.now().isoformat()
-    }
+    if username in profiles:
+        # Preserve existing data like role, created date
+        profiles[username].update({
+            'portfolios': portfolios_data,
+            'custom_metrics': custom_metrics_data,
+            'last_saved': datetime.now().isoformat()
+        })
+    else:
+        # New user
+        profiles[username] = {
+            'portfolios': portfolios_data,
+            'custom_metrics': custom_metrics_data,
+            'last_saved': datetime.now().isoformat()
+        }
     save_profiles(profiles)
 
 def get_current_user_portfolios():
@@ -94,7 +148,13 @@ def auto_save_data():
     """Auto-save current user data every 15 seconds"""
     global auto_save_timer
     if current_user != 'Guest':
-        save_user_data(current_user, portfolios, custom_metrics)
+        # Only save if user has custom portfolios (not defaults)
+        user_data = get_user_data(current_user)
+        user_custom_portfolios = user_data.get('portfolios', {})
+        
+        # Only save portfolios if the user actually has custom ones
+        portfolios_to_save = user_custom_portfolios
+        save_user_data(current_user, portfolios_to_save, custom_metrics)
     # Schedule next auto-save
     auto_save_timer = Timer(15.0, auto_save_data)
     auto_save_timer.start()
@@ -1396,6 +1456,170 @@ def create_financial_trend_details_content(selected_portfolio):
         
     ], className="main-content")
 
+def create_sir_analysis_sidebar(selected_portfolio):
+    """Create simplified sidebar for SIR Analysis tab"""
+    return html.Div([
+        html.Div([
+            html.H2("SIR Analysis", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+        html.Div([
+            # Portfolio filter
+            html.Div([
+                html.Label("Portfolio", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='sir-portfolio-dropdown',
+                    options=[{'label': name, 'value': name} for name in portfolios.keys()],
+                    value=selected_portfolio,
+                    className="text-xs",
+                    style={"fontSize": "11px"}
+                )
+            ], className="mb-4"),
+        ], className="p-4 space-y-4")
+    ], className="w-64 bg-white dark:bg-ink-800 border-r border-slate-200 dark:border-ink-700")
+
+def create_sir_analysis_content(selected_portfolio):
+    """Create SIR Analysis content - placeholder for now"""
+    return html.Div([
+        html.Div([
+            html.Div([
+                html.H3("SIR Analysis", className="text-sm font-semibold text-ink-700 dark:text-slate-300"),
+                html.Div("Special Interest Rate Analysis - Coming Soon", className="text-xs text-ink-500 dark:text-slate-400")
+            ], className="flex-1"),
+        ], className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-700"),
+        
+        html.Div([
+            html.Div([
+                html.H4("Feature Under Development", className="text-lg font-medium text-ink-600 dark:text-slate-300 mb-4"),
+                html.P("This analysis module is currently being developed and will be available soon.", 
+                      className="text-ink-500 dark:text-slate-400")
+            ], className="text-center py-20")
+        ], className="p-6")
+        
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")
+
+def create_location_analysis_sidebar(selected_portfolio):
+    """Create simplified sidebar for Location Analysis tab"""
+    return html.Div([
+        html.Div([
+            html.H2("Location Analysis", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+        html.Div([
+            # Portfolio filter
+            html.Div([
+                html.Label("Portfolio", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='location-portfolio-dropdown',
+                    options=[{'label': name, 'value': name} for name in portfolios.keys()],
+                    value=selected_portfolio,
+                    className="text-xs",
+                    style={"fontSize": "11px"}
+                )
+            ], className="mb-4"),
+        ], className="p-4 space-y-4")
+    ], className="w-64 bg-white dark:bg-ink-800 border-r border-slate-200 dark:border-ink-700")
+
+def create_location_analysis_content(selected_portfolio):
+    """Create Location Analysis content - placeholder for now"""
+    return html.Div([
+        html.Div([
+            html.Div([
+                html.H3("Location Analysis", className="text-sm font-semibold text-ink-700 dark:text-slate-300"),
+                html.Div("Geographic and Location-based Analysis - Coming Soon", className="text-xs text-ink-500 dark:text-slate-400")
+            ], className="flex-1"),
+        ], className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-700"),
+        
+        html.Div([
+            html.Div([
+                html.H4("Feature Under Development", className="text-lg font-medium text-ink-600 dark:text-slate-300 mb-4"),
+                html.P("This analysis module is currently being developed and will be available soon.", 
+                      className="text-ink-500 dark:text-slate-400")
+            ], className="text-center py-20")
+        ], className="p-6")
+        
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")
+
+def create_financial_projection_sidebar(selected_portfolio):
+    """Create simplified sidebar for Financial Projection tab"""
+    return html.Div([
+        html.Div([
+            html.H2("Financial Projection", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+        html.Div([
+            # Portfolio filter
+            html.Div([
+                html.Label("Portfolio", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='financial-projection-portfolio-dropdown',
+                    options=[{'label': name, 'value': name} for name in portfolios.keys()],
+                    value=selected_portfolio,
+                    className="text-xs",
+                    style={"fontSize": "11px"}
+                )
+            ], className="mb-4"),
+        ], className="p-4 space-y-4")
+    ], className="w-64 bg-white dark:bg-ink-800 border-r border-slate-200 dark:border-ink-700")
+
+def create_financial_projection_content(selected_portfolio):
+    """Create Financial Projection content - placeholder for now"""
+    return html.Div([
+        html.Div([
+            html.Div([
+                html.H3("Financial Projection", className="text-sm font-semibold text-ink-700 dark:text-slate-300"),
+                html.Div("Financial Forecasting and Projection Analysis - Coming Soon", className="text-xs text-ink-500 dark:text-slate-400")
+            ], className="flex-1"),
+        ], className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-700"),
+        
+        html.Div([
+            html.Div([
+                html.H4("Feature Under Development", className="text-lg font-medium text-ink-600 dark:text-slate-300 mb-4"),
+                html.P("This analysis module is currently being developed and will be available soon.", 
+                      className="text-ink-500 dark:text-slate-400")
+            ], className="text-center py-20")
+        ], className="p-6")
+        
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")
+
+def create_model_backtesting_sidebar(selected_portfolio):
+    """Create simplified sidebar for Model Backtesting tab"""
+    return html.Div([
+        html.Div([
+            html.H2("Model Backtesting", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+        html.Div([
+            # Portfolio filter
+            html.Div([
+                html.Label("Portfolio", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
+                dcc.Dropdown(
+                    id='model-backtesting-portfolio-dropdown',
+                    options=[{'label': name, 'value': name} for name in portfolios.keys()],
+                    value=selected_portfolio,
+                    className="text-xs",
+                    style={"fontSize": "11px"}
+                )
+            ], className="mb-4"),
+        ], className="p-4 space-y-4")
+    ], className="w-64 bg-white dark:bg-ink-800 border-r border-slate-200 dark:border-ink-700")
+
+def create_model_backtesting_content(selected_portfolio):
+    """Create Model Backtesting content - placeholder for now"""
+    return html.Div([
+        html.Div([
+            html.Div([
+                html.H3("Model Backtesting", className="text-sm font-semibold text-ink-700 dark:text-slate-300"),
+                html.Div("Model Validation and Backtesting Analysis - Coming Soon", className="text-xs text-ink-500 dark:text-slate-400")
+            ], className="flex-1"),
+        ], className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-700"),
+        
+        html.Div([
+            html.Div([
+                html.H4("Feature Under Development", className="text-lg font-medium text-ink-600 dark:text-slate-300 mb-4"),
+                html.P("This analysis module is currently being developed and will be available soon.", 
+                      className="text-ink-500 dark:text-slate-400")
+            ], className="text-center py-20")
+        ], className="p-6")
+        
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")
+
 def create_layout(selected_portfolio=None):
     """Create the main layout with modern Tailwind styling"""
     if selected_portfolio is None:
@@ -1425,19 +1649,9 @@ def create_layout(selected_portfolio=None):
                                 className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700")
                 ], className="flex items-center gap-2 text-ink-600 text-sm")
             ], className="flex h-14 items-center justify-between gap-3"),
-            # Navigation tabs row
-            html.Nav([
-                html.Button("Portfolio Summary", id="tab-portfolio-summary", n_clicks=0, 
-                           className="px-3 py-1.5 rounded bg-ink-900 text-white"),
-                html.Button("Portfolio Trend", id="tab-financial-trends", n_clicks=0,
-                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
-                html.Button("Holdings", id="tab-holdings", n_clicks=0,
-                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
-                html.Button("Financial Trend", id="tab-financial-trend-details", n_clicks=0,
-                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"),
-                html.Button("Vintage Analysis", id="tab-vintage-analysis", n_clicks=0,
-                           className="px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700")
-            ], className="flex items-center gap-2 overflow-x-auto py-2 text-sm text-ink-600 dark:text-slate-300")
+            # Navigation tabs row - dynamically updated based on user role
+            html.Nav(id="navigation-tabs-container", children=create_role_based_navigation(), 
+                    className="flex items-center gap-2 overflow-x-auto py-2 text-sm text-ink-600 dark:text-slate-300")
         ], className="sticky top-0 z-40 bg-white/90 dark:bg-ink-800/80 backdrop-blur border-b border-slate-200 dark:border-ink-700 mx-auto max-w-[1600px] px-5"),
         
         # Main content with 3-column grid layout
@@ -1453,8 +1667,23 @@ def create_layout(selected_portfolio=None):
                     id="username-input",
                     type="text",
                     placeholder="Enter username",
-                    style={"width": "100%", "padding": "12px", "marginBottom": "20px", "border": "1px solid #ddd", "borderRadius": "4px", "fontSize": "16px"}
+                    style={"width": "100%", "padding": "12px", "marginBottom": "15px", "border": "1px solid #ddd", "borderRadius": "4px", "fontSize": "16px"}
                 ),
+                html.Div([
+                    html.Label("Select Role:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "5px", "display": "block", "color": "#374151"}),
+                    dcc.Dropdown(
+                        id="role-dropdown",
+                        options=[
+                            {'label': 'Corp SCO', 'value': 'Corp SCO'},
+                            {'label': 'CRE SCO', 'value': 'CRE SCO'},
+                            {'label': 'SAG', 'value': 'SAG'},
+                            {'label': 'BA', 'value': 'BA'}
+                        ],
+                        placeholder="Choose your role...",
+                        style={"marginBottom": "20px"},
+                        className="form-select"
+                    )
+                ]),
                 html.Div([
                     html.Button("Login", id="login-submit", className="btn btn-primary", style={"marginRight": "10px", "padding": "10px 20px"}),
                     html.Button("Register", id="register-submit", className="btn btn-secondary", style={"marginRight": "10px", "padding": "10px 20px"}),
@@ -1647,7 +1876,10 @@ def create_layout(selected_portfolio=None):
             interval=1*1000,  # 1 second
             n_intervals=0,
             disabled=True
-        )
+        ),
+        
+        # Store component to track current user for navigation updates
+        dcc.Store(id='current-user-store', data='Guest')
     ])
 
 # Tab navigation callbacks
@@ -1657,15 +1889,23 @@ def create_layout(selected_portfolio=None):
      Output('tab-holdings', 'className'),
      Output('tab-financial-trends', 'className'),
      Output('tab-financial-trend-details', 'className'),
-     Output('tab-vintage-analysis', 'className')],
+     Output('tab-vintage-analysis', 'className'),
+     Output('tab-sir-analysis', 'className'),
+     Output('tab-location-analysis', 'className'),
+     Output('tab-financial-projection', 'className'),
+     Output('tab-model-backtesting', 'className')],
     [Input('tab-portfolio-summary', 'n_clicks'),
      Input('tab-holdings', 'n_clicks'),
      Input('tab-financial-trends', 'n_clicks'),
      Input('tab-financial-trend-details', 'n_clicks'),
-     Input('tab-vintage-analysis', 'n_clicks')],
+     Input('tab-vintage-analysis', 'n_clicks'),
+     Input('tab-sir-analysis', 'n_clicks'),
+     Input('tab-location-analysis', 'n_clicks'),
+     Input('tab-financial-projection', 'n_clicks'),
+     Input('tab-model-backtesting', 'n_clicks')],
     prevent_initial_call=False
 )
-def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_clicks, vintage_clicks):
+def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_clicks, vintage_clicks, sir_clicks, location_clicks, projection_clicks, backtesting_clicks):
     """Update tab content based on button clicks"""
     ctx = callback_context
     if not ctx.triggered:
@@ -1684,6 +1924,10 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_c
     trends_class = active_class if active_tab == 'financial-trends' else inactive_class
     details_class = active_class if active_tab == 'financial-trend-details' else inactive_class
     vintage_class = active_class if active_tab == 'vintage-analysis' else inactive_class
+    sir_class = active_class if active_tab == 'sir-analysis' else inactive_class
+    location_class = active_class if active_tab == 'location-analysis' else inactive_class
+    projection_class = active_class if active_tab == 'financial-projection' else inactive_class
+    backtesting_class = active_class if active_tab == 'model-backtesting' else inactive_class
     
     selected_portfolio = default_portfolio
         
@@ -1713,6 +1957,26 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_c
             create_vintage_analysis_sidebar(selected_portfolio),
             create_vintage_analysis_content(selected_portfolio)
         ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+    elif active_tab == 'sir-analysis':
+        content = html.Div([
+            create_sir_analysis_sidebar(selected_portfolio),
+            create_sir_analysis_content(selected_portfolio)
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+    elif active_tab == 'location-analysis':
+        content = html.Div([
+            create_location_analysis_sidebar(selected_portfolio),
+            create_location_analysis_content(selected_portfolio)
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+    elif active_tab == 'financial-projection':
+        content = html.Div([
+            create_financial_projection_sidebar(selected_portfolio),
+            create_financial_projection_content(selected_portfolio)
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+    elif active_tab == 'model-backtesting':
+        content = html.Div([
+            create_model_backtesting_sidebar(selected_portfolio),
+            create_model_backtesting_content(selected_portfolio)
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
     else:
         content = html.Div([
             create_portfolio_sidebar(selected_portfolio),
@@ -1720,7 +1984,23 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_c
             html.Div(id='positions-panel-container', children=create_positions_panel(selected_portfolio))
         ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_340px] gap-4")
     
-    return content, summary_class, holdings_class, trends_class, details_class, vintage_class
+    return content, summary_class, holdings_class, trends_class, details_class, vintage_class, sir_class, location_class, projection_class, backtesting_class
+
+@callback(
+    Output('navigation-tabs-container', 'children'),
+    Input('current-user-store', 'data'),
+    prevent_initial_call=True
+)
+def update_navigation_tabs(stored_user):
+    """Update navigation tabs based on user role from store"""
+    global current_user
+    
+    # Update the global current_user to match the stored value
+    if stored_user:
+        current_user = stored_user
+    
+    print(f"DEBUG: Navigation update triggered - stored_user: {stored_user}, current_user: {current_user}")
+    return create_role_based_navigation()
 
 @callback(
     Output('positions-panel-container', 'children'),
@@ -3053,11 +3333,12 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
      Input('delete-profile-btn', 'n_clicks'),
      Input('login-cancel', 'n_clicks')],
     [State('username-input', 'value'),
+     State('role-dropdown', 'value'),
      State('delete-profile-dropdown', 'value')],
     prevent_initial_call=False
 )
 def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_clicks, cancel_clicks, 
-                      username, delete_profile_selection):
+                      username, role, delete_profile_selection):
     """Handle login modal and profile switching"""
     global current_user, portfolios, custom_metrics
     
@@ -3136,13 +3417,31 @@ def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_c
         # Handle login/register
         if trigger_id == 'register-submit' or username not in profiles:
             # Register new user or auto-register
-            profiles[username] = {'portfolios': {}, 'custom_metrics': {}, 'created': datetime.now().isoformat()}
+            profiles[username] = {
+                'portfolios': {}, 
+                'custom_metrics': {}, 
+                'role': role or 'BA',  # Default to 'BA' if no role selected
+                'created': datetime.now().isoformat()
+            }
             save_profiles(profiles)
         
         # Switch to user
         current_user = username
+        
+        # Get user data and only use their custom portfolios if they have any
         user_data = get_user_data(username)
-        portfolios.update(user_data.get('portfolios', {}))
+        user_portfolios = user_data.get('portfolios', {})
+        
+        # Clear current portfolios and custom metrics
+        portfolios.clear()
+        custom_metrics.clear()
+        
+        # Only add user's custom portfolios if they have any, otherwise use defaults
+        if user_portfolios:
+            portfolios.update(user_portfolios)
+        else:
+            portfolios.update(DEFAULT_PORTFOLIOS.copy())
+        
         custom_metrics.update(user_data.get('custom_metrics', {}))
         
         # Hide modal and update profile options
@@ -3270,6 +3569,32 @@ def handle_contact_modal(contact_clicks, close_clicks):
     
     return hidden_modal_style
 
+# Update user store when profile is switched
+@callback(
+    Output('current-user-store', 'data'),
+    [Input('login-submit', 'n_clicks'),
+     Input('register-submit', 'n_clicks'),
+     Input('profile-switch-confirm', 'n_clicks')],
+    [State('username-input', 'value'),
+     State('role-dropdown', 'value'),
+     State('profile-switch-dropdown', 'value')],
+    prevent_initial_call=True
+)
+def update_current_user_store(login_clicks, register_clicks, switch_clicks, username, role, selected_profile):
+    """Update the current user store when user changes"""
+    ctx = callback_context
+    if not ctx.triggered:
+        return no_update
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if trigger_id in ['login-submit', 'register-submit'] and username:
+        return username
+    elif trigger_id == 'profile-switch-confirm' and selected_profile:
+        return selected_profile
+    
+    return no_update
+
 @callback(
     Output('profile-avatar-btn', 'children', allow_duplicate=True),
     Input('profile-switch-confirm', 'n_clicks'),
@@ -3369,8 +3694,13 @@ def update_portfolio_dropdowns_on_profile_change(confirm_clicks, selected_profil
 def show_auto_save_notification(n_intervals):
     """Show auto-save notification"""
     if current_user != 'Guest' and n_intervals > 0:
-        # Save current data
-        save_user_data(current_user, portfolios, custom_metrics)
+        # Only save custom portfolios, not defaults
+        user_data = get_user_data(current_user)
+        user_custom_portfolios = user_data.get('portfolios', {})
+        
+        # Only save portfolios if the user actually has custom ones
+        portfolios_to_save = user_custom_portfolios
+        save_user_data(current_user, portfolios_to_save, custom_metrics)
         
         # Show notification and enable hide timer
         return ({
