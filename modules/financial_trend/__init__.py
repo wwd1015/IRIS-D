@@ -1,0 +1,1 @@
+# Financial trend module for dashboard components

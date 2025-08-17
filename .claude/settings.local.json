@@ -16,7 +16,10 @@
       "Bash(cat:*)",
       "WebFetch(domain:github.com)",
       "Bash(pkill:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(cp:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

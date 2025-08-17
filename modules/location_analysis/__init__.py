@@ -1,0 +1,1 @@
+# Location analysis module for dashboard components
