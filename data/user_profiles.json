@@ -1,15 +1,17 @@
 {
   "Wendi Wang": {
     "portfolios": {},
-    "custom_metrics": {},
+    "custom_metrics": {
+      "Crit Balance": "(obligor_rating == 15 or obligor_rating == 16) * balance"
+    },
     "role": "SAG",
-    "last_saved": "2025-08-17T16:04:52.780742"
+    "last_saved": "2025-08-17T16:33:12.285955"
   },
   "YY": {
     "portfolios": {},
     "custom_metrics": {},
     "role": "CRE SCO",
-    "last_saved": "2025-08-16T16:25:20.237839"
+    "last_saved": "2025-08-17T16:32:25.202672"
   },
   "Test": {
     "portfolios": {},

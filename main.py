@@ -10,6 +10,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.dashboard.app import app
+from src.dashboard.config import HOST, PORT, DEBUG_MODE
 
 if __name__ == '__main__':
-    app.run(debug=True, host='0.0.0.0', port=8050)
+    app.run(debug=DEBUG_MODE, host=HOST, port=PORT)

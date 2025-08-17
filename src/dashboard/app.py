@@ -713,7 +713,7 @@ def toggle_facility_expansion(n_clicks, current_style, selected_portfolio):
     metrics = get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df)
     
     # Create time series table using the modular function
-    time_series_table = create_time_series_table(facility_data.iloc[0], facilities_df)
+    time_series_table = create_time_series_table(facility_data.iloc[0], facilities_df, custom_metrics)
     
     return [html.Div([
         html.H5(f"Time Series for {facility_id}", style={"marginBottom": "10px"}),

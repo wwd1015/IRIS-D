@@ -253,7 +253,7 @@ def create_holdings_table(portfolio_data, rating_filter=None, obligor_filter=Non
     ], className="table-container")
 
 
-def create_time_series_table(facility_data, facilities_df):
+def create_time_series_table(facility_data, facilities_df, custom_metrics=None):
     """Create time series table for expanded facility details"""
     facility_id = facility_data['facility_id']
     
@@ -263,11 +263,41 @@ def create_time_series_table(facility_data, facilities_df):
     if len(fac_history) == 0:
         return html.Div("No historical data available.")
     
-    # Get unique dates and metrics
+    # Get unique dates
     dates = fac_history['reporting_date'].unique()
     formatted_dates = [pd.to_datetime(d).strftime('%Y-%m-%d') for d in dates]
     
-    metrics = ['obligor_rating', 'balance', 'ltv', 'dscr']
+    # Determine metrics based on LOB and data availability
+    lob = facility_data.get('lob', 'Unknown')
+    
+    # Define metric pools based on LOB
+    corporate_banking_metrics = ['obligor_rating', 'balance', 'free_cash_flow', 'fixed_charge_coverage', 
+                                'cash_flow_leverage', 'liquidity', 'profitability', 'growth']
+    cre_metrics = ['obligor_rating', 'balance', 'noi', 'property_value', 'dscr', 'ltv']
+    
+    # Select base metrics based on LOB
+    if lob == 'Corporate Banking':
+        candidate_metrics = corporate_banking_metrics
+    elif lob == 'CRE':
+        candidate_metrics = cre_metrics
+    else:
+        # For custom portfolios, check both sets
+        candidate_metrics = list(set(corporate_banking_metrics + cre_metrics))
+    
+    # Add custom metrics to the candidate list
+    if custom_metrics:
+        for custom_metric_name in custom_metrics.keys():
+            candidate_metrics.append(custom_metric_name)
+    
+    # Filter metrics based on actual data availability
+    # Only include metrics that have at least one non-null value
+    metrics = []
+    for metric in candidate_metrics:
+        if metric in fac_history.columns:
+            # Check if there's at least one non-null value for this metric
+            non_null_count = fac_history[metric].notna().sum()
+            if non_null_count > 0:
+                metrics.append(metric)
     
     # Create table rows for each metric
     table_rows = []
@@ -278,19 +308,46 @@ def create_time_series_table(facility_data, facilities_df):
                 date_data = fac_history[fac_history['reporting_date'] == date]
                 if len(date_data) > 0:
                     value = date_data[metric].iloc[0]
-                    if metric == 'balance':
-                        formatted_value = f"${value:,.0f}" if pd.notna(value) else "N/A"
-                    elif metric in ['ltv', 'dscr']:
-                        formatted_value = f"{value:.2f}" if pd.notna(value) else "N/A"
+                    # Format value based on metric type
+                    if pd.notna(value):
+                        if metric == 'balance':
+                            formatted_value = f"${value:,.0f}"
+                        elif metric in ['ltv', 'dscr', 'profitability', 'growth']:
+                            formatted_value = f"{value:.2f}"
+                        elif metric in ['free_cash_flow', 'fixed_charge_coverage', 'cash_flow_leverage', 'liquidity']:
+                            formatted_value = f"{value:.2f}"
+                        elif metric in ['property_value', 'noi']:
+                            formatted_value = f"${value:,.0f}" if metric == 'property_value' else f"{value:,.0f}"
+                        elif metric == 'obligor_rating':
+                            formatted_value = str(int(value))
+                        else:
+                            formatted_value = str(value)
                     else:
-                        formatted_value = str(value) if pd.notna(value) else "N/A"
+                        formatted_value = "N/A"
                     metric_values.append(formatted_value)
                 else:
                     metric_values.append("N/A")
             
-            # Create row for this metric
+            # Create row for this metric with better formatting
+            metric_display_name = metric.replace('_', ' ').title()
+            # Special cases for display names
+            if metric == 'ltv':
+                metric_display_name = 'LTV (%)'
+            elif metric == 'dscr':
+                metric_display_name = 'DSCR'
+            elif metric == 'noi':
+                metric_display_name = 'NOI'
+            elif metric == 'free_cash_flow':
+                metric_display_name = 'Free Cash Flow'
+            elif metric == 'fixed_charge_coverage':
+                metric_display_name = 'Fixed Charge Coverage'
+            elif metric == 'cash_flow_leverage':
+                metric_display_name = 'Cash Flow Leverage'
+            elif custom_metrics and metric in custom_metrics:
+                metric_display_name = f'{metric} (Custom)'
+            
             row = html.Tr([
-                html.Td(metric.replace('_', ' ').title(), style={"fontWeight": "bold", "width": "150px"})
+                html.Td(metric_display_name, style={"fontWeight": "bold", "width": "150px"})
             ] + [html.Td(val, style={"width": "120px"}) for val in metric_values])
             table_rows.append(row)
     

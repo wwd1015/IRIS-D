@@ -36,12 +36,12 @@ def create_portfolio_trend_sidebar(selected_portfolio, available_portfolios):
             html.H3("Create Custom Metric", className="text-sm font-semibold mb-3 text-brand-500"),
             html.Div([
                 html.Label("Formula:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                html.P("Supports conditions & backticks. Use == for equality. Examples: (obligor_rating == 14) * 1, `free cash flow` / liquidity", 
+                html.P("Supports conditions & backticks. Use 'or' for multiple values. Examples: (`Obligor Rating` == 15 or `Obligor Rating` == 16) * Balance, `free cash flow` / liquidity", 
                        className="text-xs text-ink-500 dark:text-slate-400 mb-2"),
                 dcc.Input(
                     id='custom-metric-formula',
                     type='text',
-                    placeholder="e.g., (obligor_rating == 14) * 1",
+                    placeholder="e.g., (`Obligor Rating` == 15 or `Obligor Rating` == 16) * Balance",
                     className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
                 )
             ], className="mb-3"),
