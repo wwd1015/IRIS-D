@@ -1,1 +1,0 @@
-# Vintage analysis module for dashboard components

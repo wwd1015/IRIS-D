@@ -129,7 +129,7 @@ def test_app_import():
     print("Testing app import...")
     
     try:
-        import app
+        from src.dashboard import app
         print("✓ App import successful")
         
         # Test that essential globals exist
@@ -149,7 +149,7 @@ def test_custom_metrics():
     print("Testing custom metrics...")
     
     try:
-        import app
+        from src.dashboard import app
         
         # Test that custom metrics dict exists
         assert hasattr(app, 'custom_metrics'), "custom_metrics not found"

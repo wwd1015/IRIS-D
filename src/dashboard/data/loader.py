@@ -8,7 +8,7 @@ import yaml
 from threading import Timer
 from sqlalchemy import create_engine
 from datatidy import DataTidy
-from modules.auth import user_management
+from ..auth import user_management
 
 
 # Global Variables

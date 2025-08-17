@@ -12,27 +12,42 @@ A comprehensive portfolio performance dashboard for Corporate Banking and CRE po
 
 ## Architecture
 
+### Modern Python Package Structure
+
+The application follows a modern Python package structure with clear separation of concerns:
+
+- **Entry Point**: `main.py` serves as the application entry point
+- **Core Application**: Located in `src/dashboard/`
+- **Modular Components**: Organized into logical modules (auth, components, data, utils)
+- **Asset Management**: CSS and static files in `assets/` directory
+
 ### Core Components
 
-- **Dashboard**: Multi-tab interface (Portfolio Summary, Holdings, Financial Trends, Vintage Analysis)
+- **Dashboard**: Multi-tab interface with role-based navigation (Portfolio Summary, Holdings, Financial Trends, Vintage Analysis, SIR Analysis, etc.)
 - **Portfolio System**: Default and custom portfolio management with LOB-specific metrics
+- **User Management**: Role-based access control (Corp SCO, CRE SCO, SAG, BA)
 - **Custom Metrics**: Formula-based metric creation with backtick column support
-- **User Profiles**: Profile-based data persistence using JSON storage
+- **Data Integration**: SQLite database with DataTidy processing pipeline
 
 ### Data Structure
 
-Required data files in `data/` directory:
-- `facilities.csv`: Core facility data with Corporate Banking and CRE metrics
-- `user_profiles.json`: User profile and custom data storage (auto-created)
+The application uses an integrated data pipeline:
+- **Database**: SQLite database (`data/bank_risk.db`) with facility data
+- **Data Processing**: DataTidy integration for data validation and cleaning
+- **Configuration**: YAML configuration (`data/datatidy_config.yaml`) for data processing rules
+- **User Profiles**: JSON storage (`data/user_profiles.json`) for user preferences (auto-created)
 
 ## Installation
 
 ```bash
 # Install dependencies
-pip install -r requirements.txt
+pip install -e .
+
+# Or install in development mode with dev dependencies
+pip install -e ".[dev]"
 
 # Run the application
-python app.py
+python main.py
 ```
 
 ## Deployment to Posit Connect
@@ -50,7 +65,7 @@ python app.py
 
 2. **Deploy via command line**:
    ```bash
-   rsconnect deploy dash app.py --title "Portfolio Performance Dashboard"
+   rsconnect deploy dash main.py --title "Portfolio Performance Dashboard"
    ```
 
 3. **Or deploy via VS Code**:
@@ -59,7 +74,7 @@ python app.py
 
 ### Configuration Files
 
-- `requirements.txt`: Python dependencies (automatically detected by Posit Connect)
+- `pyproject.toml`: Python dependencies and project configuration (automatically detected by Posit Connect)
 
 ## Usage
 
@@ -101,16 +116,48 @@ python app.py
 ## File Structure
 
 ```
-portfolio_performance_dashboard/
-├── app.py                    # Main application
-├── requirements.txt          # Dependencies
-├── test_app.py              # Test suite
-├── README.md                # Documentation
-├── data/                    # Data files
-│   ├── facilities.csv       # Core facility data
-│   └── user_profiles.json   # User profiles (auto-created)
-└── assets/                  # Static assets
-    └── style.css
+bank_risk_dashboard/
+├── main.py                          # Application entry point
+├── pyproject.toml                   # Project configuration and dependencies
+├── README.md                       # Documentation
+├── src/                            # Source code
+│   └── dashboard/
+│       ├── __init__.py
+│       ├── app.py                  # Main Dash application
+│       ├── config.py               # Configuration
+│       ├── auth/                   # Authentication modules
+│       │   ├── __init__.py
+│       │   └── user_management.py
+│       ├── components/             # UI components
+│       │   ├── __init__.py
+│       │   ├── layout.py
+│       │   ├── portfolio_summary.py
+│       │   ├── portfolio_trend.py
+│       │   ├── holdings.py
+│       │   ├── vintage_analysis.py
+│       │   ├── financial_trends.py
+│       │   ├── sir_analysis.py
+│       │   ├── location_analysis.py
+│       │   ├── financial_projection.py
+│       │   ├── model_backtesting.py
+│       │   └── portfolio_management.py
+│       ├── data/                   # Data processing modules
+│       │   ├── __init__.py
+│       │   ├── loader.py
+│       │   └── db_data_generator.py
+│       └── utils/                  # Utility functions
+│           └── __init__.py
+├── data/                           # Data files
+│   ├── bank_risk.db               # SQLite database
+│   ├── datatidy_config.yaml       # Data processing config
+│   └── user_profiles.json         # User profiles (auto-created)
+├── assets/                         # Static assets
+│   └── style.css                  # CSS styling
+└── tests/                         # Test files
+    ├── unit/
+    ├── integration/
+    │   └── test_app.py
+    └── test_prototype.py
 ```
 
 ## Testing

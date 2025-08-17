@@ -1,1 +1,0 @@
-# SIR analysis module for dashboard components

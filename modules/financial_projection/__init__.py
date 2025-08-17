@@ -1,1 +1,0 @@
-# Financial projection module for dashboard components
