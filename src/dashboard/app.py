@@ -258,8 +258,8 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_c
         ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
     elif active_tab == 'financial-trend-details':
         content = html.Div([
-            create_financial_trend_sidebar(selected_portfolio),
-            create_financial_trend_content(selected_portfolio)
+            create_financial_trend_sidebar(selected_portfolio, available_portfolios, portfolios, lambda p: get_filtered_data(p, portfolios, latest_facilities), facilities_df),
+            create_financial_trend_content()
         ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
     elif active_tab == 'vintage-analysis':
         content = html.Div([
@@ -647,18 +647,86 @@ def update_metric_options(selected_portfolio):
     
     return metrics_options, metrics_options, metrics_options, default_metric_1, default_metric_2, default_metric_3
 
-# Financial Trend Details callbacks
+# New Financial Trends UI callbacks
 @callback(
-    Output('financial-trend-details-table', 'children'),
-    [Input('ft-details-view-dropdown', 'value'),
-     Input('ft-details-primary-period', 'value'),
-     Input('ft-details-comparison-period', 'value'),
-     Input('ft-details-financial-type', 'value')],
+    Output('ft-custom-lookback-container', 'style'),
+    Input('ft-comparison-period', 'value'),
     prevent_initial_call=True
 )
-def update_financial_trend_details_table(view_type, primary_period, comparison_period, financial_type):
-    """Update the Financial Trend Details table based on filters using actual dataset"""
-    return create_financial_trend_details_table(facilities_df, view_type, primary_period, comparison_period, financial_type)
+def toggle_custom_lookback_slider(comparison_period):
+    """Show/hide custom lookback slider based on comparison period selection"""
+    if comparison_period == 'customized':
+        return {'display': 'block'}
+    else:
+        return {'display': 'none'}
+
+@callback(
+    Output('ft-view-dropdown', 'options'),
+    Input('portfolio-dropdown', 'value')
+)
+def update_view_dropdown_options(selected_portfolio):
+    """Update view dropdown options based on portfolio selection"""
+    from .components.financial_trends import get_view_options
+    if not selected_portfolio:
+        return []
+    
+    try:
+        view_options = get_view_options(selected_portfolio, portfolios, lambda p: get_filtered_data(p, portfolios, latest_facilities))
+        return view_options
+    except Exception as e:
+        print(f"Error updating view options: {e}")
+        return []
+
+@callback(
+    Output('ft-primary-period', 'options'),
+    Output('ft-primary-period', 'value'),
+    Input('portfolio-dropdown', 'value')
+)
+def update_primary_period_options(selected_portfolio):
+    """Update primary period dropdown with available quarters and set default to latest"""
+    from .components.financial_trends import get_available_quarters, get_latest_quarter
+    if not selected_portfolio:
+        return [], None
+    
+    try:
+        quarter_options = get_available_quarters(facilities_df, selected_portfolio, portfolios)
+        latest_quarter = get_latest_quarter(facilities_df, selected_portfolio, portfolios)
+        return quarter_options, latest_quarter
+    except Exception as e:
+        print(f"Error updating quarter options: {e}")
+        return [], None
+
+@callback(
+    Output('financial-trend-details-table', 'children'),
+    [Input('portfolio-dropdown', 'value'),
+     Input('ft-view-dropdown', 'value'),
+     Input('ft-primary-period', 'value'),
+     Input('ft-comparison-period', 'value'),
+     Input('ft-custom-lookback', 'value')]
+)
+def update_financial_trend_table(selected_portfolio, view_fields, primary_period, comparison_period, custom_lookback):
+    """Update the Financial Trend table based on all selections"""
+    from .components.financial_trends import create_financial_trend_details_table
+    
+    try:
+        # Ensure custom_lookback has a valid value
+        lookback_value = custom_lookback if custom_lookback is not None else 1
+        
+        print(f"DEBUG: Callback inputs - portfolio: {selected_portfolio}, view: {view_fields}, primary: {primary_period}, comparison: {comparison_period}, lookback: {lookback_value}")
+        
+        table = create_financial_trend_details_table(
+            facilities_df=facilities_df,
+            selected_portfolio=selected_portfolio,
+            portfolios=portfolios,
+            view_fields=view_fields if view_fields else [],
+            primary_period=primary_period,
+            comparison_period=comparison_period,
+            custom_lookback=lookback_value
+        )
+        return table
+    except Exception as e:
+        print(f"Error updating financial trend table: {e}")
+        return html.Div(f"Error creating table: {str(e)}", className="p-4 text-center text-red-500")
 
 # Holdings tab callbacks
 @callback(

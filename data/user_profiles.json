@@ -5,7 +5,7 @@
       "Crit Balance": "(obligor_rating == 15 or obligor_rating == 16) * balance"
     },
     "role": "SAG",
-    "last_saved": "2025-08-17T16:33:12.285955"
+    "last_saved": "2025-08-17T16:45:31.158615"
   },
   "YY": {
     "portfolios": {},
