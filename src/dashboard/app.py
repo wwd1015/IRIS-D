@@ -728,6 +728,7 @@ def update_financial_trend_table(selected_portfolio, view_fields, primary_period
         print(f"Error updating financial trend table: {e}")
         return html.Div(f"Error creating table: {str(e)}", className="p-4 text-center text-red-500")
 
+
 # Holdings tab callbacks
 @callback(
     Output({"type": "expanded-content", "index": MATCH}, "children"),

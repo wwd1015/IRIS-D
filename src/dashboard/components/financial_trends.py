@@ -116,11 +116,20 @@ def get_view_options(selected_portfolio, portfolios, get_filtered_data):
         ('industry', 'Industry'),
         ('cre_property_type', 'Property Type'), 
         ('msa', 'MSA'),
-        ('obligor_rating', 'Rating Buckets')
+        ('rating_buckets', 'Rating Buckets')  # Special field for rating bucket grouping
     ]
     
     for field_name, field_label in fields_to_check:
-        if field_name in portfolio_data.columns:
+        # Special handling for rating_buckets - check if obligor_rating exists instead
+        if field_name == 'rating_buckets':
+            if 'obligor_rating' in portfolio_data.columns:
+                field_data = portfolio_data['obligor_rating'].dropna()
+                if len(field_data) > 0:
+                    view_options.append({
+                        'label': field_label, 
+                        'value': field_name
+                    })
+        elif field_name in portfolio_data.columns:
             # Check if field has populated data (non-null, non-empty values)
             field_data = portfolio_data[field_name].dropna()
             
@@ -148,17 +157,33 @@ def create_rating_buckets(rating_values):
     
     buckets = {}
     
-    # Create buckets based on common banking rating ranges
-    if min_rating <= 7:
-        buckets['Investment Grade (1-7)'] = (1, 7)
-    if any(8 <= r <= 12 for r in rating_values):
-        buckets['Non-Investment Grade (8-12)'] = (8, 12)
-    if any(13 <= r <= 16 for r in rating_values):
-        buckets['High Risk (13-16)'] = (13, 16)
+    # Create buckets based on new rating categorization
+    if min_rating <= 13:
+        buckets['Pass Rated (1-13)'] = (1, 13)
+    if any(r == 14 for r in rating_values):
+        buckets['Watch (14)'] = (14, 14)
+    if any(15 <= r <= 16 for r in rating_values):
+        buckets['Criticized (15-16)'] = (15, 16)
     if max_rating >= 17:
-        buckets['Default (17+)'] = (17, 25)
+        buckets['Defaulted (17+)'] = (17, 25)
     
     return buckets
+
+
+def get_rating_bucket(rating):
+    """Convert a rating value to its bucket category"""
+    if pd.isna(rating):
+        return "Unknown"
+    
+    rating = int(rating)
+    if rating <= 13:
+        return "Pass Rated (1-13)"
+    elif rating == 14:
+        return "Watch (14)"
+    elif 15 <= rating <= 16:
+        return "Criticized (15-16)"
+    else:
+        return "Defaulted (17+)"
 
 
 def get_available_quarters(facilities_df, selected_portfolio, portfolios):
@@ -217,8 +242,10 @@ def get_latest_quarter(facilities_df, selected_portfolio, portfolios):
 def create_financial_trend_content():
     """Create dynamic Financial Trend content with real table"""
     return html.Div([
-        # Dynamic table container - no card wrapper, just the table
-        html.Div(id='financial-trend-details-table', children="Select portfolio and periods to view data")
+        # Dynamic table container with consistent background styling
+        html.Div([
+            html.Div(id='financial-trend-details-table', children="Select portfolio and periods to view data")
+        ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden")
     ], className="main-content")
 
 
@@ -261,15 +288,13 @@ def create_financial_trend_details_table(facilities_df, selected_portfolio, port
     primary_data = get_period_data(df, primary_period)
     comparison_data = get_period_data(df, comparison_quarter) if comparison_quarter else pd.DataFrame()
     
-    # Build table based on view selection
+    # Build and return table directly
     if not view_fields or len(view_fields) == 0:
-        # No view selected - show facility-level data
-        table_data = build_facility_level_table(primary_data, comparison_data, primary_period, comparison_quarter, portfolio_criteria['lob'])
+        return build_facility_level_table(primary_data, comparison_data, primary_period, comparison_quarter, portfolio_criteria['lob'])
     else:
-        # View fields selected - show grouped data
-        table_data = build_grouped_table(primary_data, comparison_data, view_fields, primary_period, comparison_quarter, portfolio_criteria['lob'])
-    
-    return table_data
+        return build_grouped_table(primary_data, comparison_data, view_fields, primary_period, comparison_quarter, portfolio_criteria['lob'])
+
+
 
 
 def calculate_comparison_period(primary_period, comparison_period, custom_lookback):
@@ -395,23 +420,45 @@ def build_grouped_table(primary_data, comparison_data, view_fields, primary_peri
     
     # Group data by view fields
     try:
-        # Create grouping columns
-        valid_view_fields = [field for field in view_fields if field in primary_data.columns]
+        # Handle special rating_buckets field and create grouping columns
+        data_for_grouping = primary_data.copy()
+        actual_grouping_fields = []
         
-        if not valid_view_fields:
+        for field in view_fields:
+            if field == 'rating_buckets':
+                # Create rating bucket column based on obligor_rating
+                if 'obligor_rating' in data_for_grouping.columns:
+                    data_for_grouping['rating_buckets'] = data_for_grouping['obligor_rating'].apply(get_rating_bucket)
+                    actual_grouping_fields.append('rating_buckets')
+            elif field in data_for_grouping.columns:
+                actual_grouping_fields.append(field)
+        
+        if not actual_grouping_fields:
             return html.Div("Selected view fields not available in data.", className="p-4 text-center text-ink-500")
         
         # Group data
-        grouped = primary_data.groupby(valid_view_fields)
+        grouped = data_for_grouping.groupby(actual_grouping_fields)
         
         table_rows = []
         
         for group_key, group_data in grouped:
             # Add group header row
-            if len(valid_view_fields) == 1:
-                group_title = f"{valid_view_fields[0].replace('_', ' ').title()}: {group_key}"
+            if len(actual_grouping_fields) == 1:
+                field_name = actual_grouping_fields[0]
+                # Special display name for rating_buckets
+                if field_name == 'rating_buckets':
+                    display_name = 'Rating Buckets'
+                else:
+                    display_name = field_name.replace('_', ' ').title()
+                group_title = f"{display_name}: {group_key}"
             else:
-                group_parts = [f"{field.replace('_', ' ').title()}: {val}" for field, val in zip(valid_view_fields, group_key)]
+                group_parts = []
+                for field, val in zip(actual_grouping_fields, group_key):
+                    if field == 'rating_buckets':
+                        display_name = 'Rating Buckets'
+                    else:
+                        display_name = field.replace('_', ' ').title()
+                    group_parts.append(f"{display_name}: {val}")
                 group_title = " | ".join(group_parts)
             
             # Add group header

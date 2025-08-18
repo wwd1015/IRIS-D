@@ -466,7 +466,7 @@ def create_datatidy_config():
                 'risk_category': {
                     'source': 'obligor_rating',
                     'type': 'string',
-                    'transformation': '"Low Risk" if obligor_rating <= 8 else ("Medium Risk" if obligor_rating <= 12 else ("High Risk" if obligor_rating <= 16 else "Default"))'
+                    'transformation': '"Pass Rated" if obligor_rating <= 13 else ("Watch" if obligor_rating == 14 else ("Criticized" if obligor_rating <= 16 else "Defaulted"))'
                 },
                 'origination_date': {
                     'source': 'origination_date',
