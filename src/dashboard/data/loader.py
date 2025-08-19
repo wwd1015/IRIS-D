@@ -7,7 +7,7 @@ import pandas as pd
 import yaml
 from threading import Timer
 from sqlalchemy import create_engine
-from datatidy import DataTidy
+from .models import FacilityDataset, FacilityRecord
 from ..auth import user_management
 
 
@@ -33,47 +33,65 @@ def auto_save_data(custom_metrics):
 
 def load_facilities_data():
     """
-    Load facilities data using DataTidy transformations with fallback
-    Returns: pd.DataFrame: Processed facilities data
+    Load facilities data from SQLite database with Pydantic validation and transformations
+    Returns: pd.DataFrame: Processed and validated facilities data
     """
     db_path = 'data/bank_risk.db'
-    config_path = 'data/datatidy_config.yaml'
     
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database not found: {db_path}. Please run db_data_generator.py first.")
     
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"DataTidy config not found: {config_path}. Please run db_data_generator.py first.")
-    
     try:
-        print("Loading facilities data from database via DataTidy...")
+        print("=== Bank Risk Dashboard - Pydantic Data Validation ===")
+        print("Loading facilities data from database...")
         
-        # Load DataTidy config
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
+        # Load raw data from SQLite
+        engine = create_engine(f'sqlite:///{db_path}')
+        raw_df = pd.read_sql('SELECT * FROM raw_facilities ORDER BY facility_id, reporting_date', engine)
         
-        # Process with DataTidy
-        dt = DataTidy()
-        dt.load_config(config)
-        df = dt.process_data()
+        print(f"✓ Loaded {len(raw_df)} raw facility records from database")
         
-        print(f"✓ Loaded {len(df)} facility records from database via DataTidy")
-        derived_fields = [col for col in df.columns if col in ['balance_millions', 'risk_category']]
+        # Validate and transform data using Pydantic
+        print("Validating and transforming data with Pydantic...")
+        dataset = FacilityDataset.from_dataframe(raw_df)
+        
+        # Convert back to DataFrame with computed fields
+        processed_df = dataset.to_dataframe()
+        
+        print(f"✓ Validated {len(processed_df)} facility records with Pydantic")
+        
+        # Show derived fields
+        derived_fields = [col for col in processed_df.columns if col in ['balance_millions', 'risk_category', 'quarters_since_origination']]
         if derived_fields:
-            print(f"✓ DataFrame includes derived fields: {derived_fields}")
-        return df
+            print(f"✓ Added computed fields: {derived_fields}")
+        
+        # Show summary stats
+        stats = dataset.get_summary_stats()
+        print(f"✓ Dataset summary: {stats['total_facilities']} facilities, ${stats['total_balance_millions']:.1f}M total balance")
+        print(f"✓ LOB distribution: {stats['lob_distribution']}")
+        print(f"✓ Risk categories: {stats['risk_category_distribution']}")
+        
+        return processed_df
         
     except Exception as e:
-        print(f"DataTidy processing failed: {e}")
+        print(f"Error loading data with Pydantic validation: {e}")
         print("Falling back to direct database query...")
         
         try:
-            # Direct database fallback
+            # Fallback: direct database load without validation
             engine = create_engine(f'sqlite:///{db_path}')
             df = pd.read_sql('SELECT * FROM raw_facilities ORDER BY facility_id, reporting_date', engine)
-            print(f"✓ Loaded {len(df)} facility records from database (direct query)")
+            
+            # Add basic computed fields manually
+            df['balance_millions'] = df['balance'] / 1_000_000
+            df['risk_category'] = df['obligor_rating'].apply(
+                lambda x: "Pass Rated" if x <= 13 else "Watch" if x == 14 else "Criticized" if x <= 16 else "Defaulted" if x == 17 else "Defaulted"
+            )
+            
+            print(f"✓ Loaded {len(df)} facility records from database (fallback mode)")
             return df
+            
         except Exception as e2:
-            raise Exception(f"Both DataTidy and direct database query failed. DataTidy error: {e}. Database error: {e2}")
+            raise Exception(f"Both Pydantic validation and direct database query failed. Pydantic error: {e}. Database error: {e2}")
 
 

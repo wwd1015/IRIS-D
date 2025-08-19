@@ -157,21 +157,21 @@ def create_rating_buckets(rating_values):
     
     buckets = {}
     
-    # Create buckets based on new rating categorization
+    # Create buckets based on rating categorization (1-17 scale)
     if min_rating <= 13:
         buckets['Pass Rated (1-13)'] = (1, 13)
     if any(r == 14 for r in rating_values):
         buckets['Watch (14)'] = (14, 14)
     if any(15 <= r <= 16 for r in rating_values):
         buckets['Criticized (15-16)'] = (15, 16)
-    if max_rating >= 17:
-        buckets['Defaulted (17+)'] = (17, 25)
+    if any(r == 17 for r in rating_values):
+        buckets['Defaulted (17)'] = (17, 17)
     
     return buckets
 
 
 def get_rating_bucket(rating):
-    """Convert a rating value to its bucket category"""
+    """Convert a rating value to its bucket category (1-17 scale)"""
     if pd.isna(rating):
         return "Unknown"
     
@@ -182,8 +182,10 @@ def get_rating_bucket(rating):
         return "Watch (14)"
     elif 15 <= rating <= 16:
         return "Criticized (15-16)"
+    elif rating == 17:
+        return "Defaulted (17)"
     else:
-        return "Defaulted (17+)"
+        return "Unknown"
 
 
 def get_available_quarters(facilities_df, selected_portfolio, portfolios):
