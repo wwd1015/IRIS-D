@@ -4,10 +4,9 @@ Data loading and filtering functions for the Bank Risk Dashboard
 
 import os
 import pandas as pd
-import yaml
 from threading import Timer
 from sqlalchemy import create_engine
-from .models import FacilityDataset, FacilityRecord
+from .models import FacilityDataset
 from ..auth import user_management
 
 
