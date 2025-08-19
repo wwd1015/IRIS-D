@@ -2,6 +2,8 @@
 Configuration constants and settings for the Portfolio Performance Dashboard.
 """
 
+import os
+
 # Default portfolios (constant)
 DEFAULT_PORTFOLIOS = {
     'Corporate Banking': {'lob': 'Corporate Banking', 'industry': None, 'property_type': None},
@@ -17,9 +19,9 @@ DATATIDY_CONFIG_PATH = 'data/datatidy_config.yaml'
 
 # Application settings
 DEFAULT_USER = 'Guest'
-DEBUG_MODE = True
-HOST = '127.0.0.1'
-PORT = 8050
+DEBUG_MODE = os.environ.get('DEBUG', 'False').lower() == 'true'
+HOST = os.environ.get('HOST', '127.0.0.1')
+PORT = int(os.environ.get('PORT', 8050))
 
 # Asset folders
 ASSETS_FOLDER = 'assets'
