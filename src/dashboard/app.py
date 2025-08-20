@@ -245,7 +245,7 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_c
             create_portfolio_sidebar(selected_portfolio, available_portfolios),
             html.Div(id='main-content-container', children=create_main_content(selected_portfolio, lambda p: get_filtered_data(p, portfolios, latest_facilities), facilities_df, portfolios)),
             html.Div(id='positions-panel-container', children=create_positions_panel(selected_portfolio, facilities_df, portfolios, lambda p: get_filtered_data(p, portfolios, latest_facilities)))
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_340px] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_340px] gap-4 items-stretch")
     elif active_tab == 'holdings':
         content = html.Div([
             create_holdings_sidebar(selected_portfolio, available_portfolios, portfolios, lambda p: get_filtered_data(p, portfolios, latest_facilities)),

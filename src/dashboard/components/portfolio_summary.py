@@ -233,8 +233,8 @@ def create_main_content(selected_portfolio, get_filtered_data, facilities_df, po
                 html.Div("High Risk Facilities", className="text-xs text-ink-500 dark:text-slate-400")
             ], className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-ink-700 mb-4"),
             create_watchlist_table(portfolio_data, facilities_df)
-        ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 p-4 mt-4 h-80 overflow-y-auto")
-    ], className="flex flex-col")
+        ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 p-4 mt-4 flex-1 min-h-0 overflow-y-auto")
+    ], className="flex flex-col min-h-[600px]")
 
 
 def create_positions_panel(selected_portfolio, facilities_df, portfolios, get_filtered_data):
@@ -356,4 +356,4 @@ def create_positions_panel(selected_portfolio, facilities_df, portfolios, get_fi
                 *rating_rows
             ], className="mt-2 space-y-1")
         ], className="p-4")
-    ], className="chart-card positions-panel")
+    ], className="chart-card positions-panel h-full")
