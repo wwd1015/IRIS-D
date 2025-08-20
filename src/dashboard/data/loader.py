@@ -17,7 +17,7 @@ _cache_timestamp = None
 
 
 def auto_save_data(custom_metrics):
-    """Auto-save current user data every 15 seconds"""
+    """Auto-save current user data every 30 seconds"""
     global auto_save_timer
     if user_management.get_current_user() != 'Guest':
         # Only save if user has custom portfolios (not defaults)
@@ -28,7 +28,7 @@ def auto_save_data(custom_metrics):
         portfolios_to_save = user_custom_portfolios
         user_management.save_user_data(user_management.get_current_user(), portfolios_to_save, custom_metrics)
     # Schedule next auto-save
-    auto_save_timer = Timer(15.0, lambda: auto_save_data(custom_metrics))
+    auto_save_timer = Timer(30.0, lambda: auto_save_data(custom_metrics))
     auto_save_timer.start()
 
 

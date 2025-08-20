@@ -1,24 +1,25 @@
 {
-  "Wendi Wang": {
-    "portfolios": {},
-    "custom_metrics": {
-      "Crit Balance": "(obligor_rating == 15 or obligor_rating == 16) * balance"
-    },
-    "role": "SAG",
-    "last_saved": "2025-08-17T16:45:31.158615"
-  },
   "YY": {
-    "portfolios": {},
+    "portfolios": {
+      "Energy": {
+        "lob": "Corporate Banking",
+        "industry": [
+          "Energy"
+        ],
+        "property_type": null,
+        "obligors": null
+      }
+    },
     "custom_metrics": {},
     "role": "CRE SCO",
-    "last_saved": "2025-08-17T16:32:25.202672"
+    "last_saved": "2025-08-19T22:37:13.195535"
   },
   "Test": {
     "portfolios": {},
     "custom_metrics": {},
     "role": "CRE SCO",
     "created": "2025-08-15T11:08:24.839426",
-    "last_saved": "2025-08-15T21:49:43.740974"
+    "last_saved": "2025-08-19T22:33:22.467661"
   },
   "Corp SCO": {
     "portfolios": {},

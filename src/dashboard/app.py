@@ -33,7 +33,7 @@ import yaml
 from . import config
 from .auth import user_management
 from .components.layout import create_layout, create_role_based_navigation, get_tab_button_classes, get_app_index_string
-from .data.loader import auto_save_data, load_facilities_data
+from .data.loader import load_facilities_data
 from .components.portfolio_management import get_current_user_portfolios, create_portfolio_sidebar, save_portfolio_data, delete_portfolio_data
 from .components.portfolio_summary import create_main_content, create_positions_panel
 from .components.holdings import create_holdings_sidebar, create_holdings_filters, create_holdings_content, create_holdings_table, create_time_series_table
@@ -126,9 +126,9 @@ def get_filtered_data(portfolio_name, portfolios, latest_facilities):
 # DATA INITIALIZATION
 # ================================================================================================
 
-# Initialize user profiles and start auto-save timer for data persistence
+# Initialize user profiles 
 user_profiles = user_management.load_profiles()
-auto_save_data(custom_metrics)  # Start 15-second auto-save timer
+# Note: Auto-save is handled by the dashboard interval callback (30s)
 
 # Load data using integrated DataTidy pipeline
 try:
@@ -409,6 +409,11 @@ def save_portfolio(n_clicks, portfolio_name, lob_value, industry_value, property
             'obligors': obligor_value
         }
         
+        # Save to user profile if not Guest (exclude default portfolios)
+        if user_management.get_current_user() != 'Guest':
+            custom_portfolios = {k: v for k, v in portfolios.items() if k not in config.DEFAULT_PORTFOLIOS}
+            user_management.save_user_data(user_management.get_current_user(), custom_portfolios, custom_metrics)
+        
         # Update global portfolios
         portfolios = portfolios
         available_portfolios = list(portfolios.keys())
@@ -446,6 +451,11 @@ def delete_portfolio(n_clicks, portfolio_to_delete):
         
         # Remove portfolio
         del portfolios[portfolio_to_delete]
+        
+        # Save to user profile if not Guest (exclude default portfolios)
+        if user_management.get_current_user() != 'Guest':
+            custom_portfolios = {k: v for k, v in portfolios.items() if k not in config.DEFAULT_PORTFOLIOS}
+            user_management.save_user_data(user_management.get_current_user(), custom_portfolios, custom_metrics)
         
         # Update global portfolios
         portfolios = portfolios
@@ -1569,11 +1579,10 @@ def handle_login_modal(login_btn_clicks, login_clicks, register_clicks, delete_c
         portfolios.clear()
         custom_metrics.clear()
         
-        # Only add user's custom portfolios if they have any, otherwise use defaults
+        # Start with defaults and add user's custom portfolios
+        portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
         if user_portfolios:
             portfolios.update(user_portfolios)
-        else:
-            portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
         
         custom_metrics.update(user_data.get('custom_metrics', {}))
         
@@ -1639,10 +1648,10 @@ def handle_profile_switch_modal(avatar_clicks, confirm_clicks, cancel_clicks, se
             user_data = user_management.get_user_data(user_management.get_current_user())
             portfolios.clear()
             user_portfolios = user_data.get('portfolios', {})
+            # Start with defaults and add user's custom portfolios
+            portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
             if user_portfolios:
                 portfolios.update(user_portfolios)
-            else:
-                portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
             custom_metrics.clear()
             custom_metrics.update(user_data.get('custom_metrics', {}))
         
@@ -1772,6 +1781,7 @@ def update_portfolio_dropdowns_on_profile_change(confirm_clicks, selected_profil
             portfolios.clear()
             portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
             custom_metrics.clear()
+            print(f"DEBUG: Switched to Guest - portfolios: {list(portfolios.keys())}")
             
             # Remove any custom metric columns from dataframe
             custom_metric_cols = [col for col in facilities_df.columns if col not in ['facility_id', 'obligor_name', 'balance', 'interest_rate', 'lob', 'industry', 'cre_property_type', 'obligor_rating', 'msa', 'origination_date', 'maturity_date', 'reporting_date', 'ltv', 'dscr', 'tier_1_capital_ratio', 'free_cash_flow', 'current_ratio', 'debt_to_equity', 'sir']]
@@ -1782,12 +1792,13 @@ def update_portfolio_dropdowns_on_profile_change(confirm_clicks, selected_profil
             user_data = user_management.get_user_data(user_management.get_current_user())
             portfolios.clear()
             user_portfolios = user_data.get('portfolios', {})
+            # Start with defaults and add user's custom portfolios
+            portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
             if user_portfolios:
                 portfolios.update(user_portfolios)
-            else:
-                portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
             custom_metrics.clear()
             custom_metrics.update(user_data.get('custom_metrics', {}))
+            print(f"DEBUG: Switched to {user_management.get_current_user()} - portfolios: {list(portfolios.keys())}, user_portfolios: {list(user_portfolios.keys())}")
             
             # Recalculate custom metrics for the dataframe
             for metric_name, formula in custom_metrics.items():
@@ -1829,20 +1840,16 @@ def update_portfolio_dropdowns_on_profile_change(confirm_clicks, selected_profil
 def show_auto_save_notification(n_intervals):
     """Show auto-save notification"""
     if user_management.get_current_user() != 'Guest' and n_intervals > 0:
-        # Only save custom portfolios, not defaults
-        user_data = user_management.get_user_data(user_management.get_current_user())
-        user_custom_portfolios = user_data.get('portfolios', {})
-        
-        # Only save portfolios if the user actually has custom ones
-        portfolios_to_save = user_custom_portfolios
-        user_management.save_user_data(user_management.get_current_user(), portfolios_to_save, custom_metrics)
+        # Save current portfolios and custom metrics (exclude default portfolios)
+        custom_portfolios = {k: v for k, v in portfolios.items() if k not in config.DEFAULT_PORTFOLIOS}
+        user_management.save_user_data(user_management.get_current_user(), custom_portfolios, custom_metrics)
         
         # Show notification and enable hide timer
         return ({
             "position": "fixed", "bottom": "20px", "right": "20px", 
             "zIndex": "1000", "opacity": "1", "transition": "opacity 0.3s ease",
             "display": "block"
-        }, f"Profile '{user_management.get_current_user()}' auto-saved", False)
+        }, "Saved", False)
     
     # Hide notification and disable timer
     return ({

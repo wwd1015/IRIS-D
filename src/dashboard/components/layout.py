@@ -283,7 +283,7 @@ def create_layout(selected_portfolio, app_index_string):
                 "display": "flex",
                 "alignItems": "center",
                 "position": "absolute",
-                "top": "20px",
+                "bottom": "20px",
                 "right": "20px",
                 "zIndex": "1000",
                 "fontSize": "14px",
@@ -308,7 +308,7 @@ def create_layout(selected_portfolio, app_index_string):
         ),
         dcc.Interval(
             id='hide-notification-interval',
-            interval=1*1000,  # 1 second
+            interval=3*1000,  # 3 seconds
             n_intervals=0,
             disabled=True
         ),
