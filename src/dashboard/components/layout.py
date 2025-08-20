@@ -303,7 +303,7 @@ def create_layout(selected_portfolio, app_index_string):
         # Hidden interval components
         dcc.Interval(
             id='auto-save-interval',
-            interval=1*1000,  # 1 second
+            interval=30*1000,  # 30 seconds
             n_intervals=0
         ),
         dcc.Interval(

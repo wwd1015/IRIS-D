@@ -66,13 +66,11 @@ def create_charts(portfolio_data):
         industry_data = portfolio_data[portfolio_data['lob'] == 'Corporate Banking']['industry'].value_counts()
         pie_labels = industry_data.index.tolist()
         pie_values = industry_data.values.tolist()
-        pie_title = "Holdings by Industry"
     else:
         # For CRE, use property type
         property_data = portfolio_data[portfolio_data['lob'] == 'CRE']['cre_property_type'].value_counts()
         pie_labels = property_data.index.tolist()
         pie_values = property_data.values.tolist()
-        pie_title = "Holdings by Property Type"
     
     pie_fig = go.Figure(data=[
         go.Pie(
@@ -107,7 +105,7 @@ def create_watchlist_table(portfolio_data, facilities_df):
     facilities_df['reporting_date'] = pd.to_datetime(facilities_df['reporting_date'])
     
     watchlist_rows = []
-    for idx, row in portfolio_data.iterrows():
+    for _, row in portfolio_data.iterrows():
         fac_id = row['facility_id']
         obligor = row['obligor_name']
         current_rating = row['obligor_rating']
@@ -242,7 +240,6 @@ def create_positions_panel(selected_portfolio, facilities_df, portfolios, get_fi
     print(f"DEBUG: create_positions_panel called for portfolio: {selected_portfolio}")
     
     # Get current quarter end data only
-    current_quarter_end = facilities_df['reporting_date'].max()
     
     # Filter to current quarter snapshot
     portfolio_data = get_filtered_data(selected_portfolio)

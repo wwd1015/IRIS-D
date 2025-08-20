@@ -12,6 +12,8 @@ from ..auth import user_management
 
 # Global Variables
 auto_save_timer = None
+_data_cache = {}
+_cache_timestamp = None
 
 
 def auto_save_data(custom_metrics):
@@ -35,6 +37,15 @@ def load_facilities_data():
     Load facilities data from SQLite database with Pydantic validation and transformations
     Returns: pd.DataFrame: Processed and validated facilities data
     """
+    global _data_cache, _cache_timestamp
+    import time
+    
+    # Check cache (valid for 1 day)
+    current_time = time.time()
+    if _cache_timestamp and (current_time - _cache_timestamp) < 86400 and 'facilities_df' in _data_cache:
+        print("✓ Using cached facilities data")
+        return _data_cache['facilities_df']
+    
     db_path = 'data/bank_risk.db'
     
     if not os.path.exists(db_path):
@@ -69,6 +80,10 @@ def load_facilities_data():
         print(f"✓ Dataset summary: {stats['total_facilities']} facilities, ${stats['total_balance_millions']:.1f}M total balance")
         print(f"✓ LOB distribution: {stats['lob_distribution']}")
         print(f"✓ Risk categories: {stats['risk_category_distribution']}")
+        
+        # Cache the result
+        _data_cache['facilities_df'] = processed_df
+        _cache_timestamp = current_time
         
         return processed_df
         
