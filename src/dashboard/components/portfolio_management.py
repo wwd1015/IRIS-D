@@ -107,7 +107,7 @@ def create_portfolio_sidebar(selected_portfolio, available_portfolios):
                            className="w-full px-3 py-2 text-xs border border-red-300 text-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900 transition-colors")
             ], className="space-y-3 mt-4")
         ], className="p-4 flex-1 overflow-auto")
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col h-auto")
 
 
 def save_portfolio_data(portfolios, available_portfolios, portfolio_name, lob_value, industry_value, property_type_value, obligor_value):

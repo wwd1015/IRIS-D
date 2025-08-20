@@ -59,8 +59,7 @@ def create_layout(selected_portfolio, app_index_string):
         html.Header([
             html.Div([
                 html.Div([
-                    html.Div(className="h-6 w-6 rounded bg-brand-500"),
-                    html.Div("Portfolio Performance Dashboard", className="text-sm text-ink-600 dark:text-slate-300"),
+                    html.Div("Portfolio Performance Dashboard", className="dashboard-title"),
                     html.Span("Dev", className="text-[10px] font-semibold text-black bg-yellow-400 rounded px-1.5 py-0.5")
                 ], className="flex items-center gap-3"),
                 html.Div([
