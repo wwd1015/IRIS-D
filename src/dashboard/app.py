@@ -274,7 +274,7 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_c
     elif active_tab == 'location-analysis':
         content = html.Div([
             create_location_analysis_sidebar(selected_portfolio, portfolios),
-            create_location_analysis_content(selected_portfolio)
+            create_location_analysis_content(selected_portfolio, portfolios)
         ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'financial-projection':
         content = html.Div([
@@ -2070,6 +2070,18 @@ def download_chart_3_data(n_clicks, selected_portfolio, benchmark_portfolio, met
         return dcc.send_data_frame(main_data.to_csv, f"portfolio_trends_chart3_{metric}_{agg_method or 'avg'}.csv", index=False)
     
     return no_update
+
+# Location Analysis Map Callback
+@callback(
+    Output('location-map', 'figure'),
+    Input('location-portfolio-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def update_location_map(selected_portfolio):
+    """Update location map when portfolio selection changes"""
+    global portfolios
+    from .components.location_analysis import create_location_map
+    return create_location_map(selected_portfolio, portfolios)
 
 # Set main app layout
 app.layout = create_layout(default_portfolio, app.index_string)
