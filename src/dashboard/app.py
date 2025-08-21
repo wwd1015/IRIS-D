@@ -250,37 +250,37 @@ def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_c
         content = html.Div([
             create_holdings_sidebar(selected_portfolio, available_portfolios, portfolios, lambda p: get_filtered_data(p, portfolios, latest_facilities)),
             create_holdings_content(selected_portfolio, lambda p: get_filtered_data(p, portfolios, latest_facilities))
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'financial-trends':
         content = html.Div([
             create_portfolio_trend_sidebar(selected_portfolio, available_portfolios),
             create_portfolio_trend_content(selected_portfolio, custom_metrics, portfolios, facilities_df, lambda p: get_filtered_data(p, portfolios, latest_facilities))
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'financial-trend-details':
         content = html.Div([
             create_financial_trend_sidebar(selected_portfolio, available_portfolios, portfolios, lambda p: get_filtered_data(p, portfolios, latest_facilities), facilities_df),
             create_financial_trend_content()
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'vintage-analysis':
         content = html.Div([
             create_vintage_analysis_sidebar(selected_portfolio, facilities_df, portfolios, default_portfolio),
             create_vintage_analysis_content(selected_portfolio)
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'sir-analysis':
         content = html.Div([
             create_sir_analysis_sidebar(selected_portfolio, portfolios),
             create_sir_analysis_content(selected_portfolio)
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'location-analysis':
         content = html.Div([
             create_location_analysis_sidebar(selected_portfolio, portfolios),
             create_location_analysis_content(selected_portfolio)
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'financial-projection':
         content = html.Div([
             create_financial_projection_sidebar(selected_portfolio, portfolios),
             create_financial_projection_content(selected_portfolio)
-        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4")
+        ], className="grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch")
     elif active_tab == 'model-backtesting':
         content = html.Div([
             create_model_backtesting_sidebar(selected_portfolio, portfolios),
