@@ -52,7 +52,7 @@ def get_tab_button_classes():
     }
 
 
-def create_layout(selected_portfolio, app_index_string):
+def create_layout(selected_portfolio, app_index_string, available_portfolios=None):
     """Create the main layout with modern Tailwind styling"""
     return html.Div(className="min-h-screen", children=[
         # Modern Header with Tailwind styling
@@ -60,7 +60,23 @@ def create_layout(selected_portfolio, app_index_string):
             html.Div([
                 html.Div([
                     html.Div("Portfolio Performance Dashboard", className="dashboard-title"),
-                    html.Span("Dev", className="text-[10px] font-semibold text-black bg-yellow-400 rounded px-1.5 py-0.5")
+                    # Portfolio button for universal access
+                    html.Div([
+                        html.Button(
+                            id="portfolio-selector-btn",
+                            children=selected_portfolio or "Select Portfolio",
+                            n_clicks=0,
+                            className="px-3 py-1.5 text-sm rounded border border-slate-300 dark:border-ink-600 bg-yellow-100 dark:bg-yellow-900 text-black dark:text-yellow-100 hover:bg-yellow-200 dark:hover:bg-yellow-800 cursor-pointer min-w-[200px] text-left",
+                            title="Click to change portfolio"
+                        ),
+                        # Hidden dropdown for callback compatibility
+                        dcc.Dropdown(
+                            id='universal-portfolio-dropdown',
+                            options=[{'label': portfolio, 'value': portfolio} for portfolio in (available_portfolios or [])],
+                            value=selected_portfolio,
+                            style={"display": "none"}
+                        )
+                    ], className="ml-4")
                 ], className="flex items-center gap-3"),
                 html.Div([
                     html.Button("Login/Register", id="login-btn", n_clicks=0,
@@ -259,6 +275,130 @@ def create_layout(selected_portfolio, app_index_string):
                 "zIndex": "1001"
             })
         ], id="contact-modal", style={
+            "position": "fixed",
+            "top": "0",
+            "left": "0",
+            "width": "100%",
+            "height": "100%",
+            "backgroundColor": "rgba(0, 0, 0, 0.5)",
+            "zIndex": "1000",
+            "display": "none"
+        }),
+        
+        # Portfolio Management Modal - Complete Sidebar Replication
+        html.Div([
+            html.Div([
+                # Modal Header
+                html.Header([
+                    html.Div([
+                        html.H2("Portfolio Management", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                        html.Button("✕", id="portfolio-modal-cancel", className="text-xl text-gray-500 hover:text-gray-700 cursor-pointer bg-transparent border-0")
+                    ], className="flex items-center justify-between")
+                ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+                
+                # Modal Content - Replicating the complete sidebar
+                html.Div([
+                    # Portfolio Selection Section
+                    html.Div([
+                        html.Label("Current Portfolio:", className="block text-sm font-medium mb-2 text-ink-600 dark:text-slate-300"),
+                        dcc.Dropdown(
+                            id="portfolio-modal-dropdown",
+                            placeholder="Select portfolio...",
+                            className="text-sm mb-4",
+                            style={"fontSize": "14px"}
+                        ),
+                        html.Button("✓ Select Portfolio", id="portfolio-select-confirm", 
+                                   className="w-full mb-4 px-3 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-400 transition-colors")
+                    ]),
+                    
+                    # Portfolio Creator & Manager Section - Exact replica
+                    html.Div([
+                        html.H3("Create New Portfolio", className="text-sm font-semibold mb-3 text-brand-500"),
+                        html.Div([
+                            html.Label("Line of Business", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                            dcc.Dropdown(
+                                id='modal-lob-dropdown',
+                                options=[
+                                    {'label': 'Corporate Banking', 'value': 'Corporate Banking'},
+                                    {'label': 'CRE', 'value': 'CRE'}
+                                ],
+                                placeholder="Select LOB...",
+                                className="text-xs mb-3"
+                            )
+                        ], className="mb-3"),
+                        html.Div([
+                            html.Label("Industry", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                            dcc.Dropdown(
+                                id='modal-industry-dropdown',
+                                options=[],
+                                placeholder="Select Industry...",
+                                className="text-xs",
+                                multi=True
+                            )
+                        ], className="mb-3", id='modal-industry-group', style={'display': 'none'}),
+                        html.Div([
+                            html.Label("Property Type", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                            dcc.Dropdown(
+                                id='modal-property-type-dropdown',
+                                options=[],
+                                placeholder="Select Property Type...",
+                                className="text-xs",
+                                multi=True
+                            )
+                        ], className="mb-3", id='modal-property-type-group', style={'display': 'none'}),
+                        html.Div([
+                            html.Label("OR Select Obligors Directly", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                            dcc.Dropdown(
+                                id='modal-obligor-dropdown',
+                                options=[],
+                                placeholder="Select obligors...",
+                                className="text-xs",
+                                multi=True
+                            )
+                        ], className="mb-3", id='modal-obligor-group'),
+                        html.Div([
+                            html.Label("Portfolio Name", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                            dcc.Input(
+                                id='modal-portfolio-name-input',
+                                type='text',
+                                placeholder="Enter portfolio name...",
+                                className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                            )
+                        ], className="mb-3"),
+                        html.Button("Save Portfolio", id='modal-save-portfolio-btn', 
+                                   className="w-full mb-4 px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
+                        
+                        # Separator
+                        html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
+                        
+                        # Delete Portfolio Section
+                        html.H3("Delete Portfolio", className="text-sm font-semibold mb-3 text-red-600"),
+                        html.Div([
+                            html.Label("Select Portfolio to Delete", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                            dcc.Dropdown(
+                                id='modal-delete-portfolio-dropdown',
+                                options=[],
+                                placeholder="Select portfolio to delete...",
+                                className="text-xs"
+                            )
+                        ], className="mb-3"),
+                        html.Button("Delete Portfolio", id='modal-delete-confirm-btn', 
+                                   className="w-full px-3 py-2 text-xs border border-red-300 text-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900 transition-colors")
+                    ], className="space-y-3 mt-4")
+                ], className="p-4 flex-1 overflow-auto")
+                
+            ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col", 
+               style={
+                "width": "400px",
+                "maxWidth": "90vw", 
+                "maxHeight": "85vh",
+                "position": "absolute",
+                "top": "50%",
+                "left": "50%",
+                "transform": "translate(-50%, -50%)",
+                "zIndex": "1001"
+            })
+        ], id="portfolio-modal", style={
             "position": "fixed",
             "top": "0",
             "left": "0",

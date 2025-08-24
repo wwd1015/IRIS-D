@@ -202,10 +202,11 @@ app.index_string = get_app_index_string()
      Input('tab-sir-analysis', 'n_clicks'),
      Input('tab-location-analysis', 'n_clicks'),
      Input('tab-financial-projection', 'n_clicks'),
-     Input('tab-model-backtesting', 'n_clicks')],
+     Input('tab-model-backtesting', 'n_clicks'),
+     Input('universal-portfolio-dropdown', 'value')],
     prevent_initial_call=False
 )
-def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_clicks, vintage_clicks, sir_clicks, location_clicks, projection_clicks, backtesting_clicks):
+def update_tab_content(summary_clicks, holdings_clicks, trends_clicks, details_clicks, vintage_clicks, sir_clicks, location_clicks, projection_clicks, backtesting_clicks, universal_portfolio):
     """
     Handle main tab navigation and content switching.
     
@@ -1830,6 +1831,197 @@ def update_portfolio_dropdowns_on_profile_change(confirm_clicks, selected_profil
     
     return no_update, no_update
 
+# Universal portfolio dropdown callback
+@callback(
+    [Output('universal-portfolio-dropdown', 'options', allow_duplicate=True),
+     Output('universal-portfolio-dropdown', 'value', allow_duplicate=True)],
+    Input('portfolio-dropdown', 'options'),
+    Input('portfolio-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def update_universal_portfolio_dropdown(portfolio_options, portfolio_value):
+    """Sync universal portfolio dropdown with main portfolio dropdown"""
+    if portfolio_options:
+        return portfolio_options, portfolio_value
+    return [], None
+
+# Sync universal dropdown selection to all individual portfolio dropdowns
+@callback(
+    [Output('portfolio-dropdown', 'value', allow_duplicate=True),
+     Output('vintage-portfolio-dropdown', 'value', allow_duplicate=True),
+     Output('location-portfolio-dropdown', 'value', allow_duplicate=True),
+     Output('financial-projection-portfolio-dropdown', 'value', allow_duplicate=True),
+     Output('model-backtesting-portfolio-dropdown', 'value', allow_duplicate=True),
+     Output('sir-portfolio-dropdown', 'value', allow_duplicate=True)],
+    Input('universal-portfolio-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def sync_universal_dropdown_to_all(universal_value):
+    """Sync universal dropdown selection to all individual portfolio dropdowns"""
+    if universal_value:
+        return universal_value, universal_value, universal_value, universal_value, universal_value, universal_value
+    return no_update, no_update, no_update, no_update, no_update, no_update
+
+# Portfolio Modal Management Callbacks
+@callback(
+    [Output('portfolio-modal', 'style'),
+     Output('portfolio-modal-dropdown', 'options'),
+     Output('portfolio-modal-dropdown', 'value'),
+     Output('modal-delete-portfolio-dropdown', 'options')],
+    [Input('portfolio-selector-btn', 'n_clicks'),
+     Input('portfolio-modal-cancel', 'n_clicks')],
+    prevent_initial_call=True
+)
+def toggle_portfolio_modal(btn_clicks, cancel_clicks):
+    """Show/hide portfolio modal and populate with current portfolios"""
+    global portfolios
+    ctx = callback_context
+    
+    if not ctx.triggered:
+        return no_update, no_update, no_update, no_update
+    
+    trigger_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if trigger_id == 'portfolio-selector-btn':
+        # Show modal and populate options
+        portfolio_options = [{'label': name, 'value': name} for name in portfolios.keys()]
+        delete_options = [{'label': portfolio, 'value': portfolio} for portfolio in portfolios.keys() if portfolio not in ['Corporate Banking', 'CRE']]
+        return {
+            "position": "fixed", "top": "0", "left": "0", "width": "100%", 
+            "height": "100%", "backgroundColor": "rgba(0, 0, 0, 0.5)", 
+            "zIndex": "1000", "display": "block"
+        }, portfolio_options, None, delete_options
+    else:
+        # Hide modal
+        return {"display": "none"}, no_update, no_update, no_update
+
+@callback(
+    [Output('portfolio-selector-btn', 'children'),
+     Output('universal-portfolio-dropdown', 'value', allow_duplicate=True),
+     Output('portfolio-modal', 'style', allow_duplicate=True)],
+    Input('portfolio-select-confirm', 'n_clicks'),
+    State('portfolio-modal-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def confirm_portfolio_selection(confirm_clicks, selected_portfolio):
+    """Update portfolio selection and close modal"""
+    if confirm_clicks and selected_portfolio:
+        return selected_portfolio, selected_portfolio, {"display": "none"}
+    return no_update, no_update, no_update
+
+
+# Modal LOB selection callback - show/hide appropriate dropdowns
+@callback(
+    [Output('modal-industry-group', 'style'),
+     Output('modal-property-type-group', 'style'),
+     Output('modal-industry-dropdown', 'options'),
+     Output('modal-property-type-dropdown', 'options'),
+     Output('modal-obligor-dropdown', 'options')],
+    Input('modal-lob-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def update_modal_dropdown_visibility(lob_value):
+    """Show/hide appropriate dropdowns based on LOB selection in modal"""
+    global latest_facilities
+    
+    if not lob_value:
+        return {'display': 'none'}, {'display': 'none'}, [], [], []
+    
+    # Get unique obligors for all LOBs
+    obligor_options = [{'label': name, 'value': name} for name in sorted(latest_facilities['obligor_name'].unique())]
+    
+    if lob_value == 'Corporate Banking':
+        # Show industry dropdown, hide property type
+        industry_options = [{'label': ind, 'value': ind} for ind in sorted(latest_facilities[latest_facilities['lob'] == 'Corporate Banking']['industry'].dropna().unique())]
+        return {'display': 'block'}, {'display': 'none'}, industry_options, [], obligor_options
+    elif lob_value == 'CRE':
+        # Show property type dropdown, hide industry
+        property_options = [{'label': prop, 'value': prop} for prop in sorted(latest_facilities[latest_facilities['lob'] == 'CRE']['cre_property_type'].dropna().unique())]
+        return {'display': 'none'}, {'display': 'block'}, [], property_options, obligor_options
+    
+    return {'display': 'none'}, {'display': 'none'}, [], [], obligor_options
+
+# Modal portfolio creation callback
+@callback(
+    [Output('portfolio-modal-dropdown', 'options', allow_duplicate=True),
+     Output('portfolio-modal-dropdown', 'value', allow_duplicate=True),
+     Output('modal-delete-portfolio-dropdown', 'options', allow_duplicate=True),
+     Output('modal-portfolio-name-input', 'value'),
+     Output('modal-lob-dropdown', 'value'),
+     Output('modal-industry-dropdown', 'value'),
+     Output('modal-property-type-dropdown', 'value'),
+     Output('modal-obligor-dropdown', 'value')],
+    Input('modal-save-portfolio-btn', 'n_clicks'),
+    [State('modal-portfolio-name-input', 'value'),
+     State('modal-lob-dropdown', 'value'),
+     State('modal-industry-dropdown', 'value'),
+     State('modal-property-type-dropdown', 'value'),
+     State('modal-obligor-dropdown', 'value')],
+    prevent_initial_call=True
+)
+def save_portfolio_from_modal(n_clicks, portfolio_name, lob_value, industry_value, property_type_value, obligor_value):
+    """Save new portfolio from modal and update dropdowns"""
+    global portfolios, available_portfolios
+    
+    if n_clicks and portfolio_name and (lob_value or obligor_value):
+        # Add new portfolio
+        portfolios[portfolio_name] = {
+            'lob': lob_value,
+            'industry': industry_value,
+            'property_type': property_type_value,
+            'obligors': obligor_value
+        }
+        
+        # Update available portfolios
+        available_portfolios = list(portfolios.keys())
+        
+        # Create dropdown options
+        portfolio_options = [{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios]
+        delete_options = [{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios if portfolio not in ['Corporate Banking', 'CRE']]
+        
+        # Save to user data if not guest
+        if user_management.get_current_user() != 'Guest':
+            custom_portfolios = {k: v for k, v in portfolios.items() if k not in config.DEFAULT_PORTFOLIOS}
+            user_management.save_user_data(user_management.get_current_user(), custom_portfolios, custom_metrics)
+        
+        # Clear form
+        return portfolio_options, portfolio_name, delete_options, "", None, None, None, None
+    
+    return no_update, no_update, no_update, no_update, no_update, no_update, no_update, no_update
+
+# Modal portfolio deletion callback
+@callback(
+    [Output('portfolio-modal-dropdown', 'options', allow_duplicate=True),
+     Output('portfolio-modal-dropdown', 'value', allow_duplicate=True),
+     Output('modal-delete-portfolio-dropdown', 'options', allow_duplicate=True)],
+    Input('modal-delete-confirm-btn', 'n_clicks'),
+    State('modal-delete-portfolio-dropdown', 'value'),
+    prevent_initial_call=True
+)
+def delete_portfolio_from_modal(n_clicks, portfolio_to_delete):
+    """Delete portfolio from modal and update dropdowns"""
+    global portfolios, available_portfolios
+    
+    if n_clicks and portfolio_to_delete and portfolio_to_delete not in ['Corporate Banking', 'CRE']:
+        # Remove portfolio
+        portfolios.pop(portfolio_to_delete, None)
+        
+        # Update available portfolios
+        available_portfolios = list(portfolios.keys())
+        
+        # Create dropdown options
+        portfolio_options = [{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios]
+        delete_options = [{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios if portfolio not in ['Corporate Banking', 'CRE']]
+        
+        # Save to user data if not guest
+        if user_management.get_current_user() != 'Guest':
+            custom_portfolios = {k: v for k, v in portfolios.items() if k not in config.DEFAULT_PORTFOLIOS}
+            user_management.save_user_data(user_management.get_current_user(), custom_portfolios, custom_metrics)
+        
+        return portfolio_options, None, delete_options
+    
+    return no_update, no_update, no_update
+
 @callback(
     [Output('auto-save-notification', 'style'),
      Output('save-message', 'children'),
@@ -2084,7 +2276,7 @@ def update_location_map(selected_portfolio):
     return create_location_map(selected_portfolio, portfolios)
 
 # Set main app layout
-app.layout = create_layout(default_portfolio, app.index_string)
+app.layout = create_layout(default_portfolio, app.index_string, available_portfolios)
 
 # ================================================================================================
 # CLIENT-SIDE CALLBACKS AND APP STARTUP

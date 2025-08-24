@@ -10,17 +10,17 @@ def create_portfolio_trend_sidebar(selected_portfolio, available_portfolios):
             html.H2("Portfolio Trend", className="text-sm font-semibold")
         ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
         html.Div([
+            # Portfolio dropdown moved to title bar - keeping this hidden for callback compatibility
             html.Div([
-                html.Label("Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
                     id='portfolio-dropdown',
                     options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
                     value=selected_portfolio,
                     placeholder="Select portfolio...",
                     className="text-xs",
-                    style={"fontSize": "12px"}
+                    style={"fontSize": "12px", "display": "none"}
                 )
-            ], className="mb-3"),
+            ], style={"display": "none"}),
             html.Div([
                 html.Label("Benchmark Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Dropdown(
