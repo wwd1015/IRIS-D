@@ -1,6 +1,6 @@
-# Portfolio Performance Dashboard
+# IRIS-D – Interactive Reporting & Insight Generation System - Dashboard
 
-A comprehensive portfolio performance dashboard for Corporate Banking and CRE portfolios built with Dash and Python.
+IRIS-D is a comprehensive portfolio performance dashboard for Corporate Banking and CRE portfolios built with Dash and Python.
 
 ## Features
 

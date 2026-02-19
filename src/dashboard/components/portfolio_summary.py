@@ -10,11 +10,11 @@ def create_charts(portfolio_data):
         # Return empty charts if no data
         empty_bar = go.Figure()
         empty_bar.add_annotation(text="No data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-        empty_bar.update_layout(plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', title="Top 10 Holdings by Borrower", height=300)
+        empty_bar.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', title="Top 10 Holdings by Borrower", height=300, font=dict(color='rgba(255,255,255,0.7)'))
         
         empty_pie = go.Figure()
         empty_pie.add_annotation(text="No data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-        empty_pie.update_layout(plot_bgcolor='#ffffff', paper_bgcolor='#ffffff', title="Holdings by Industry", height=300)
+        empty_pie.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', title="Holdings by Industry", height=300, font=dict(color='rgba(255,255,255,0.7)'))
         
         return empty_bar, empty_pie
     
@@ -30,32 +30,32 @@ def create_charts(portfolio_data):
             x=borrower_totals.values.tolist(),
             y=list(range(len(borrower_totals))),
             orientation='h',
-            marker_color='#8b5cf6',
+            marker_color=['#a78bfa','#8b5cf6','#7c3aed','#6d28d9','#5b21b6','#4c1d95','#a78bfa','#8b5cf6','#7c3aed','#6d28d9'],
             text=labels,
             texttemplate="%{text}",
             insidetextanchor='middle',
-            textfont=dict(size=12, color='#ffffff'),
+            textfont=dict(size=12, color='rgba(255,255,255,0.95)'),
             textposition='inside',
         )
     ])
     
     bar_fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="#ffffff",
-        font=dict(size=12, color='#1f2937'),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
         height=300,
         showlegend=False,
         xaxis=dict(
             title="Balance ($)",
             showgrid=True,
-            gridcolor="#e5e7eb",
-            color='#374151'
+            gridcolor='rgba(255,255,255,0.06)',
+            color='rgba(255,255,255,0.5)'
         ),
         yaxis=dict(
             title="",
             showticklabels=False,
-            color='#374151',
+            color='rgba(255,255,255,0.5)',
             range=[len(borrower_totals)-1, -1]
         )
     )
@@ -77,16 +77,16 @@ def create_charts(portfolio_data):
             labels=pie_labels,
             values=pie_values,
             hole=0.4,
-            marker_colors=['#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6']
+            marker_colors=['#a78bfa', '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', '#4c1d95', '#2dd4bf', '#14b8a6']
         )
     ])
     
     pie_fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
         showlegend=False,
-        font=dict(size=12, color='#1f2937'),
-        plot_bgcolor="#ffffff",
-        paper_bgcolor="#ffffff",
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         height=300
     )
     

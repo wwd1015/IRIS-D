@@ -88,7 +88,7 @@ def create_portfolio_sidebar(selected_portfolio, available_portfolios):
                     )
                 ], className="mb-3"),
                 html.Button("Save Portfolio", id='save-portfolio-btn', 
-                           className="w-full mb-4 px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
+                           className="btn btn-primary btn-glow w-full mb-4", style={"fontSize": "12px"}),
                 
                 # Separator
                 html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
@@ -105,7 +105,7 @@ def create_portfolio_sidebar(selected_portfolio, available_portfolios):
                     )
                 ], className="mb-3"),
                 html.Button("Delete Portfolio", id='delete-portfolio-btn', 
-                           className="w-full px-3 py-2 text-xs border border-red-300 text-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900 transition-colors")
+                           className="btn btn-danger w-full", style={"fontSize": "12px"})
             ], className="space-y-3 mt-4")
         ], className="p-4 flex-1 overflow-auto")
     ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col h-full")

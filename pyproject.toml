@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "portfolio-performance-dashboard"
+name = "iris-d"
 version = "1.0.0"
-description = "A comprehensive portfolio performance dashboard for Corporate Banking and CRE portfolios"
+description = "IRIS-D – Interactive Reporting & Insight Generation System - Dashboard for Corporate Banking and CRE portfolios"
 readme = "README.md"
 authors = [
     {name = "Wendi Wang", email = "wendi.wang@example.com"}
@@ -44,13 +44,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/example/bank-risk-dashboard"
-Documentation = "https://github.com/example/bank-risk-dashboard#readme"
-Repository = "https://github.com/example/bank-risk-dashboard.git"
-Issues = "https://github.com/example/bank-risk-dashboard/issues"
+Homepage = "https://github.com/example/iris-d"
+Documentation = "https://github.com/example/iris-d#readme"
+Repository = "https://github.com/example/iris-d.git"
+Issues = "https://github.com/example/iris-d/issues"
 
 [project.scripts]
-portfolio-performance-dashboard = "src.dashboard.app:main"
+iris-d = "src.dashboard.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "."}

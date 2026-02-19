@@ -312,11 +312,11 @@ def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, b
         # Return empty chart if no metric specified
         fig = go.Figure()
         fig.update_layout(
-            plot_bgcolor='#ffffff',
-            paper_bgcolor='#ffffff',
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
             height=350,
             margin=dict(l=40, r=20, t=20, b=100),
-            font=dict(size=12, color='#1f2937'),
+            font=dict(size=12, color='rgba(255,255,255,0.7)'),
             autosize=True
         )
         fig.add_annotation(text="Select a metric to view chart", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
@@ -333,8 +333,8 @@ def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, b
             y=ts_main.values,
             mode='lines+markers',
             name='Selected Portfolio',
-            line=dict(color='#1e3a8a', width=3, dash='solid'),
-            marker=dict(color='#1e3a8a')
+            line=dict(color='#a78bfa', width=3, dash='solid'),
+            marker=dict(color='#a78bfa')
         ))
     
     if ts_bench is not None and not ts_bench.empty:
@@ -343,16 +343,16 @@ def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, b
             y=ts_bench.values,
             mode='lines+markers',
             name='Benchmark Portfolio',
-            line=dict(color='#60a5fa', width=3, dash='dash'),
-            marker=dict(color='#60a5fa')
+            line=dict(color='#2dd4bf', width=3, dash='dash'),
+            marker=dict(color='#2dd4bf')
         ))
     
     fig.update_layout(
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         height=350,
         margin=dict(l=40, r=20, t=20, b=100),
-        font=dict(size=12, color='#1f2937'),
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
         autosize=True,
         xaxis=dict(
@@ -363,13 +363,13 @@ def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, b
                 bordercolor='rgba(0,0,0,0)'
             ),
             showgrid=True,
-            gridcolor='#e5e7eb',
-            color='#374151'
+            gridcolor='rgba(255,255,255,0.06)',
+            color='rgba(255,255,255,0.5)'
         ),
         yaxis=dict(
             showgrid=True,
-            gridcolor='#e5e7eb',
-            color='#374151'
+            gridcolor='rgba(255,255,255,0.06)',
+            color='rgba(255,255,255,0.5)'
         )
     )
     

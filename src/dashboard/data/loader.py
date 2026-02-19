@@ -1,5 +1,5 @@
 """
-Data loading and filtering functions for the Bank Risk Dashboard
+Data loading and filtering functions for IRIS-D (Interactive Reporting & Insight Generation System - Dashboard)
 """
 
 import os
@@ -52,7 +52,7 @@ def load_facilities_data():
         raise FileNotFoundError(f"Database not found: {db_path}. Please run db_data_generator.py first.")
     
     try:
-        print("=== Bank Risk Dashboard - Pydantic Data Validation ===")
+        print("=== IRIS-D - Pydantic Data Validation ===")
         print("Loading facilities data from database...")
         
         # Load raw data from SQLite

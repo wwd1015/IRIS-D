@@ -1,5 +1,5 @@
 """
-Layout and navigation components for the Bank Risk Dashboard
+Layout and navigation components for IRIS-D (Interactive Reporting & Insight Generation System - Dashboard)
 """
 
 from dash import html, dcc
@@ -59,14 +59,14 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         html.Header([
             html.Div([
                 html.Div([
-                    html.Div("Portfolio Performance Dashboard", className="dashboard-title"),
+                    html.Div("IRIS-D", className="dashboard-title"),
                     # Portfolio button for universal access
                     html.Div([
                         html.Button(
                             id="portfolio-selector-btn",
                             children=selected_portfolio or "Select Portfolio",
                             n_clicks=0,
-                            className="px-3 py-1.5 text-sm rounded border border-slate-300 dark:border-ink-600 bg-yellow-100 dark:bg-yellow-900 text-black dark:text-yellow-100 hover:bg-yellow-200 dark:hover:bg-yellow-800 cursor-pointer min-w-[200px] text-left",
+                            className="px-3 py-1.5 text-sm rounded-lg border border-white/10 bg-white/5 text-purple-200 hover:bg-white/10 cursor-pointer min-w-[200px] text-left transition-all duration-200",
                             title="Click to change portfolio"
                         ),
                         # Hidden dropdown for callback compatibility
@@ -80,24 +80,24 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                 ], className="flex items-center gap-3"),
                 html.Div([
                     html.Button("Login/Register", id="login-btn", n_clicks=0,
-                                className="px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700"),
+                                className="px-3 py-1.5 text-xs rounded-lg border border-white/10 text-white/70 hover:bg-white/5 hover:text-white transition-all duration-200"),
                     html.Button(
                         id="profile-avatar-btn",
                         children="G",
                         n_clicks=0,
-                        className="ml-2 h-8 w-8 rounded-full bg-blue-500 text-white text-sm font-semibold hover:bg-blue-600 flex items-center justify-center cursor-pointer",
+                        className="ml-2 h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white text-sm font-semibold hover:from-purple-400 hover:to-indigo-500 flex items-center justify-center cursor-pointer shadow-lg shadow-purple-500/20 transition-all duration-200",
                         title="Switch Profile"
                     ),
                     html.Button("Dark", id="theme-toggle", n_clicks=0,
-                                className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700"),
+                                className="ml-2 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-white/70 hover:bg-white/5 hover:text-white transition-all duration-200"),
                     html.Button("Contact", id="contact-btn", n_clicks=0,
-                                className="ml-2 px-2 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-ink-600 hover:bg-slate-100 dark:hover:bg-ink-700")
-                ], className="flex items-center gap-2 text-ink-600 text-sm")
+                                className="ml-2 px-3 py-1.5 text-xs rounded-lg border border-white/10 text-white/70 hover:bg-white/5 hover:text-white transition-all duration-200")
+                ], className="flex items-center gap-2 text-sm")
             ], className="flex h-14 items-center justify-between gap-3"),
             # Navigation tabs row - dynamically updated based on user role
             html.Nav(id="navigation-tabs-container", children=create_role_based_navigation(), 
-                    className="flex items-center gap-2 overflow-x-auto py-2 text-sm text-ink-600 dark:text-slate-300")
-        ], className="sticky top-0 z-40 bg-white/90 dark:bg-ink-800/80 backdrop-blur border-b border-slate-200 dark:border-ink-700 mx-auto max-w-[1600px] px-5"),
+                    className="flex items-center gap-2 overflow-x-auto py-2 text-sm")
+        ], className="header sticky top-0 z-40 mx-auto max-w-[1600px]"),
         
         # Main content with 3-column grid layout
         html.Main([
@@ -107,15 +107,16 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         # Login/Register Modal
         html.Div([
             html.Div([
-                html.H3("Login / Register", style={"marginBottom": "20px", "color": "#333", "textAlign": "center"}),
+                html.H3("Login / Register", style={"marginBottom": "20px", "color": "rgba(255,255,255,0.92)", "textAlign": "center"}),
                 dcc.Input(
                     id="username-input",
                     type="text",
                     placeholder="Enter username",
-                    style={"width": "100%", "padding": "12px", "marginBottom": "15px", "border": "1px solid #ddd", "borderRadius": "4px", "fontSize": "16px"}
+                    className="form-input",
+                    style={"width": "100%", "marginBottom": "15px"}
                 ),
                 html.Div([
-                    html.Label("Select Role:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "5px", "display": "block", "color": "#374151"}),
+                    html.Label("Select Role:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "5px", "display": "block", "color": "rgba(255,255,255,0.6)"}),
                     dcc.Dropdown(
                         id="role-dropdown",
                         options=[
@@ -130,17 +131,17 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                     )
                 ]),
                 html.Div([
-                    html.Button("Login", id="login-submit", className="btn btn-primary", style={"marginRight": "10px", "padding": "10px 20px"}),
-                    html.Button("Register", id="register-submit", className="btn btn-secondary", style={"marginRight": "10px", "padding": "10px 20px"}),
-                    html.Button("Cancel", id="login-cancel", className="btn btn-outline", style={"padding": "10px 20px"})
-                ], style={"textAlign": "center", "marginBottom": "30px"}),
+                    html.Button("Login", id="login-submit", className="btn btn-primary btn-glow", style={"marginRight": "10px"}),
+                    html.Button("Register", id="register-submit", className="btn btn-secondary", style={"marginRight": "10px"}),
+                    html.Button("Cancel", id="login-cancel", className="btn btn-ghost")
+                ], style={"textAlign": "center", "marginBottom": "30px", "display": "flex", "justifyContent": "center", "gap": "8px"}),
                 
                 # Separator line
-                html.Hr(style={"margin": "20px 0", "border": "1px solid #eee"}),
+                html.Hr(style={"margin": "20px 0", "border": "1px solid rgba(255,255,255,0.08)"}),
                 
                 # Delete Profile Section
                 html.Div([
-                    html.H4("Delete Profile", style={"marginBottom": "15px", "color": "#ef4444", "textAlign": "center", "fontSize": "18px"}),
+                    html.H4("Delete Profile", style={"marginBottom": "15px", "color": "#f87171", "textAlign": "center", "fontSize": "18px"}),
                     dcc.Dropdown(
                         id="delete-profile-dropdown",
                         placeholder="Select profile to delete...",
@@ -148,20 +149,23 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                         className="form-select"
                     ),
                     html.Div([
-                        html.Button("Delete Profile", id="delete-profile-btn", className="btn btn-danger", style={"padding": "8px 16px"})
+                        html.Button("Delete Profile", id="delete-profile-btn", className="btn btn-danger")
                     ], style={"textAlign": "center"})
                 ], style={"marginTop": "20px"})
             ], style={
-                "backgroundColor": "white",
+                "background": "rgba(17, 22, 39, 0.95)",
+                "backdropFilter": "blur(20px)",
+                "WebkitBackdropFilter": "blur(20px)",
                 "padding": "40px",
-                "borderRadius": "8px",
-                "width": "400px",
+                "borderRadius": "16px",
+                "border": "1px solid rgba(255,255,255,0.08)",
+                "width": "420px",
                 "maxWidth": "90vw",
                 "position": "absolute",
                 "top": "50%",
                 "left": "50%",
                 "transform": "translate(-50%, -50%)",
-                "boxShadow": "0 10px 25px rgba(0, 0, 0, 0.2)",
+                "boxShadow": "0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.08)",
                 "zIndex": "1001"
             })
         ], id="login-modal", style={
@@ -178,9 +182,9 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         # Profile Switching Dialog
         html.Div([
             html.Div([
-                html.H3("Switch Profile", style={"marginBottom": "20px", "color": "#333", "textAlign": "center"}),
+                html.H3("Switch Profile", style={"marginBottom": "20px", "color": "rgba(255,255,255,0.92)", "textAlign": "center"}),
                 html.Div([
-                    html.Label("Select Profile:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "10px", "display": "block"}),
+                    html.Label("Select Profile:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "10px", "display": "block", "color": "rgba(255,255,255,0.6)"}),
                     dcc.Dropdown(
                         id="profile-switch-dropdown",
                         placeholder="Choose a profile...",
@@ -189,14 +193,17 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                     )
                 ]),
                 html.Div([
-                    html.Button("Switch", id="profile-switch-confirm", className="btn btn-primary", style={"marginRight": "10px", "padding": "10px 20px"}),
-                    html.Button("Cancel", id="profile-switch-cancel", className="btn btn-outline", style={"padding": "10px 20px"})
-                ], style={"textAlign": "center"})
+                    html.Button("Switch", id="profile-switch-confirm", className="btn btn-primary", style={"marginRight": "10px"}),
+                    html.Button("Cancel", id="profile-switch-cancel", className="btn btn-outline")
+                ], style={"textAlign": "center", "display": "flex", "justifyContent": "center", "gap": "8px"})
             ], style={
-                "backgroundColor": "white",
+                "background": "rgba(17, 22, 39, 0.95)",
+                "backdropFilter": "blur(20px)",
+                "WebkitBackdropFilter": "blur(20px)",
                 "padding": "30px",
-                "borderRadius": "8px",
-                "width": "350px",
+                "borderRadius": "16px",
+                "border": "1px solid rgba(255,255,255,0.08)",
+                "width": "380px",
                 "maxWidth": "90vw",
                 "position": "absolute",
                 "top": "50%",
@@ -249,23 +256,26 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                 
                 # Feedback Section
                 html.Div([
-                    html.H4("💭 Feedback", style={"fontSize": "16px", "fontWeight": "600", "color": "#374151", "marginBottom": "15px"}),
-                    html.P("Help us improve by sharing your thoughts:", style={"marginBottom": "15px", "color": "#6B7280"}),
+                    html.H4("💭 Feedback", style={"fontSize": "16px", "fontWeight": "600", "color": "rgba(255,255,255,0.92)", "marginBottom": "15px"}),
+                    html.P("Help us improve by sharing your thoughts:", style={"marginBottom": "15px", "color": "rgba(255,255,255,0.5)"}),
                     html.A("Provide Feedback", 
                           href="https://forms.google.com/feedback-form", 
                           target="_blank",
-                          className="inline-block px-4 py-2 bg-green-500 text-white text-sm rounded hover:bg-green-600 transition-colors",
-                          style={"textDecoration": "none", "marginBottom": "20px"})
+                          className="btn btn-success",
+                          style={"textDecoration": "none", "marginBottom": "20px", "display": "inline-block"})
                 ]),
                 
                 html.Div([
-                    html.Button("Close", id="contact-close", className="btn btn-outline", style={"padding": "10px 20px"})
+                    html.Button("Close", id="contact-close", className="btn btn-outline")
                 ], style={"textAlign": "center"})
             ], style={
-                "backgroundColor": "white",
+                "background": "rgba(17, 22, 39, 0.95)",
+                "backdropFilter": "blur(20px)",
+                "WebkitBackdropFilter": "blur(20px)",
                 "padding": "30px",
-                "borderRadius": "8px",
-                "width": "400px",
+                "borderRadius": "16px",
+                "border": "1px solid rgba(255,255,255,0.08)",
+                "width": "420px",
                 "maxWidth": "90vw",
                 "position": "absolute",
                 "top": "50%",
@@ -292,7 +302,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                 html.Header([
                     html.Div([
                         html.H2("Portfolio Management", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
-                        html.Button("✕", id="portfolio-modal-cancel", className="text-xl text-gray-500 hover:text-gray-700 cursor-pointer bg-transparent border-0")
+                        html.Button("✕", id="portfolio-modal-cancel", className="btn btn-ghost text-xl cursor-pointer", style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"})
                     ], className="flex items-center justify-between")
                 ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
                 
@@ -308,7 +318,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                             style={"fontSize": "14px"}
                         ),
                         html.Button("✓ Select Portfolio", id="portfolio-select-confirm", 
-                                   className="w-full mb-4 px-3 py-2 text-sm bg-blue-500 text-white rounded-md hover:bg-blue-400 transition-colors")
+                                   className="btn btn-primary w-full mb-4", style={"fontSize": "13px"})
                     ]),
                     
                     # Portfolio Creator & Manager Section - Exact replica
@@ -366,7 +376,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                             )
                         ], className="mb-3"),
                         html.Button("Save Portfolio", id='modal-save-portfolio-btn', 
-                                   className="w-full mb-4 px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
+                                   className="btn btn-primary btn-glow w-full mb-4", style={"fontSize": "12px"}),
                         
                         # Separator
                         html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
@@ -383,13 +393,19 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                             )
                         ], className="mb-3"),
                         html.Button("Delete Portfolio", id='modal-delete-confirm-btn', 
-                                   className="w-full px-3 py-2 text-xs border border-red-300 text-red-600 rounded-md hover:bg-red-50 dark:hover:bg-red-900 transition-colors")
+                                   className="btn btn-danger w-full", style={"fontSize": "12px"})
                     ], className="space-y-3 mt-4")
                 ], className="p-4 flex-1 overflow-auto")
                 
-            ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col", 
+            ], className="overflow-hidden flex flex-col", 
                style={
-                "width": "400px",
+                "background": "rgba(17, 22, 39, 0.95)",
+                "backdropFilter": "blur(20px)",
+                "WebkitBackdropFilter": "blur(20px)",
+                "borderRadius": "16px",
+                "border": "1px solid rgba(255,255,255,0.08)",
+                "boxShadow": "0 20px 60px rgba(0, 0, 0, 0.5)",
+                "width": "420px",
                 "maxWidth": "90vw", 
                 "maxHeight": "85vh",
                 "position": "absolute",
@@ -462,38 +478,33 @@ def get_app_index_string():
     """Get the HTML template string for the app"""
     return '''
 <!DOCTYPE html>
-<html lang="en" class="no-js">
+<html lang="en" class="dark">
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Bank Risk Dashboard</title>
+    <title>IRIS-D</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
         darkMode: 'class',
         theme: { extend: {
           colors: {
-            ink: { 900:'#0f172a',800:'#1e293b',700:'#334155',600:'#475569',500:'#64748b',100:'#e2e8f0',50:'#f1f5f9' },
-            brand: {500:'#8b5cf6',400:'#a855f7',300:'#c4b5fd'}
+            ink: { 900:'#06080f',800:'#0c1020',700:'#111627',600:'#1c2333',500:'#64748b',100:'#e2e8f0',50:'#f1f5f9' },
+            brand: {500:'#8b5cf6',400:'#a78bfa',300:'#c4b5fd'}
           },
-          boxShadow: { soft: '0 2px 10px rgba(15,23,42,.06)'}
+          boxShadow: {
+            soft: '0 2px 12px rgba(0,0,0,.25)',
+            glow: '0 0 20px rgba(139,92,246,.15)'
+          }
         }}
       };
-      // theme bootstrap (before paint)
-      (function(){
-        const s = localStorage.getItem('theme');
-        if (s === 'dark' || (!s && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.classList.add('dark');
-        }
-      })();
     </script>
-    <script src="https://unpkg.com/lucide@latest"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     {%metas%}
     {%favicon%}
     {%css%}
   </head>
-  <body class="bg-ink-50 text-ink-800 dark:bg-ink-900 dark:text-slate-200 font-[Inter,system-ui]">
+  <body style="background:#06080f;color:rgba(255,255,255,.92);font-family:Inter,-apple-system,BlinkMacSystemFont,system-ui,sans-serif;">
     <div id="root">{%app_entry%}</div>
     <footer>
       {%config%}

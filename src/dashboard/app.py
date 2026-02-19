@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Portfolio Performance Dashboard
+IRIS-D – Interactive Reporting & Insight Generation System - Dashboard
 
 A comprehensive portfolio performance dashboard for Corporate Banking and Commercial Real Estate 
 portfolios built with Dash and Python. Features custom metrics, user profiles, and interactive 
@@ -132,7 +132,7 @@ user_profiles = user_management.load_profiles()
 
 # Load data using integrated DataTidy pipeline
 try:
-    print("=== Bank Risk Dashboard - Integrated DataTidy Processing ===")
+    print("=== IRIS-D - Integrated DataTidy Processing ===")
     
     # Load facilities data directly with integrated processing
     facilities_df = load_facilities_data()
@@ -566,11 +566,11 @@ def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metr
             # Return empty chart if no metric specified
             fig = go.Figure()
             fig.update_layout(
-                plot_bgcolor='#ffffff',
-                paper_bgcolor='#ffffff',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
                 height=350,
                 margin=dict(l=40, r=20, t=20, b=100),
-                font=dict(size=12, color='#1f2937'),
+                font=dict(size=12, color='rgba(255,255,255,0.7)'),
                 autosize=True
             )
             fig.add_annotation(text="Select a metric to view chart", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
@@ -594,23 +594,23 @@ def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metr
                 y=ts_bench.values,
                 mode='lines+markers',
                 name='Benchmark Portfolio',
-                line=dict(color='#60a5fa', width=3, dash='dash'),
-                marker=dict(color='#60a5fa')
+                line=dict(color='#2dd4bf', width=3, dash='dash'),
+                marker=dict(color='#2dd4bf')
             ))
         fig.update_layout(
-            plot_bgcolor='#ffffff',
-            paper_bgcolor='#ffffff',
-            height=350,  # Reduced height to fit container properly
-            margin=dict(l=40, r=20, t=20, b=100),  # Adjusted margins for better fit
-            font=dict(size=12, color='#1f2937'),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=40, r=20, t=20, b=100),
+            font=dict(size=12, color='rgba(255,255,255,0.7)'),
             legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-            autosize=True,  # Enable autosize for responsiveness
+            autosize=True,
             xaxis=dict(
                 rangeslider=dict(
                     visible=True,
-                    thickness=0.15,  # Increased thickness for better visibility
-                    bgcolor='#f8fafc',  # Light background color
-                    bordercolor='#e5e7eb',  # Border color
+                    thickness=0.15,
+                    bgcolor='rgba(0,0,0,0)',
+                    bordercolor='rgba(255,255,255,0.1)',
                     borderwidth=1
                 ),
                 rangeselector=dict(
@@ -620,10 +620,10 @@ def update_financial_trends_charts(selected_portfolio, benchmark_portfolio, metr
                         dict(count=5, label="5Y", step="year", stepmode="backward"),
                         dict(step="all", label="All")
                     ]),
-                    bgcolor='#ffffff',
-                    bordercolor='#e5e7eb',
+                    bgcolor='rgba(17,22,39,0.9)',
+                    bordercolor='rgba(255,255,255,0.1)',
                     borderwidth=1,
-                    font=dict(color='#374151', size=10)
+                    font=dict(color='rgba(255,255,255,0.5)', size=10)
                 ),
                 type='date'
             )
@@ -1092,11 +1092,11 @@ def update_vintage_analysis_chart(portfolio, selected_quarters, analysis_type, s
             # Return empty chart if no parameters specified
             fig = go.Figure()
             fig.update_layout(
-                plot_bgcolor='#ffffff',
-                paper_bgcolor='#ffffff',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
                 height=350,
                 margin=dict(l=40, r=20, t=20, b=100),
-                font=dict(size=12, color='#1f2937'),
+                font=dict(size=12, color='rgba(255,255,255,0.7)'),
                 autosize=True
             )
             fig.add_annotation(text="Select quarterly cohorts to view analysis", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
@@ -1106,11 +1106,11 @@ def update_vintage_analysis_chart(portfolio, selected_quarters, analysis_type, s
         if analysis_type == 'metric_trend' and not selected_metric:
             fig = go.Figure()
             fig.update_layout(
-                plot_bgcolor='#ffffff',
-                paper_bgcolor='#ffffff',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
                 height=350,
                 margin=dict(l=40, r=20, t=20, b=100),
-                font=dict(size=12, color='#1f2937'),
+                font=dict(size=12, color='rgba(255,255,255,0.7)'),
                 autosize=True
             )
             fig.add_annotation(text="Select a metric to view metric trends", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
@@ -1149,11 +1149,11 @@ def update_vintage_analysis_chart(portfolio, selected_quarters, analysis_type, s
         if len(portfolio_data) == 0:
             fig = go.Figure()
             fig.update_layout(
-                plot_bgcolor='#ffffff',
-                paper_bgcolor='#ffffff',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
                 height=350,
                 margin=dict(l=40, r=20, t=20, b=100),
-                font=dict(size=12, color='#1f2937'),
+                font=dict(size=12, color='rgba(255,255,255,0.7)'),
                 autosize=True
             )
             fig.add_annotation(text="No data available for this portfolio", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
@@ -1167,11 +1167,11 @@ def update_vintage_analysis_chart(portfolio, selected_quarters, analysis_type, s
         else:
             fig = go.Figure()
             fig.update_layout(
-                plot_bgcolor='#ffffff',
-                paper_bgcolor='#ffffff',
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)',
                 height=350,
                 margin=dict(l=40, r=20, t=20, b=100),
-                font=dict(size=12, color='#1f2937'),
+                font=dict(size=12, color='rgba(255,255,255,0.7)'),
                 autosize=True
             )
             fig.add_annotation(text="Unknown analysis type", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
@@ -1313,11 +1313,11 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
     
     # Update layout for metric trend
     fig.update_layout(
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         height=350,
         margin=dict(l=40, r=20, t=20, b=100),
-        font=dict(size=12, color='#1f2937'),
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
         autosize=True,
         hovermode='x unified',
@@ -1328,12 +1328,12 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
             dtick=1,
             range=[0, max(1, actual_max_quarters-1)],
             showgrid=False,
-            color='#374151'
+            color='rgba(255,255,255,0.5)'
         ),
         yaxis=dict(
             title=f"Average {metric.replace('_', ' ').title()}",
             showgrid=False,
-            color='#374151'
+            color='rgba(255,255,255,0.5)'
         )
     )
     
@@ -1439,11 +1439,11 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
         ))
     
     fig.update_layout(
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#ffffff',
-        height=350,  # Revert to original height
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=350,
         margin=dict(l=40, r=20, t=20, b=100),
-        font=dict(size=12, color='#1f2937'),
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
         autosize=True,
         hovermode='x unified',
@@ -1453,14 +1453,14 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
             tick0=0,
             dtick=1,
             range=[0, max(1, actual_max_quarters-1)],
-            showgrid=False,  # Remove gridlines
-            color='#374151'
+            showgrid=False,
+            color='rgba(255,255,255,0.5)'
         ),
         yaxis=dict(
             title="Cumulative Default Rate (%)",
             tickformat='.1f',
-            showgrid=False,  # Remove gridlines
-            color='#374151'
+            showgrid=False,
+            color='rgba(255,255,255,0.5)'
         )
     )
     
@@ -2308,12 +2308,12 @@ app.clientside_callback(
 
 if __name__ == '__main__':
     """
-    Start the Portfolio Performance Dashboard application.
+    Start the IRIS-D application.
     
     The app runs in debug mode for development with hot reloading enabled.
     In production, this should be deployed using a WSGI server like Gunicorn.
     """
-    print("Starting Portfolio Performance Dashboard...")
+    print("Starting IRIS-D...")
     print("Dashboard available at: http://127.0.0.1:8050/")
     print("Press Ctrl+C to stop the server")
     

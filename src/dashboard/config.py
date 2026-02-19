@@ -1,5 +1,5 @@
 """
-Configuration constants and settings for the Portfolio Performance Dashboard.
+Configuration constants and settings for IRIS-D (Interactive Reporting & Insight Generation System - Dashboard).
 """
 
 import os

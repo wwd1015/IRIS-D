@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main entry point for the Portfolio Performance Dashboard application.
+Main entry point for IRIS-D (Interactive Reporting & Insight Generation System - Dashboard).
 """
 
 import sys

@@ -1,5 +1,5 @@
 """
-User management functions for the Portfolio Performance Dashboard.
+User management functions for IRIS-D (Interactive Reporting & Insight Generation System - Dashboard).
 Handles user profiles, authentication, and data persistence.
 """
 

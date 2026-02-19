@@ -19,7 +19,8 @@
       "Bash(curl:*)",
       "Bash(mkdir:*)",
       "Bash(touch:*)",
-      "Bash(cp:*)"
+      "Bash(cp:*)",
+      "Bash(HOST=0.0.0.0 python3 main.py)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

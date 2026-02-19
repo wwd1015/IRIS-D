@@ -227,11 +227,11 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
     
     # Update layout for metric trend
     fig.update_layout(
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         height=350,
         margin=dict(l=40, r=20, t=20, b=100),
-        font=dict(size=12, color='#1f2937'),
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
         autosize=True,
         hovermode='x unified',
@@ -242,13 +242,13 @@ def create_metric_trend_chart(fig, data, selected_quarters, metric, colors):
             dtick=1,
             range=[0, max(1, actual_max_quarters-1)],
             showgrid=False,
-            color='#374151'
+            color='rgba(255,255,255,0.5)'
         ),
         yaxis=dict(
             title=f"{metric.replace('_', ' ').title()}" if metric else "Metric Value",
             showgrid=True,
-            gridcolor='#e5e7eb',
-            color='#374151'
+            gridcolor='rgba(255,255,255,0.06)',
+            color='rgba(255,255,255,0.5)'
         )
     )
     
@@ -364,11 +364,11 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
     
     # Update layout for default rates
     fig.update_layout(
-        plot_bgcolor='#ffffff',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
         height=350,
         margin=dict(l=40, r=20, t=20, b=100),
-        font=dict(size=12, color='#1f2937'),
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
         legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
         autosize=True,
         hovermode='x unified',
@@ -379,13 +379,13 @@ def create_default_rates_chart(fig, data, selected_quarters, colors):
             dtick=1,
             range=[0, max(1, actual_max_quarters-1)],
             showgrid=False,
-            color='#374151'
+            color='rgba(255,255,255,0.5)'
         ),
         yaxis=dict(
             title="Cumulative Default Rate (%)",
             showgrid=True,
-            gridcolor='#e5e7eb',
-            color='#374151'
+            gridcolor='rgba(255,255,255,0.06)',
+            color='rgba(255,255,255,0.5)'
         )
     )
     
