@@ -1,0 +1,120 @@
+"""
+Tab registry – the core of the extensible tab system.
+
+Each tab is a subclass of BaseTab that declares:
+  - id, label, order, required_role
+  - render_sidebar(ctx)  → Dash component (or None)
+  - render_content(ctx)  → Dash component
+  - register_callbacks(app) → called once at startup
+
+The framework iterates over registered tabs to build navigation buttons,
+route tab clicks, and wire up callbacks — no manual wiring needed.
+"""
+
+from __future__ import annotations
+from abc import ABC, abstractmethod
+from typing import Optional
+
+from dash import html
+
+# ── Global registry ────────────────────────────────────────────────────────────
+_TABS: dict[str, "BaseTab"] = {}
+
+
+class TabContext:
+    """
+    Shared context object passed to every tab's render methods.
+    
+    Holds references to shared data so tabs don't need global imports.
+    Extend this class as the app grows (e.g. add user info, filters, etc.).
+    """
+    def __init__(
+        self,
+        selected_portfolio: str,
+        available_portfolios: list[str],
+        portfolios: dict,
+        facilities_df,
+        latest_facilities,
+        custom_metrics: dict,
+        get_filtered_data,
+    ):
+        self.selected_portfolio = selected_portfolio
+        self.available_portfolios = available_portfolios
+        self.portfolios = portfolios
+        self.facilities_df = facilities_df
+        self.latest_facilities = latest_facilities
+        self.custom_metrics = custom_metrics
+        self.get_filtered_data = get_filtered_data
+
+
+class BaseTab(ABC):
+    """
+    Abstract base class for dashboard tabs.
+    
+    Subclass this and implement the abstract methods to create a new tab.
+    The framework handles navigation, routing, and callback wiring automatically.
+    
+    Attributes:
+        id:            Unique slug used in HTML ids  (e.g. "portfolio-summary")
+        label:         Display text in the navigation bar
+        order:         Sort key — lower numbers appear first
+        required_role: If set, only users with this role see the tab.
+                       None means visible to everyone.
+        grid_class:    CSS grid class for the tab layout. Override for custom grids.
+    """
+
+    id: str
+    label: str
+    order: int = 100
+    required_role: Optional[str] = None
+    grid_class: str = "grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch"
+
+    # ── Layout methods ──────────────────────────────────────────────────────
+
+    def render_sidebar(self, ctx: TabContext) -> Optional[html.Div]:
+        """Return sidebar component, or None for no sidebar."""
+        return None
+
+    @abstractmethod
+    def render_content(self, ctx: TabContext) -> html.Div:
+        """Return the main content component."""
+        ...
+
+    def render(self, ctx: TabContext) -> html.Div:
+        """
+        Assemble sidebar + content into the final tab layout.
+        
+        Override this if you need a custom layout (e.g. 3-column grid).
+        """
+        sidebar = self.render_sidebar(ctx)
+        content = self.render_content(ctx)
+        if sidebar is not None:
+            return html.Div([sidebar, content], className=self.grid_class)
+        return content
+
+    # ── Callbacks ───────────────────────────────────────────────────────────
+
+    def register_callbacks(self, app) -> None:
+        """
+        Register any Dash callbacks specific to this tab.
+        
+        Called once during app startup. Override to add interactivity.
+        """
+        pass
+
+
+# ── Registry helpers ───────────────────────────────────────────────────────────
+
+def register_tab(tab: BaseTab) -> None:
+    """Register a tab instance. Call at module level in each tab file."""
+    _TABS[tab.id] = tab
+
+
+def get_all_tabs() -> list[BaseTab]:
+    """Return all registered tabs, sorted by order then label."""
+    return sorted(_TABS.values(), key=lambda t: (t.order, t.label))
+
+
+def get_tab(tab_id: str) -> Optional[BaseTab]:
+    """Get a tab by its id, or None if not found."""
+    return _TABS.get(tab_id)
