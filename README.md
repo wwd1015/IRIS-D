@@ -12,28 +12,46 @@ IRIS-D is a comprehensive portfolio performance dashboard for Corporate Banking 
 
 ## Architecture
 
-### Modern Python Package Structure
+### 3-Layer Modular Framework
 
-The application follows a modern Python package structure with clear separation of concerns:
+The dashboard is built on a modular 3-layer architecture:
 
-- **Entry Point**: `main.py` serves as the application entry point
-- **Core Application**: Located in `src/dashboard/`
-- **Modular Components**: Organized into logical modules (auth, components, data, utils)
-- **Asset Management**: CSS and static files in `assets/` directory
+| Layer | Purpose | Location |
+|---|---|---|
+| **Layer 1 — Global Controls** | Sticky header bar (portfolio selector, theme, profile) | `components/controls.py` |
+| **Layer 2 — Toolbar** | Per-tab controls (dropdowns, sliders, toggles) | `components/toolbar.py` |
+| **Layer 3 — Content** | Sidebar + main content (cards, charts, tables) | `components/cards.py` |
 
-### Core Components
+### Self-Contained Tabs
 
-- **Dashboard**: Multi-tab interface with role-based navigation (Portfolio Summary, Holdings, Financial Trends, Vintage Analysis, SIR Analysis, etc.)
-- **Portfolio System**: Default and custom portfolio management with LOB-specific metrics
-- **User Management**: Role-based access control (Corp SCO, CRE SCO, SAG, BA)
-- **Custom Metrics**: Formula-based metric creation with backtick column support
-- **Data Integration**: SQLite database with DataTidy processing pipeline
+Each tab is a self-contained module in `src/dashboard/tabs/`:
+
+| Tab | File | Description |
+|---|---|---|
+| Portfolio Summary | `portfolio_summary.py` | Charts, watchlist, positions panel, portfolio CRUD |
+| Holdings | `holdings.py` | Facility table with time-series row expansion |
+| Financial Trends | `financial_trend.py` | Period comparison, dynamic filters, details table |
+| Portfolio Trends | `portfolio_trend.py` | Benchmark comparison charts |
+| Vintage Analysis | `vintage_analysis.py` | Quarterly cohort charts, default rates |
+| SIR Analysis | `role_tabs.py` | Special Interest Rate analysis (placeholder) |
+| Location Analysis | `role_tabs.py` | CRE geographic map with loan markers |
+| Financial Projection | `role_tabs.py` | Forecasting (placeholder) |
+| Model Backtesting | `role_tabs.py` | Model validation (placeholder) |
+
+### Shared Components
+
+The `components/` directory contains **only shared framework abstractions** (not tab-specific code):
+
+- `cards.py` — DisplayCard hierarchy (ChartCard, TableCard, MetricCard, FilterCard)
+- `controls.py` — GlobalControl hierarchy (header buttons, selectors)
+- `toolbar.py` — ToolbarControl presets (DropdownControl, SliderControl, ToggleControl)
+- `signals.py` — Cross-layer `dcc.Store` signal IDs
+- `layout.py` — Main app shell (header, content area, modals)
 
 ### Data Structure
 
-The application uses an integrated data pipeline:
 - **Database**: SQLite database (`data/bank_risk.db`) with facility data
-- **Data Processing**: DataTidy integration for data validation and cleaning
+- **Data Processing**: Pydantic validation + DataTidy integration
 - **Configuration**: YAML configuration (`data/datatidy_config.yaml`) for data processing rules
 - **User Profiles**: JSON storage (`data/user_profiles.json`) for user preferences (auto-created)
 
@@ -96,68 +114,53 @@ python main.py
 2. **User Profiles**: Save portfolios and custom metrics
 3. **Profile Switching**: Switch between profiles to load saved configurations
 
-## Technical Details
-
-### Data Processing
-- Pandas for data manipulation
-- Time-series analysis for vintage cohorts
-- Dynamic filtering based on portfolio criteria
-
-### Visualization
-- Plotly for interactive charts
-- Dash for web interface
-- Responsive design with custom CSS
-
-### Performance
-- Auto-save every 30 seconds
-- Efficient data filtering and aggregation
-- Client-side interactivity
-
 ## File Structure
 
 ```
-bank_risk_dashboard/
+IRIS-D/
 ├── main.py                          # Application entry point
 ├── pyproject.toml                   # Project configuration and dependencies
-├── README.md                       # Documentation
-├── src/                            # Source code
+├── README.md                        # Documentation
+├── CLAUDE.md                        # AI context document
+├── src/                             # Source code
 │   └── dashboard/
 │       ├── __init__.py
-│       ├── app.py                  # Main Dash application
-│       ├── config.py               # Configuration
-│       ├── auth/                   # Authentication modules
-│       │   ├── __init__.py
+│       ├── app.py                   # Main Dash application (callbacks, layout)
+│       ├── config.py                # Configuration constants
+│       ├── auth/                    # Authentication
 │       │   └── user_management.py
-│       ├── components/             # UI components
-│       │   ├── __init__.py
-│       │   ├── layout.py
-│       │   ├── portfolio_summary.py
-│       │   ├── portfolio_trend.py
-│       │   ├── holdings.py
-│       │   ├── vintage_analysis.py
-│       │   ├── financial_trends.py
-│       │   ├── sir_analysis.py
-│       │   ├── location_analysis.py
-│       │   ├── financial_projection.py
-│       │   ├── model_backtesting.py
-│       │   └── portfolio_management.py
-│       ├── data/                   # Data processing modules
-│       │   ├── __init__.py
+│       ├── tabs/                    # Self-contained tab modules
+│       │   ├── registry.py              # BaseTab, TabContext, register_tab()
+│       │   ├── __init__.py              # Auto-imports all tabs
+│       │   ├── portfolio_summary.py     # Portfolio summary + sidebar + CRUD
+│       │   ├── holdings.py              # Holdings table + time-series
+│       │   ├── financial_trend.py       # Financial trends + filters
+│       │   ├── portfolio_trend.py       # Portfolio trend charts
+│       │   ├── vintage_analysis.py      # Vintage cohort analysis
+│       │   └── role_tabs.py             # Role-gated tabs (SIR, Location, etc.)
+│       ├── components/              # Shared UI framework only
+│       │   ├── cards.py                 # DisplayCard hierarchy
+│       │   ├── controls.py              # GlobalControl hierarchy
+│       │   ├── toolbar.py               # ToolbarControl presets
+│       │   ├── signals.py               # Signal store IDs
+│       │   └── layout.py               # App shell & navigation
+│       ├── data/                    # Data processing
 │       │   ├── loader.py
 │       │   └── db_data_generator.py
-│       └── utils/                  # Utility functions
-│           └── __init__.py
-├── data/                           # Data files
-│   ├── bank_risk.db               # SQLite database
-│   ├── datatidy_config.yaml       # Data processing config
-│   └── user_profiles.json         # User profiles (auto-created)
-├── assets/                         # Static assets
-│   └── style.css                  # CSS styling
-└── tests/                         # Test files
-    ├── unit/
-    ├── integration/
-    │   └── test_app.py
-    └── test_prototype.py
+│       └── utils/                   # Shared utilities
+│           └── helpers.py
+├── data/                            # Data files
+│   ├── bank_risk.db                 # SQLite database
+│   ├── datatidy_config.yaml         # Data processing config
+│   └── user_profiles.json           # User profiles (auto-created)
+├── assets/                          # Static assets
+│   └── style.css                    # CSS styling (glassmorphism dark theme)
+├── docs/                            # Documentation
+│   └── DEVELOPER_GUIDE.md           # Framework developer reference
+└── tests/                           # Test files
+    ├── test_prototype.py
+    └── integration/
+        └── test_app.py
 ```
 
 ## Testing

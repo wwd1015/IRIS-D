@@ -46,40 +46,37 @@ def create_navigation_tabs():
 
 def create_layout(selected_portfolio, app_index_string, available_portfolios=None):
     """Create the main app shell layout."""
+    from .controls import ControlPosition, get_global_controls
+    from .signals import all_signal_ids
+
+    # Render Layer 1 controls from the GlobalControl registry
+    left_controls = [
+        c.render(selected_portfolio=selected_portfolio,
+                 available_portfolios=available_portfolios or [])
+        for c in get_global_controls(ControlPosition.LEFT)
+    ]
+    right_controls = [
+        c.render()
+        for c in get_global_controls(ControlPosition.RIGHT)
+    ]
+
+    # Signal stores for cross-layer communication
+    signal_stores = [dcc.Store(id=sid, data=None) for sid in all_signal_ids()]
+
     return html.Div(className="min-h-screen", children=[
         # ── Header ──────────────────────────────────────────────────────────
         html.Header([
             html.Div([
                 html.Div([
                     html.Div("IRIS-D", className="dashboard-title"),
-                    html.Div([
-                        html.Button(
-                            id="portfolio-selector-btn",
-                            children=selected_portfolio or "Select Portfolio",
-                            n_clicks=0,
-                            className="header-btn portfolio-selector-btn",
-                            title="Click to change portfolio",
-                        ),
-                        dcc.Dropdown(
-                            id="universal-portfolio-dropdown",
-                            options=[{"label": p, "value": p} for p in (available_portfolios or [])],
-                            value=selected_portfolio,
-                            style={"display": "none"},
-                        ),
-                    ], className="ml-4"),
+                    *left_controls,
                 ], className="flex items-center gap-3"),
                 html.Div([
+                    # Login button (kept outside GlobalControl registry
+                    # because user callbacks in app.py still reference it)
                     html.Button("Login/Register", id="login-btn", n_clicks=0,
                                 className="header-btn"),
-                    html.Button(
-                        id="profile-avatar-btn", children="G", n_clicks=0,
-                        className="ml-2 h-8 w-8 rounded-full bg-gradient-to-br from-purple-500 to-indigo-600 text-white text-sm font-semibold hover:from-purple-400 hover:to-indigo-500 flex items-center justify-center cursor-pointer shadow-lg shadow-purple-500/20 transition-all duration-200",
-                        title="Switch Profile",
-                    ),
-                    html.Button("🌙", id="theme-toggle", n_clicks=0,
-                                className="header-btn theme-toggle-btn"),
-                    html.Button("Contact", id="contact-btn", n_clicks=0,
-                                className="header-btn"),
+                    *right_controls,
                 ], className="flex items-center gap-2 text-sm"),
             ], className="flex h-14 items-center justify-between gap-3"),
             html.Nav(
@@ -105,6 +102,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         dcc.Interval(id="auto-save-interval", interval=30_000, n_intervals=0),
         dcc.Interval(id="hide-notification-interval", interval=3_000, n_intervals=0, disabled=True),
         dcc.Store(id="current-user-store", data="Guest"),
+        *signal_stores,
     ])
 
 

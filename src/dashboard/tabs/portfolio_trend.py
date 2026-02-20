@@ -1,8 +1,16 @@
 """
 Portfolio Trend tab – time-series charts comparing portfolio metrics.
+
+Shows up to three configurable metric charts with benchmark comparison,
+custom metric creation, and aggregation options.
 """
 
+from __future__ import annotations
+
 from dash import html, dcc
+import plotly.graph_objs as go
+import pandas as pd
+
 from ..tabs.registry import BaseTab, TabContext, register_tab
 
 
@@ -11,40 +19,393 @@ class PortfolioTrendTab(BaseTab):
     label = "Portfolio Trend"
     order = 30
 
+    # ── Sidebar ─────────────────────────────────────────────────────────────
+
     def render_sidebar(self, ctx: TabContext):
-        return html.Section([
-            html.Header([
-                html.H2("Portfolio Trend", className="text-sm font-semibold")
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
-            html.Div([
-                html.Div([
-                    html.Label("Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                    html.Div(ctx.selected_portfolio, className="text-sm font-semibold text-primary-400 mb-4"),
-                ]),
-                html.P("Analyze portfolio performance trends over time.", 
-                       className="text-xs text-ink-500 dark:text-slate-400")
-            ], className="p-4 flex-1 overflow-auto")
-        ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
+        return _create_portfolio_trend_sidebar(
+            ctx.selected_portfolio, ctx.available_portfolios,
+        )
+
+    # ── Content ─────────────────────────────────────────────────────────────
 
     def render_content(self, ctx: TabContext):
-        return html.Div([
-            html.Div([
-                html.Div([
-                    html.H3("Portfolio Trend", className="text-sm font-semibold text-ink-700 dark:text-slate-300"),
-                    html.Div("Time-series analysis of key metrics", className="text-xs text-ink-500 dark:text-slate-400")
-                ], className="flex-1"),
-            ], className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-700"),
-            html.Div([
-                html.Div([
-                    html.Div("📈", style={"fontSize": "48px", "marginBottom": "16px"}),
-                    html.H4("Ready for Implementation", className="text-lg font-medium text-ink-600 dark:text-slate-300 mb-2"),
-                    html.P("This tab will display interactive charts showing metric trends across reporting periods.",
-                          className="text-ink-500 dark:text-slate-400 text-sm max-w-md"),
-                    html.P("See src/dashboard/tabs/portfolio_summary.py for a reference implementation.",
-                          className="text-ink-400 dark:text-slate-500 text-xs mt-2 font-mono")
-                ], className="text-center py-20")
-            ], className="p-6")
-        ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")
+        return _create_portfolio_trend_content(
+            ctx.selected_portfolio, ctx.custom_metrics,
+            ctx.portfolios, ctx.facilities_df, ctx.get_filtered_data,
+        )
 
 
 register_tab(PortfolioTrendTab())
+
+
+# =============================================================================
+# Private rendering helpers
+# =============================================================================
+
+
+def _create_portfolio_trend_sidebar(selected_portfolio, available_portfolios):
+    """Create simplified sidebar for Portfolio Trend tab with consistent styling"""
+    return html.Section([
+        html.Header([
+            html.H2("Portfolio Trend", className="text-sm font-semibold")
+        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
+        html.Div([
+            # Portfolio dropdown moved to title bar - keeping this hidden for callback compatibility
+            html.Div([
+                dcc.Dropdown(
+                    id='portfolio-dropdown',
+                    options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
+                    value=selected_portfolio,
+                    placeholder="Select portfolio...",
+                    className="text-xs",
+                    style={"fontSize": "12px", "display": "none"}
+                )
+            ], style={"display": "none"}),
+            html.Div([
+                html.Label("Benchmark Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                dcc.Dropdown(
+                    id='financial-trends-benchmark-dropdown',
+                    options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
+                    value=None,
+                    placeholder="Select benchmark portfolio...",
+                    className="text-xs",
+                    style={"fontSize": "12px"}
+                )
+            ], className="mb-4"),
+            html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
+            html.H3("Create Custom Metric", className="text-sm font-semibold mb-3 text-brand-500"),
+            html.Div([
+                html.Label("Formula:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                html.P("Supports conditions & backticks. Use 'or' for multiple values. Examples: (`Obligor Rating` == 15 or `Obligor Rating` == 16) * Balance, `free cash flow` / liquidity", 
+                       className="text-xs text-ink-500 dark:text-slate-400 mb-2"),
+                dcc.Input(
+                    id='custom-metric-formula',
+                    type='text',
+                    placeholder="e.g., (`Obligor Rating` == 15 or `Obligor Rating` == 16) * Balance",
+                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                )
+            ], className="mb-3"),
+            html.Div([
+                html.Label("Metric Name:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                dcc.Input(
+                    id='custom-metric-name',
+                    type='text',
+                    placeholder="Enter metric name...",
+                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
+                )
+            ], className="mb-3"),
+            html.Button("Create Metric", id='create-metric-btn', 
+                       className="w-full px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
+            html.Div(id='metric-creation-alert', className="mt-3")
+        ], className="p-4 flex-1 overflow-auto")
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
+
+
+def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df):
+    """Get appropriate metrics based on portfolio type and available data columns"""
+    
+    common_metrics = ['balance', 'obligor_rating']
+    corporate_banking_metrics = ['free_cash_flow', 'fixed_charge_coverage', 'cash_flow_leverage', 'liquidity', 'profitability', 'growth']
+    cre_metrics = ['noi', 'property_value', 'dscr', 'ltv']
+    
+    exclude_cols = ['facility_id', 'obligor_name', 'origination_date', 'maturity_date', 'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa', 'sir']
+    all_numeric_cols = [col for col in facilities_df.columns if col not in exclude_cols]
+    
+    available_cols = common_metrics.copy()
+    
+    if selected_portfolio and selected_portfolio in portfolios:
+        portfolio_criteria = portfolios[selected_portfolio]
+        lob = portfolio_criteria.get('lob')
+        
+        if lob == 'Corporate Banking':
+            for metric in corporate_banking_metrics:
+                if metric in all_numeric_cols:
+                    available_cols.append(metric)
+        elif lob == 'CRE':
+            for metric in cre_metrics:
+                if metric in all_numeric_cols:
+                    available_cols.append(metric)
+        else:
+            available_cols.extend([col for col in corporate_banking_metrics + cre_metrics if col in all_numeric_cols])
+    else:
+        available_cols = all_numeric_cols
+    
+    metric_options = []
+    for col in available_cols:
+        if col in facilities_df.columns:
+            label = col.replace('_', ' ').title()
+            metric_options.append({'label': label, 'value': col})
+    
+    for metric_name, formula in custom_metrics.items():
+        metric_options.append({'label': f"{metric_name} (Custom)", 'value': metric_name})
+    
+    return metric_options
+
+
+def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfolios, facilities_df, get_filtered_data):
+    """Create the Portfolio Trend tab content"""
+    metrics_options = _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df)
+    default_metric_1 = metrics_options[0]['value'] if metrics_options else 'balance'
+    default_metric_2 = metrics_options[1]['value'] if len(metrics_options) > 1 else 'balance'
+    default_metric_3 = metrics_options[2]['value'] if len(metrics_options) > 2 else 'balance'
+    
+    # Get available date range for time slider
+    if selected_portfolio and selected_portfolio in portfolios:
+        portfolio_data = get_filtered_data(selected_portfolio)
+        if len(portfolio_data) > 0:
+            portfolio_criteria = portfolios[selected_portfolio]
+            all_facility_data = facilities_df.copy()
+            if portfolio_criteria['lob']:
+                all_facility_data = all_facility_data[all_facility_data['lob'] == portfolio_criteria['lob']]
+            if portfolio_criteria['lob'] == 'Corporate Banking' and portfolio_criteria['industry']:
+                if isinstance(portfolio_criteria['industry'], list):
+                    all_facility_data = all_facility_data[all_facility_data['industry'].astype(str).isin([str(i) for i in portfolio_criteria['industry']])]
+                else:
+                    all_facility_data = all_facility_data[all_facility_data['industry'] == portfolio_criteria['industry']]
+            if portfolio_criteria['lob'] == 'CRE' and portfolio_criteria['property_type']:
+                if isinstance(portfolio_criteria['property_type'], list):
+                    all_facility_data = all_facility_data[all_facility_data['cre_property_type'].astype(str).isin([str(i) for i in portfolio_criteria['property_type']])]
+                else:
+                    all_facility_data = all_facility_data[all_facility_data['cre_property_type'] == portfolio_criteria['property_type']]
+            
+            unique_dates = sorted(all_facility_data['reporting_date'].unique())
+    
+    return html.Div([
+        # First Chart
+        html.Div([
+            html.Div([
+                html.Div([
+                    html.Label("Metric 1:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-metric-dropdown-1',
+                        options=metrics_options,
+                        value=default_metric_1,
+                        className="form-select"
+                    )
+                ], style={"width": "40%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("Aggregation:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-agg-dropdown-1',
+                        options=[
+                            {'label': 'Average', 'value': 'avg'},
+                            {'label': 'Sum', 'value': 'sum'}
+                        ],
+                        value='avg',
+                        className="form-select"
+                    )
+                ], style={"width": "25%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("", className="form-label", style={"visibility": "hidden"}),
+                    html.Button("Download Data", id="download-btn-1", className="btn btn-outline", 
+                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
+                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
+            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
+            html.Div([
+                dcc.Download(id="download-data-1"),
+                dcc.Graph(id='financial-trends-chart-1', config={'displayModeBar': False})
+            ])
+        ], className="chart-card", style={"marginBottom": "20px"}),
+        
+        # Second Chart
+        html.Div([
+            html.Div([
+                html.Div([
+                    html.Label("Metric 2:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-metric-dropdown-2',
+                        options=metrics_options,
+                        value=default_metric_2,
+                        className="form-select"
+                    )
+                ], style={"width": "40%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("Aggregation:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-agg-dropdown-2',
+                        options=[
+                            {'label': 'Average', 'value': 'avg'},
+                            {'label': 'Sum', 'value': 'sum'}
+                        ],
+                        value='avg',
+                        className="form-select"
+                    )
+                ], style={"width": "25%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("", className="form-label", style={"visibility": "hidden"}),
+                    html.Button("Download Data", id="download-btn-2", className="btn btn-outline", 
+                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
+                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
+            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
+            html.Div([
+                dcc.Download(id="download-data-2"),
+                dcc.Graph(id='financial-trends-chart-2', config={'displayModeBar': False})
+            ])
+        ], className="chart-card", style={"marginBottom": "20px"}),
+        
+        # Third Chart
+        html.Div([
+            html.Div([
+                html.Div([
+                    html.Label("Metric 3:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-metric-dropdown-3',
+                        options=metrics_options,
+                        value=default_metric_3,
+                        className="form-select"
+                    )
+                ], style={"width": "40%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("Aggregation:", className="form-label"),
+                    dcc.Dropdown(
+                        id='financial-trends-agg-dropdown-3',
+                        options=[
+                            {'label': 'Average', 'value': 'avg'},
+                            {'label': 'Sum', 'value': 'sum'}
+                        ],
+                        value='avg',
+                        className="form-select"
+                    )
+                ], style={"width": "25%", "marginRight": "10px"}),
+                html.Div([
+                    html.Label("", className="form-label", style={"visibility": "hidden"}),
+                    html.Button("Download Data", id="download-btn-3", className="btn btn-outline", 
+                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
+                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
+            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
+            html.Div([
+                dcc.Download(id="download-data-3"),
+                dcc.Graph(id='financial-trends-chart-3', config={'displayModeBar': False})
+            ])
+        ], className="chart-card")
+    ], className="main-content")
+
+
+def _get_timeseries(facilities_df, portfolios, portfolio_name, metric, agg_method='avg'):
+    """Get time series for a portfolio and metric"""
+    df = facilities_df.copy()
+    
+    if portfolio_name not in portfolios or not metric:
+        return pd.Series()
+    
+    criteria = portfolios[portfolio_name]
+    if 'lob' in df.columns and criteria.get('lob'):
+        df = df[df['lob'] == criteria['lob']]
+    if 'industry' in df.columns and criteria.get('lob') == 'Corporate Banking' and criteria.get('industry'):
+        if isinstance(criteria['industry'], list):
+            df = df[df['industry'].astype(str).isin([str(i) for i in criteria['industry']])]
+        else:
+            df = df[df['industry'] == criteria['industry']]
+    if 'cre_property_type' in df.columns and criteria.get('lob') == 'CRE' and criteria.get('property_type'):
+        if isinstance(criteria['property_type'], list):
+            df = df[df['cre_property_type'].astype(str).isin([str(i) for i in criteria['property_type']])]
+        else:
+            df = df[df['cre_property_type'] == criteria['property_type']]
+    
+    if 'obligor_name' in df.columns and criteria.get('obligors'):
+        if isinstance(criteria['obligors'], list):
+            df = df[df['obligor_name'].astype(str).isin([str(i) for i in criteria['obligors']])]
+        else:
+            df = df[df['obligor_name'] == criteria['obligors']]
+    
+    if metric not in df.columns:
+        return pd.Series()
+    
+    date_col = 'reporting_date'
+    if date_col not in df.columns:
+        return pd.Series()
+    
+    df[date_col] = pd.to_datetime(df[date_col])
+    
+    group = df.groupby(date_col)
+    
+    if agg_method == 'sum':
+        ts = group[metric].sum()
+    else:
+        ts = group[metric].mean()
+    
+    return ts
+
+
+def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric, agg_method='avg'):
+    """Build chart for a portfolio trend metric.
+    
+    Note: Public because it's called from app.py callbacks.
+    """
+    if not metric:
+        fig = go.Figure()
+        fig.update_layout(
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            height=350,
+            margin=dict(l=40, r=20, t=20, b=100),
+            font=dict(size=12, color='rgba(255,255,255,0.7)'),
+            autosize=True
+        )
+        fig.add_annotation(text="Select a metric to view chart", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        return fig
+        
+    ts_main = _get_timeseries(facilities_df, portfolios, selected_portfolio, metric, agg_method)
+    ts_bench = _get_timeseries(facilities_df, portfolios, benchmark_portfolio, metric, agg_method) if benchmark_portfolio else None
+    
+    fig = go.Figure()
+    
+    if not ts_main.empty:
+        fig.add_trace(go.Scatter(
+            x=ts_main.index,
+            y=ts_main.values,
+            mode='lines+markers',
+            name='Selected Portfolio',
+            line=dict(color='#a78bfa', width=3, dash='solid'),
+            marker=dict(color='#a78bfa')
+        ))
+    
+    if ts_bench is not None and not ts_bench.empty:
+        fig.add_trace(go.Scatter(
+            x=ts_bench.index,
+            y=ts_bench.values,
+            mode='lines+markers',
+            name='Benchmark Portfolio',
+            line=dict(color='#2dd4bf', width=3, dash='dash'),
+            marker=dict(color='#2dd4bf')
+        ))
+    
+    fig.update_layout(
+        plot_bgcolor='rgba(0,0,0,0)',
+        paper_bgcolor='rgba(0,0,0,0)',
+        height=350,
+        margin=dict(l=40, r=20, t=20, b=100),
+        font=dict(size=12, color='rgba(255,255,255,0.7)'),
+        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
+        autosize=True,
+        xaxis=dict(
+            rangeslider=dict(
+                visible=True,
+                thickness=0.15,
+                bgcolor='rgba(0,0,0,0)',
+                bordercolor='rgba(0,0,0,0)'
+            ),
+            showgrid=True,
+            gridcolor='rgba(255,255,255,0.06)',
+            color='rgba(255,255,255,0.5)'
+        ),
+        yaxis=dict(
+            showgrid=True,
+            gridcolor='rgba(255,255,255,0.06)',
+            color='rgba(255,255,255,0.5)'
+        )
+    )
+    
+    return fig
+
+
+def create_portfolio_trends_charts(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric1, metric2, metric3, agg1, agg2, agg3):
+    """Create all three portfolio trend charts.
+    
+    Note: Public because it's called from app.py callbacks.
+    """
+    chart1 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric1, agg1)
+    chart2 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric2, agg2)
+    chart3 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric3, agg3)
+    
+    return chart1, chart2, chart3

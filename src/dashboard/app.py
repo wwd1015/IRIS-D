@@ -527,34 +527,10 @@ _register_user_callbacks()
 _register_portfolio_callbacks()
 _register_autosave_callbacks()
 
-# Register per-tab callbacks
-for tab in get_all_tabs():
-    tab.register_callbacks(app)
-
-# Dark mode toggle (client-side)
-app.clientside_callback(
-    """
-    function(n_clicks){
-      const root = document.documentElement;
-      // Remove any leftover inline body styles — CSS variables handle theming
-      document.body.style.removeProperty('color');
-      document.body.style.removeProperty('background');
-      if (!window._themeInit){
-        const s = localStorage.getItem('theme');
-        if (s === 'light') root.classList.remove('dark');
-        window._themeInit = true;
-      }
-      if (n_clicks && n_clicks > 0){
-        const isDark = root.classList.toggle('dark');
-        localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        return isDark ? '🌙' : '☀️';
-      }
-      return root.classList.contains('dark') ? '🌙' : '☀️';
-    }
-    """,
-    Output("theme-toggle", "children"),
-    Input("theme-toggle", "n_clicks"),
-)
+# Auto-wire callbacks from all 3 layers (GlobalControl, ToolbarControl, DisplayCard)
+from .callbacks import CallbackRegistry
+_cb_registry = CallbackRegistry(app)
+_cb_registry.register_all()
 
 # Set layout
 app.layout = create_layout(default_portfolio, app.index_string, available_portfolios)
