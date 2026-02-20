@@ -171,7 +171,15 @@ class BaseTab(ABC):
 # ── Registry helpers ───────────────────────────────────────────────────────────
 
 def register_tab(tab: BaseTab) -> None:
-    """Register a tab instance. Call at module level in each tab file."""
+    """Register a tab instance. Call at module level in each tab file.
+
+    Raises
+    ------
+    ValueError
+        If a tab with the same ``id`` is already registered.
+    """
+    if tab.id in _TABS:
+        raise ValueError(f"Tab '{tab.id}' is already registered.")
     _TABS[tab.id] = tab
 
 

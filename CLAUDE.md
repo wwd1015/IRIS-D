@@ -19,19 +19,26 @@
 
 ```
 IRIS-D/
-├── main.py                    # Local dev entry point
+├── main.py                    # Local dev entry point (calls configure_logging)
 ├── app.py                     # Posit Connect WSGI entry point
 ├── pyproject.toml             # Project config & dependencies
 ├── requirements.txt           # Flexible deps for backward compat
 ├── src/
 │   └── dashboard/
-│       ├── app.py             # Main Dash application (callbacks, layout assembly)
-│       ├── config.py          # Constants & settings (DB paths, host, port)
+│       ├── app.py             # Slim orchestrator: init, callback wiring, layout (~100 lines)
+│       ├── app_state.py       # AppState singleton — all mutable state, filtering, TabContext
+│       ├── config.py          # Settings dataclass (DatabaseSettings, AppSettings, UISettings)
 │       ├── auth/              # User management & role-based access
 │       │   └── user_management.py
+│       ├── callbacks/         # Callback modules grouped by concern
+│       │   ├── __init__.py            # CallbackRegistry — auto-wires all 3 layers
+│       │   ├── user_callbacks.py      # Login, register, delete-profile, profile-switch
+│       │   ├── portfolio_callbacks.py # Portfolio CRUD (create, select, delete)
+│       │   └── autosave_callbacks.py  # Auto-save timer + notification banner
 │       ├── tabs/              # Tab implementations (self-contained per tab)
 │       │   ├── registry.py            # BaseTab, TabContext, register_tab()
-│       │   ├── __init__.py            # Auto-imports all tab modules
+│       │   ├── __init__.py            # Auto-discovers & imports all non-_ tab modules
+│       │   ├── _template.py           # Annotated starter template for new tabs
 │       │   ├── portfolio_summary.py   # Portfolio summary (charts, watchlist, sidebar, CRUD)
 │       │   ├── holdings.py            # Holdings tab (table, time-series expansion)
 │       │   ├── financial_trend.py     # Financial trends (details table, filters)
@@ -42,13 +49,16 @@ IRIS-D/
 │       │   ├── cards.py               # DisplayCard hierarchy (ChartCard, TableCard, MetricCard)
 │       │   ├── controls.py            # GlobalControl hierarchy (L1 header controls)
 │       │   ├── toolbar.py             # ToolbarControl presets (L2 dropdowns, sliders)
-│       │   ├── signals.py             # Cross-layer dcc.Store signal IDs
-│       │   └── layout.py             # Main app shell (header, content, modals)
+│       │   ├── signals.py             # Signal bus (PORTFOLIO, USER, THEME, DATE_RANGE, NOTIFICATION)
+│       │   └── layout.py              # Main app shell (header, content, modals)
 │       ├── data/              # Data loading & generation
-│       │   ├── loader.py
+│       │   ├── sources.py             # DataSource protocol + SqliteDataSource + InMemoryDataSource
+│       │   ├── loader.py              # Thin façade over DataSource
+│       │   ├── models.py              # Pydantic FacilityRecord + FacilityDataset
 │       │   └── db_data_generator.py
 │       └── utils/             # Utility functions
-│           └── helpers.py
+│           ├── helpers.py
+│           └── logging.py             # configure_logging() — structured console output
 ├── data/
 │   ├── bank_risk.db           # SQLite database (facility data)
 │   ├── datatidy_config.yaml   # Data processing rules
@@ -58,7 +68,13 @@ IRIS-D/
 ├── docs/
 │   └── DEVELOPER_GUIDE.md     # Framework developer reference
 └── tests/
+    ├── conftest.py            # Shared fixtures (minimal_df, app_state, tab_context)
     ├── test_prototype.py
+    ├── unit/
+    │   ├── test_models.py
+    │   ├── test_app_state.py
+    │   ├── test_registry.py
+    │   └── test_data_sources.py
     └── integration/
         └── test_app.py
 ```
@@ -73,7 +89,52 @@ The dashboard uses a **3-layer modular framework**:
 | **Layer 2 — Toolbar** | Per-tab controls (dropdowns, sliders, toggles) | `components/toolbar.py` |
 | **Layer 3 — Content** | Sidebar + main content grid (cards, charts, tables) | `components/cards.py` |
 
-Each tab is **self-contained** in `tabs/`. Tab-specific rendering helpers live *inside* the tab file as private `_` functions. Only shared framework abstractions live in `components/`.
+### State Management
+
+All mutable state lives in `app_state.py` as a module-level `AppState` singleton:
+
+```python
+from .app_state import app_state
+
+ctx = app_state.make_tab_context("Corporate Banking")
+df  = app_state.get_filtered_data("CRE")
+app_state.load_user_portfolios(username)   # on login/switch
+app_state.save_user_data(username)         # on portfolio CRUD / autosave
+```
+
+### Data Layer
+
+The data layer is pluggable via the `DataSource` protocol (`data/sources.py`):
+
+```python
+from .data.sources import SqliteDataSource, InMemoryDataSource, set_default_source
+
+# In tests — swap to in-memory, no DB required:
+set_default_source(InMemoryDataSource(my_df))
+```
+
+### Adding a New Tab
+
+1. Copy `tabs/_template.py` to a new file (e.g. `tabs/my_analysis.py`)
+2. Rename the class, set `id`, `label`, `order`
+3. Implement `render_content()` (and optionally `get_toolbar_controls`, `get_cards`, `render_sidebar`, `register_callbacks`)
+4. Uncomment `register_tab(MyAnalysisTab())` at the bottom
+5. That's it — auto-discovery handles the rest
+
+### Signals
+
+`components/signals.py` defines well-known `dcc.Store` IDs:
+
+| Signal | Value type | Purpose |
+|---|---|---|
+| `Signal.PORTFOLIO` | `str` | Selected portfolio name |
+| `Signal.USER` | `str` | Current username |
+| `Signal.THEME` | `str` | `"light"` or `"dark"` |
+| `Signal.DATE_RANGE` | `dict` | `{"start": iso, "end": iso}` |
+| `Signal.NOTIFICATION` | `dict` | `{"message": str, "level": str}` |
+| `Signal.tab_filter(tab_id)` | `dict` | Per-tab toolbar state |
+
+Tabs can register custom signals: `SignalRegistry.register("my-signal-id")`
 
 ## How to Run
 
@@ -84,6 +145,9 @@ pip install -e .
 # Run locally
 python main.py
 # → Runs at http://127.0.0.1:8050 by default
+
+# Run tests
+pytest tests/unit/ -v
 
 # Deploy to Posit Connect
 rsconnect deploy dash main.py --title "Portfolio Performance Dashboard"
@@ -99,24 +163,25 @@ rsconnect deploy dash main.py --title "Portfolio Performance Dashboard"
 
 ## Environment Variables
 
-| Variable | Default     | Description                      |
-|----------|-------------|----------------------------------|
-| `HOST`   | `127.0.0.1` | Server bind address              |
-| `PORT`   | `8050`      | Server port                      |
-| `DEBUG`  | `False`     | Enable Dash debug mode           |
+| Variable | Default | Description |
+|---|---|---|
+| `HOST` | `127.0.0.1` | Server bind address |
+| `PORT` | `8050` | Server port |
+| `DEBUG` | `False` | Enable Dash debug mode + verbose logging |
+| `DATABASE_PATH` | `data/bank_risk.db` | Path to SQLite database |
+| `PROFILES_FILE` | `data/user_profiles.json` | Path to user profiles JSON |
 
 ## Development Notes
 
-- The main application logic (callbacks, layout assembly) lives in `src/dashboard/app.py`.
-- Tab files in `tabs/` are self-contained: each tab file includes its own rendering helpers (private `_` functions) plus the `BaseTab` subclass, toolbar controls, and callbacks.
-- `components/` contains **only shared framework code** (cards, controls, toolbar, signals, layout). It does NOT contain any tab-specific rendering logic.
-- CSS uses a dark glassmorphism theme with premium styling.
-- The data layer uses SQLite. The database file is at `data/bank_risk.db`.
-- Configuration constants are centralized in `src/dashboard/config.py`.
-- Auto-save runs every 30 seconds for user profiles.
+- `app.py` is now a slim orchestrator (~100 lines). Callbacks live in `callbacks/`.
+- `app_state.py` owns all mutable state — no `global` keyword anywhere in callbacks.
+- Tab auto-discovery: drop a file in `tabs/` and call `register_tab()` — nothing else to edit.
+- `register_tab()` raises `ValueError` on duplicate tab IDs (caught early).
+- Structured logging via `utils/logging.py` — replace `print()` with `logging.getLogger(__name__)`.
+- Tests use `InMemoryDataSource` fixture — no SQLite DB needed for unit tests.
 - See `docs/DEVELOPER_GUIDE.md` for full framework reference.
 
 ## Git Workflow
 
-- Current active branch: `dev_layout_test`
+- Current active branch: `main`
 - Remote: `origin`

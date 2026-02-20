@@ -7,10 +7,13 @@ import sys
 import os
 
 # Add the src directory to the Python path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
+from src.dashboard.utils.logging import configure_logging
+configure_logging(level="DEBUG" if os.environ.get("DEBUG", "False").lower() == "true" else "INFO")
 
 from src.dashboard.app import app
 from src.dashboard.config import HOST, PORT, DEBUG_MODE
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     app.run(debug=DEBUG_MODE, host=HOST, port=PORT)
