@@ -44,9 +44,6 @@ class PortfolioSummaryTab(BaseTab):
 
     # ── Layer 3: Content ────────────────────────────────────────────────────
 
-    def render_sidebar(self, ctx: TabContext):
-        return _create_portfolio_sidebar(ctx.selected_portfolio, ctx.available_portfolios)
-
     def render_content(self, ctx: TabContext):
         # For this tab, "content" is really two panels: main + positions
         return html.Div([
@@ -71,17 +68,16 @@ class PortfolioSummaryTab(BaseTab):
         ])
 
     def render(self, ctx: TabContext):
-        """Custom 3-column layout with Layer 2 toolbar above."""
+        """Custom 2-column layout (main + positions) with Layer 2 toolbar above."""
         # Layer 2: toolbar
         toolbar_controls = self.get_toolbar_controls(ctx)
         toolbar = render_toolbar(toolbar_controls, ctx) if toolbar_controls else None
 
-        # Layer 3: sidebar + content
-        sidebar = self.render_sidebar(ctx)
+        # Layer 3: main content + positions panel (two-column grid)
         content = self.render_content(ctx)
         grid = html.Div(
-            [sidebar, *content.children],
-            className=self.grid_class,
+            content.children,
+            className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-4 items-stretch",
         )
 
         parts = [p for p in [toolbar, grid] if p is not None]
@@ -495,100 +491,6 @@ def _get_current_user_portfolios():
             return config.DEFAULT_PORTFOLIOS.copy()
         return user_portfolios
 
-
-def _create_portfolio_sidebar(selected_portfolio, available_portfolios):
-    """Create the portfolio selection sidebar with modern Tailwind styling"""
-    return html.Section([
-        html.Header([
-            html.H2("Portfolios", className="text-sm font-semibold")
-        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
-        html.Div([
-            # Portfolio dropdown moved to title bar - keeping this hidden for callback compatibility
-            dcc.Dropdown(
-                id='portfolio-dropdown',
-                options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
-                value=selected_portfolio,
-                placeholder="Select portfolio...",
-                className="text-xs",
-                style={"marginBottom": "16px", "fontSize": "12px", "display": "none"}
-            ),
-            
-            # Portfolio Creator & Manager Section
-            html.Div([
-                html.H3("Create New Portfolio", className="text-sm font-semibold mb-3 text-brand-500"),
-                html.Div([
-                    html.Label("Line of Business", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                    dcc.Dropdown(
-                        id='lob-dropdown',
-                        options=[
-                            {'label': 'Corporate Banking', 'value': 'Corporate Banking'},
-                            {'label': 'CRE', 'value': 'CRE'}
-                        ],
-                        placeholder="Select LOB...",
-                        className="text-xs mb-3"
-                    )
-                ], className="mb-3"),
-                html.Div([
-                    html.Label("Industry", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                    dcc.Dropdown(
-                        id='industry-dropdown',
-                        options=[],
-                        placeholder="Select Industry...",
-                        className="text-xs",
-                        multi=True
-                    )
-                ], className="mb-3", id='industry-group', style={'display': 'none'}),
-                html.Div([
-                    html.Label("Property Type", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                    dcc.Dropdown(
-                        id='property-type-dropdown',
-                        options=[],
-                        placeholder="Select Property Type...",
-                        className="text-xs",
-                        multi=True
-                    )
-                ], className="mb-3", id='property-type-group', style={'display': 'none'}),
-                html.Div([
-                    html.Label("OR Select Obligors Directly", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                    dcc.Dropdown(
-                        id='obligor-dropdown',
-                        options=[],
-                        placeholder="Select obligors...",
-                        className="text-xs",
-                        multi=True
-                    )
-                ], className="mb-3", id='obligor-group'),
-                html.Div([
-                    html.Label("Portfolio Name", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                    dcc.Input(
-                        id='portfolio-name-input',
-                        type='text',
-                        placeholder="Enter portfolio name...",
-                        className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                    )
-                ], className="mb-3"),
-                html.Button("Save Portfolio", id='save-portfolio-btn', 
-                           className="btn btn-primary btn-glow w-full mb-4", style={"fontSize": "12px"}),
-                
-                # Separator
-                html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
-                
-                # Delete Portfolio Section
-                html.H3("Delete Portfolio", className="text-sm font-semibold mb-3 text-red-600"),
-                html.Div([
-                    html.Label("Select Portfolio to Delete", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                    dcc.Dropdown(
-                        id='delete-portfolio-dropdown',
-                        options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios if portfolio not in ['Corporate Banking', 'CRE']],
-                        placeholder="Select portfolio to delete...",
-                        className="text-xs"
-                    )
-                ], className="mb-3"),
-                html.Button("Delete Portfolio", id='delete-portfolio-btn', 
-                           className="btn btn-danger w-full", style={"fontSize": "12px"})
-            ], className="space-y-3 mt-4")
-        ], className="p-4 flex-1 overflow-auto")
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col h-full")
 
 
 def save_portfolio_data(portfolios, available_portfolios, portfolio_name, lob_value, industry_value, property_type_value, obligor_value):

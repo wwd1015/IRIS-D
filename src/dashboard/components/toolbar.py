@@ -263,6 +263,112 @@ class ToggleControl(ToolbarControl):
 # =============================================================================
 
 
+# =============================================================================
+# PRESET: RANGE SLIDER
+# =============================================================================
+
+
+class RangeSliderControl(ToolbarControl):
+    """Dual-handle range slider for the tab toolbar.
+
+    Parameters
+    ----------
+    id, label, order : inherited
+    min_val, max_val : slider range
+    step : step size
+    value : default ``[low, high]`` pair
+    marks : dict of position → label
+    """
+
+    def __init__(
+        self,
+        id: str,
+        label: str = "",
+        min_val: int = 0,
+        max_val: int = 100,
+        step: int = 1,
+        value: list | None = None,
+        marks: dict | None = None,
+        order: int = 50,
+        align: ToolbarAlign = ToolbarAlign.LEFT,
+        width: str = "min-w-[240px]",
+        visible: bool = True,
+    ):
+        self.id = id
+        self.label = label
+        self.min_val = min_val
+        self.max_val = max_val
+        self.step = step
+        self.value = value if value is not None else [min_val, max_val]
+        self.marks = marks
+        self.order = order
+        self.align = align
+        self.width = width
+        self.visible = visible
+
+    def render(self, ctx: TabContext) -> html.Div:
+        style = {} if self.visible else {"display": "none"}
+        marks = self.marks or {self.min_val: str(self.min_val), self.max_val: str(self.max_val)}
+        return html.Div([
+            html.Label(
+                self.label,
+                className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300",
+            ),
+            dcc.RangeSlider(
+                id=self.id,
+                min=self.min_val,
+                max=self.max_val,
+                step=self.step,
+                value=self.value,
+                marks=marks,
+                tooltip={"placement": "bottom", "always_visible": True},
+            ),
+        ], className=f"{self.width} flex-shrink-0", style=style)
+
+
+# =============================================================================
+# PRESET: RAW CONTROL (arbitrary Dash component in the toolbar)
+# =============================================================================
+
+
+class RawControl(ToolbarControl):
+    """Wraps an arbitrary Dash component directly in the toolbar row.
+
+    Use when none of the preset controls fit (e.g. a conditional slider
+    container whose visibility is toggled by a callback).
+
+    Parameters
+    ----------
+    id : str
+        Logical ID — only used for ordering; the component itself carries its own DOM id.
+    component : Dash component
+        The pre-built component to render.
+    """
+
+    def __init__(
+        self,
+        id: str,
+        component,
+        order: int = 50,
+        align: ToolbarAlign = ToolbarAlign.LEFT,
+    ):
+        self.id = id
+        self.label = ""
+        self.component = component
+        self.order = order
+        self.align = align
+        self.width = ""
+        self.visible = True
+
+    def render(self, ctx: TabContext) -> html.Div:
+        return self.component
+
+
+# =============================================================================
+# TOOLBAR RENDERER
+# =============================================================================
+
+
 def render_toolbar(controls: list[ToolbarControl], ctx: TabContext) -> Optional[html.Div]:
     """Render all toolbar controls into a single row.
 

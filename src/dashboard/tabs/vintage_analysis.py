@@ -19,13 +19,59 @@ class VintageAnalysisTab(BaseTab):
     label = "Vintage Analysis"
     order = 50
 
-    # ── Sidebar ─────────────────────────────────────────────────────────────
+    # ── Layer 2: Toolbar ────────────────────────────────────────────────────
 
-    def render_sidebar(self, ctx: TabContext):
-        return _create_vintage_analysis_sidebar(
-            ctx.selected_portfolio, ctx.facilities_df,
-            ctx.portfolios, ctx.selected_portfolio,
-        )
+    def get_toolbar_controls(self, ctx: TabContext):
+        from ..components.toolbar import DropdownControl, RawControl
+        from dash import dcc, html
+
+        portfolio_opts = [{"label": p, "value": p} for p in ctx.portfolios.keys()]
+
+        # Build quarterly cohort options from origination dates
+        fdf = ctx.facilities_df.copy()
+        fdf["origination_date"] = pd.to_datetime(fdf["origination_date"])
+        seen, quarterly_options = set(), []
+        for date in sorted(fdf["origination_date"].dropna().unique()):
+            ts = pd.Timestamp(date)
+            lbl = f"{ts.year}Q{ts.quarter}"
+            if lbl not in seen:
+                seen.add(lbl)
+                quarterly_options.append({"label": lbl, "value": lbl})
+        default_quarters = [o["value"] for o in quarterly_options[-3:]]
+
+        # Metric dropdown: hidden by default, shown when analysis_type == metric_trend
+        metric_selector = html.Div([
+            html.Label("Metric:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+            dcc.Dropdown(
+                id="vintage-metric-dropdown",
+                options=[], value=None,
+                className="text-xs", style={"fontSize": "12px"},
+            ),
+        ], id="vintage-metric-selector", className="min-w-[160px] flex-shrink-0",
+           style={"display": "none"})
+
+        return [
+            DropdownControl(
+                id="vintage-portfolio-dropdown", label="Portfolio",
+                options=portfolio_opts, value=ctx.selected_portfolio, order=10,
+                width="min-w-[180px]",
+            ),
+            DropdownControl(
+                id="vintage-analysis-type", label="Analysis Type",
+                options=[
+                    {"label": "Default Rates", "value": "default_rates"},
+                    {"label": "Metric Trend",  "value": "metric_trend"},
+                ],
+                value="default_rates", order=20, width="min-w-[160px]",
+            ),
+            RawControl(id="vintage-metric-raw", component=metric_selector, order=30),
+            DropdownControl(
+                id="vintage-vintage-quarters", label="Quarterly Cohorts",
+                options=quarterly_options, value=default_quarters,
+                multi=True, placeholder="Select cohorts…", order=40,
+                width="min-w-[200px]",
+            ),
+        ]
 
     # ── Content ─────────────────────────────────────────────────────────────
 
@@ -40,83 +86,6 @@ register_tab(VintageAnalysisTab())
 # Private rendering helpers
 # =============================================================================
 
-
-def _create_vintage_analysis_sidebar(selected_portfolio, facilities_df, portfolios, default_portfolio):
-    """Create the vintage analysis sidebar with quarterly cohort controls"""
-    
-    facilities_df = facilities_df.copy()
-    facilities_df['origination_date'] = pd.to_datetime(facilities_df['origination_date'])
-    
-    quarterly_options = []
-    unique_dates = facilities_df['origination_date'].dropna().unique()
-    
-    for date in sorted(unique_dates):
-        date_ts = pd.Timestamp(date)
-        quarter_label = f"{date_ts.year}Q{date_ts.quarter}"
-        if quarter_label not in [opt['label'] for opt in quarterly_options]:
-            quarterly_options.append({'label': quarter_label, 'value': quarter_label})
-    
-    default_quarters = [opt['value'] for opt in quarterly_options[-3:]] if len(quarterly_options) >= 3 else [opt['value'] for opt in quarterly_options]
-    
-    return html.Section([
-        html.Header([
-            html.H2("Vintage Analysis", className="text-sm font-semibold")
-        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
-        html.Div([
-            # Portfolio Selection
-            html.Div([
-                html.Label("Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='vintage-portfolio-dropdown',
-                    options=[{'label': portfolio, 'value': portfolio} for portfolio in portfolios.keys()],
-                    value=selected_portfolio or default_portfolio,
-                    className="text-xs",
-                    style={"fontSize": "12px"}
-                )
-            ], className="mb-3"),
-            
-            # Analysis Type Selection
-            html.Div([
-                html.Label("Analysis Type:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='vintage-analysis-type',
-                    options=[
-                        {'label': 'Default Rates', 'value': 'default_rates'},
-                        {'label': 'Metric Trend', 'value': 'metric_trend'}
-                    ],
-                    value='default_rates',
-                    className="text-xs",
-                    style={"fontSize": "12px"}
-                )
-            ], className="mb-3"),
-            
-            # Metric Selection (conditional)
-            html.Div([
-                html.Label("Metric:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='vintage-metric-dropdown',
-                    options=[],
-                    value=None,
-                    className="text-xs",
-                    style={"fontSize": "12px"}
-                )
-            ], className="mb-3", id='vintage-metric-selector', style={'display': 'none'}),
-            
-            # Quarterly Cohort Selection
-            html.Div([
-                html.Label("Select Quarterly Cohorts:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='vintage-vintage-quarters',
-                    options=quarterly_options,
-                    value=default_quarters,
-                    multi=True,
-                    className="text-xs",
-                    style={"fontSize": "12px"}
-                )
-            ], className="mb-3")
-            
-        ], className="p-4 flex-1 overflow-auto")
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
 
 
 def _create_vintage_analysis_content(selected_portfolio):

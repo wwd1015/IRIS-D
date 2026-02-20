@@ -22,16 +22,51 @@ class FinancialTrendTab(BaseTab):
     label = "Financial Trend"
     order = 40
 
-    # ── Sidebar ─────────────────────────────────────────────────────────────
+    # ── Layer 2: Toolbar ────────────────────────────────────────────────────
 
-    def render_sidebar(self, ctx: TabContext):
-        return _create_financial_trend_sidebar(
-            ctx.selected_portfolio,
-            ctx.available_portfolios,
-            ctx.portfolios,
-            ctx.get_filtered_data,
-            ctx.facilities_df,
-        )
+    def get_toolbar_controls(self, ctx: TabContext):
+        from ..components.toolbar import DropdownControl, RawControl
+        from dash import dcc, html
+
+        view_opts = _get_view_options(ctx.selected_portfolio, ctx.portfolios, ctx.get_filtered_data)
+        quarter_opts = _get_available_quarters(ctx.facilities_df, ctx.selected_portfolio, ctx.portfolios)
+        latest_q = quarter_opts[0]["value"] if quarter_opts else None
+
+        # Conditional custom lookback container — visibility toggled by callback
+        custom_lookback_component = html.Div([
+            html.Label("Custom Lookback (Quarters):",
+                       className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+            dcc.Slider(
+                id="ft-custom-lookback",
+                min=1, max=12, step=1, value=1,
+                marks={i: str(i) for i in [1, 4, 8, 12]},
+                tooltip={"placement": "bottom", "always_visible": True},
+            ),
+        ], id="ft-custom-lookback-container", className="min-w-[220px] flex-shrink-0",
+           style={"display": "none"})
+
+        return [
+            DropdownControl(
+                id="ft-view-dropdown", label="View Fields",
+                options=view_opts, value=[], multi=True, placeholder="Select fields…", order=10,
+                width="min-w-[200px]",
+            ),
+            DropdownControl(
+                id="ft-primary-period", label="Primary Period",
+                options=quarter_opts, value=latest_q, placeholder="Select quarter…", order=20,
+                width="min-w-[160px]",
+            ),
+            DropdownControl(
+                id="ft-comparison-period", label="Comparison Period",
+                options=[
+                    {"label": "Prior Quarter", "value": "prior_quarter"},
+                    {"label": "Prior Year",    "value": "prior_year"},
+                    {"label": "Customized",    "value": "customized"},
+                ],
+                value="prior_quarter", order=30, width="min-w-[160px]",
+            ),
+            RawControl(id="ft-custom-lookback-raw", component=custom_lookback_component, order=40),
+        ]
 
     # ── Content ─────────────────────────────────────────────────────────────
 
@@ -105,99 +140,6 @@ register_tab(FinancialTrendTab())
 # =============================================================================
 
 
-def _create_financial_trend_sidebar(selected_portfolio, available_portfolios, portfolios, get_filtered_data, facilities_df):
-    """Create redesigned sidebar for Financial Trend tab with portfolio-based dynamic filters"""
-    return html.Section([
-        html.Header([
-            html.H2("Financial Trend", className="text-sm font-semibold")
-        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
-        html.Div([
-            # Portfolio dropdown moved to title bar - keeping this hidden for callback compatibility
-            html.Div([
-                dcc.Dropdown(
-                    id='portfolio-dropdown',
-                    options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
-                    value=selected_portfolio,
-                    placeholder="Select portfolio...",
-                    className="text-xs",
-                    style={"fontSize": "12px", "display": "none"}
-                )
-            ], style={"display": "none"}),
-            
-            # View dropdown based on portfolio type
-            html.Div([
-                html.Label("View:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='ft-view-dropdown',
-                    options=_get_view_options(selected_portfolio, portfolios, get_filtered_data),
-                    value=[],
-                    placeholder="Select view fields...",
-                    className="text-xs",
-                    style={"fontSize": "12px"},
-                    multi=True
-                )
-            ], className="mb-4"),
-            
-            # Dynamic filters based on portfolio and view selection
-            html.Div(id='financial-trend-dynamic-filters', children=_create_financial_trend_dynamic_filters(selected_portfolio, portfolios, get_filtered_data)),
-            
-            html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
-            
-            # Primary period dropdown for report quarter selection
-            html.Div([
-                html.Label("Primary Period:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='ft-primary-period',
-                    options=_get_available_quarters(facilities_df, selected_portfolio, portfolios),
-                    value=_get_latest_quarter(facilities_df, selected_portfolio, portfolios),
-                    placeholder="Select report quarter...",
-                    className="text-xs",
-                    style={"fontSize": "12px"}
-                )
-            ], className="mb-4"),
-            
-            # Comparison period with prior quarter/year/customized options
-            html.Div([
-                html.Label("Comparison Period:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='ft-comparison-period',
-                    options=[
-                        {'label': 'Prior Quarter', 'value': 'prior_quarter'},
-                        {'label': 'Prior Year', 'value': 'prior_year'},
-                        {'label': 'Customized', 'value': 'customized'}
-                    ],
-                    value='prior_quarter',
-                    className="text-xs",
-                    style={"fontSize": "12px"}
-                )
-            ], className="mb-4"),
-            
-            # Custom lookback period slider (1-12 quarters) - shown when customized is selected
-            html.Div([
-                html.Label("Custom Lookback (Quarters):", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Slider(
-                    id='ft-custom-lookback',
-                    min=1,
-                    max=12,
-                    step=1,
-                    value=1,
-                    marks={i: str(i) for i in [1, 4, 8, 12]},
-                    tooltip={"placement": "bottom", "always_visible": True},
-                    className="mb-2"
-                ),
-                html.Div("1 = Prior Quarter, 4 = Prior Year", className="text-xs text-ink-500 dark:text-slate-400")
-            ], className="mb-4", id='ft-custom-lookback-container', style={'display': 'none'})
-            
-        ], className="p-4 flex-1 overflow-auto")
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
-
-
-def _create_financial_trend_dynamic_filters(selected_portfolio, portfolios, get_filtered_data):
-    """Create dynamic filters based on portfolio type"""
-    if not selected_portfolio or selected_portfolio not in portfolios:
-        return []
-    # Return empty for now - the main filtering will be done through the View dropdown
-    return []
 
 
 def _get_view_options(selected_portfolio, portfolios, get_filtered_data):

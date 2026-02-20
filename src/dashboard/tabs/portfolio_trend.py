@@ -19,12 +19,22 @@ class PortfolioTrendTab(BaseTab):
     label = "Portfolio Trend"
     order = 30
 
-    # ── Sidebar ─────────────────────────────────────────────────────────────
+    # ── Layer 2: Toolbar ────────────────────────────────────────────────────
 
-    def render_sidebar(self, ctx: TabContext):
-        return _create_portfolio_trend_sidebar(
-            ctx.selected_portfolio, ctx.available_portfolios,
-        )
+    def get_toolbar_controls(self, ctx: TabContext):
+        from ..components.toolbar import DropdownControl
+        portfolio_opts = [{"label": p, "value": p} for p in ctx.available_portfolios]
+        return [
+            DropdownControl(
+                id="financial-trends-benchmark-dropdown",
+                label="Benchmark Portfolio",
+                options=portfolio_opts,
+                value=None,
+                placeholder="Select benchmark…",
+                order=10,
+                width="min-w-[220px]",
+            ),
+        ]
 
     # ── Content ─────────────────────────────────────────────────────────────
 
@@ -43,62 +53,37 @@ register_tab(PortfolioTrendTab())
 # =============================================================================
 
 
-def _create_portfolio_trend_sidebar(selected_portfolio, available_portfolios):
-    """Create simplified sidebar for Portfolio Trend tab with consistent styling"""
-    return html.Section([
-        html.Header([
-            html.H2("Portfolio Trend", className="text-sm font-semibold")
-        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
+
+def _create_custom_metric_panel():
+    """Collapsible custom metric creation panel rendered at the top of the content area."""
+    return html.Details([
+        html.Summary("Create Custom Metric",
+                     className="text-sm font-semibold text-brand-500 cursor-pointer select-none px-4 py-3"),
         html.Div([
-            # Portfolio dropdown moved to title bar - keeping this hidden for callback compatibility
-            html.Div([
-                dcc.Dropdown(
-                    id='portfolio-dropdown',
-                    options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
-                    value=selected_portfolio,
-                    placeholder="Select portfolio...",
-                    className="text-xs",
-                    style={"fontSize": "12px", "display": "none"}
-                )
-            ], style={"display": "none"}),
-            html.Div([
-                html.Label("Benchmark Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Dropdown(
-                    id='financial-trends-benchmark-dropdown',
-                    options=[{'label': portfolio, 'value': portfolio} for portfolio in available_portfolios],
-                    value=None,
-                    placeholder="Select benchmark portfolio...",
-                    className="text-xs",
-                    style={"fontSize": "12px"}
-                )
-            ], className="mb-4"),
-            html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
-            html.H3("Create Custom Metric", className="text-sm font-semibold mb-3 text-brand-500"),
             html.Div([
                 html.Label("Formula:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                html.P("Supports conditions & backticks. Use 'or' for multiple values. Examples: (`Obligor Rating` == 15 or `Obligor Rating` == 16) * Balance, `free cash flow` / liquidity", 
-                       className="text-xs text-ink-500 dark:text-slate-400 mb-2"),
+                html.P(
+                    "Supports conditions & backticks, e.g. (`Obligor Rating` == 15) * Balance",
+                    className="text-xs text-ink-500 dark:text-slate-400 mb-2",
+                ),
                 dcc.Input(
-                    id='custom-metric-formula',
-                    type='text',
+                    id="custom-metric-formula", type="text",
                     placeholder="e.g., (`Obligor Rating` == 15 or `Obligor Rating` == 16) * Balance",
-                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                )
+                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500",
+                ),
             ], className="mb-3"),
             html.Div([
                 html.Label("Metric Name:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
                 dcc.Input(
-                    id='custom-metric-name',
-                    type='text',
-                    placeholder="Enter metric name...",
-                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500 focus:border-brand-500"
-                )
+                    id="custom-metric-name", type="text", placeholder="Enter metric name…",
+                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500",
+                ),
             ], className="mb-3"),
-            html.Button("Create Metric", id='create-metric-btn', 
-                       className="w-full px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
-            html.Div(id='metric-creation-alert', className="mt-3")
-        ], className="p-4 flex-1 overflow-auto")
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
+            html.Button("Create Metric", id="create-metric-btn",
+                        className="px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
+            html.Div(id="metric-creation-alert", className="mt-3"),
+        ], className="px-4 pb-4"),
+    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 mb-4")
 
 
 def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df):
@@ -143,7 +128,7 @@ def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facil
 
 
 def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfolios, facilities_df, get_filtered_data):
-    """Create the Portfolio Trend tab content"""
+    """Create the Portfolio Trend tab content (custom metric panel + three charts)."""
     metrics_options = _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df)
     default_metric_1 = metrics_options[0]['value'] if metrics_options else 'balance'
     default_metric_2 = metrics_options[1]['value'] if len(metrics_options) > 1 else 'balance'
@@ -171,6 +156,7 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
             unique_dates = sorted(all_facility_data['reporting_date'].unique())
     
     return html.Div([
+        _create_custom_metric_panel(),
         # First Chart
         html.Div([
             html.Div([

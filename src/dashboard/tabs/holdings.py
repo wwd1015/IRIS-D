@@ -13,11 +13,12 @@ import pandas as pd
 from dash import html, dcc, callback, Input, Output, State, no_update, ALL, callback_context
 
 from ..tabs.registry import BaseTab, TabContext, register_tab
-from ..utils.helpers import sidebar_wrapper, card_wrapper, dropdown_filter
+from ..components.toolbar import DropdownControl, RangeSliderControl
+from ..utils.helpers import card_wrapper
 
 
 # =============================================================================
-# HoldingsTab  (Layer 3 — orchestration, sidebar, content, callbacks)
+# HoldingsTab  (Layer 3 — orchestration, toolbar, content, callbacks)
 # =============================================================================
 
 
@@ -26,97 +27,58 @@ class HoldingsTab(BaseTab):
     label = "Holdings"
     order = 20
 
-    # ── Layer 3: Sidebar ────────────────────────────────────────────────────
+    # ── Layer 2: Toolbar ────────────────────────────────────────────────────
 
-    def render_sidebar(self, ctx: TabContext):
+    def get_toolbar_controls(self, ctx: TabContext):
         portfolio_data = ctx.get_filtered_data(ctx.selected_portfolio)
         lob = ctx.portfolios.get(ctx.selected_portfolio, {}).get("lob", "")
-
-        # ── Dynamic filters ─────────────────────────────────────────────────
-        filters: list = []
+        controls = []
 
         if len(portfolio_data) > 0:
-            obligor_opts = sorted(portfolio_data["obligor_name"].unique())
-            filters.append(dropdown_filter(
-                id="holdings-obligor-filter",
-                label="Obligor",
-                options=[{"label": o, "value": o} for o in obligor_opts],
-                multi=True,
-                placeholder="All obligors…",
+            obligor_opts = [{"label": o, "value": o} for o in sorted(portfolio_data["obligor_name"].unique())]
+            controls.append(DropdownControl(
+                id="holdings-obligor-filter", label="Obligor",
+                options=obligor_opts, multi=True, placeholder="All obligors…", order=10,
             ))
 
-            rating_opts = sorted(portfolio_data["obligor_rating"].unique())
-            filters.append(dropdown_filter(
-                id="holdings-rating-filter",
-                label="Rating",
-                options=[{"label": str(r), "value": r} for r in rating_opts],
-                multi=True,
-                placeholder="All ratings…",
+            rating_opts = [{"label": str(r), "value": r} for r in sorted(portfolio_data["obligor_rating"].unique())]
+            controls.append(DropdownControl(
+                id="holdings-rating-filter", label="Rating",
+                options=rating_opts, multi=True, placeholder="All ratings…", order=20,
             ))
 
-            # LOB-specific filters
-            if lob == "Corporate Banking":
-                industry_opts = sorted(portfolio_data["industry"].dropna().unique())
-                filters.append(dropdown_filter(
-                    id="holdings-industry-filter",
-                    label="Industry",
-                    options=[{"label": i, "value": i} for i in industry_opts],
-                    multi=True,
-                    placeholder="All industries…",
-                ))
-            elif lob == "CRE":
-                prop_opts = sorted(portfolio_data["cre_property_type"].dropna().unique())
-                filters.append(dropdown_filter(
-                    id="holdings-property-filter",
-                    label="Property Type",
-                    options=[{"label": p, "value": p} for p in prop_opts],
-                    multi=True,
-                    placeholder="All property types…",
-                ))
-                msa_opts = sorted(portfolio_data["msa"].dropna().unique())
-                filters.append(dropdown_filter(
-                    id="holdings-msa-filter",
-                    label="MSA",
-                    options=[{"label": m, "value": m} for m in msa_opts],
-                    multi=True,
-                    placeholder="All MSAs…",
-                ))
+            # LOB-specific filters — always render all three, hide when not applicable
+            industry_opts = [{"label": i, "value": i} for i in sorted(portfolio_data["industry"].dropna().unique())] if lob == "Corporate Banking" else []
+            controls.append(DropdownControl(
+                id="holdings-industry-filter", label="Industry",
+                options=industry_opts, multi=True, placeholder="All industries…",
+                order=30, visible=(lob == "Corporate Banking"),
+            ))
 
-            # Balance range slider
+            prop_opts = [{"label": p, "value": p} for p in sorted(portfolio_data["cre_property_type"].dropna().unique())] if lob == "CRE" else []
+            controls.append(DropdownControl(
+                id="holdings-property-filter", label="Property Type",
+                options=prop_opts, multi=True, placeholder="All property types…",
+                order=40, visible=(lob == "CRE"),
+            ))
+
+            msa_opts = [{"label": m, "value": m} for m in sorted(portfolio_data["msa"].dropna().unique())] if lob == "CRE" else []
+            controls.append(DropdownControl(
+                id="holdings-msa-filter", label="MSA",
+                options=msa_opts, multi=True, placeholder="All MSAs…",
+                order=50, visible=(lob == "CRE"),
+            ))
+
             max_bal = portfolio_data["balance"].max()
             max_m = math.ceil(max_bal / 1_000_000) if max_bal > 0 else 1
-            filters.append(html.Div([
-                html.Label(
-                    "Balance Range ($M)",
-                    className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300",
-                ),
-                dcc.RangeSlider(
-                    id="holdings-balance-filter",
-                    min=0, max=max_m, value=[0, max_m], step=1,
-                    tooltip={"placement": "bottom", "always_visible": True},
-                    marks={0: "$0M", max_m: f"${max_m}M"},
-                ),
-            ], className="mb-3"))
+            controls.append(RangeSliderControl(
+                id="holdings-balance-filter", label="Balance Range ($M)",
+                min_val=0, max_val=max_m, value=[0, max_m], step=1,
+                marks={0: "$0M", max_m: f"${max_m}M"},
+                order=60, width="min-w-[260px]",
+            ))
 
-        # Hidden inputs for LOB-specific filters that aren't rendered
-        hidden_inputs = []
-        if lob != "Corporate Banking":
-            hidden_inputs.append(
-                dcc.Dropdown(id="holdings-industry-filter", style={"display": "none"})
-            )
-        if lob != "CRE":
-            hidden_inputs.append(
-                dcc.Dropdown(id="holdings-property-filter", style={"display": "none"})
-            )
-            hidden_inputs.append(
-                dcc.Dropdown(id="holdings-msa-filter", style={"display": "none"})
-            )
-
-        return sidebar_wrapper(
-            title="Holdings",
-            subtitle=f"Portfolio: {ctx.selected_portfolio}",
-            children=filters + hidden_inputs,
-        )
+        return controls
 
     # ── Layer 3: Content ────────────────────────────────────────────────────
 

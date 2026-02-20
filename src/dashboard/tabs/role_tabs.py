@@ -11,7 +11,7 @@ from dash import html, dcc
 import plotly.graph_objects as go
 import pandas as pd
 import sqlite3
-from ..tabs.registry import BaseTab, TabContext, register_tab
+from ..tabs.registry import BaseTab, register_tab
 
 
 def _placeholder_content(icon: str, title: str, description: str):
@@ -33,22 +33,6 @@ def _placeholder_content(icon: str, title: str, description: str):
     ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")
 
 
-def _placeholder_sidebar(title: str, ctx: TabContext, extra_text: str = ""):
-    """Shared helper for placeholder tab sidebars."""
-    return html.Section([
-        html.Header([
-            html.H2(title, className="text-sm font-semibold")
-        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between"),
-        html.Div([
-            html.Div([
-                html.Label("Portfolio:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                html.Div(ctx.selected_portfolio, className="text-sm font-semibold text-primary-400 mb-4"),
-            ]),
-            html.P(extra_text or f"Configure {title.lower()} parameters.",
-                   className="text-xs text-ink-500 dark:text-slate-400")
-        ], className="p-4 flex-1 overflow-auto")
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden flex flex-col min-h-[640px]")
-
 
 # ── SIR Analysis ───────────────────────────────────────────────────────────────
 
@@ -57,9 +41,6 @@ class SIRAnalysisTab(BaseTab):
     label = "SIR Analysis"
     order = 60
     required_roles = ["SAG"]
-
-    def render_sidebar(self, ctx):
-        return _placeholder_sidebar("SIR Analysis", ctx, "Special Interest Rate risk analysis.")
 
     def render_content(self, ctx):
         return _placeholder_content("📐", "SIR Analysis", "Special Interest Rate Analysis")
@@ -73,8 +54,18 @@ class LocationAnalysisTab(BaseTab):
     order = 70
     required_roles = ["CRE SCO"]
 
-    def render_sidebar(self, ctx):
-        return _create_location_analysis_sidebar(ctx.selected_portfolio, ctx.portfolios)
+    def get_toolbar_controls(self, ctx):
+        from ..components.toolbar import DropdownControl
+        cre_portfolios = {k: v for k, v in ctx.portfolios.items()
+                         if k == "CRE" or (v and v.get("lob") == "CRE")}
+        opts = [{"label": p, "value": p} for p in cre_portfolios]
+        default = ctx.selected_portfolio if ctx.selected_portfolio in cre_portfolios else (opts[0]["value"] if opts else None)
+        return [
+            DropdownControl(
+                id="location-portfolio-dropdown", label="CRE Portfolio",
+                options=opts, value=default, order=10, width="min-w-[200px]",
+            ),
+        ]
 
     def render_content(self, ctx):
         return _create_location_analysis_content(ctx.selected_portfolio, ctx.portfolios)
@@ -88,9 +79,6 @@ class FinancialProjectionTab(BaseTab):
     order = 80
     required_roles = ["Corp SCO"]
 
-    def render_sidebar(self, ctx):
-        return _placeholder_sidebar("Financial Projection", ctx, "Forecast future portfolio metrics.")
-
     def render_content(self, ctx):
         return _placeholder_content("🔮", "Financial Projection", "Financial forecasting and projection analysis")
 
@@ -102,9 +90,6 @@ class ModelBacktestingTab(BaseTab):
     label = "Model Backtesting"
     order = 90
     required_roles = ["BA"]
-
-    def render_sidebar(self, ctx):
-        return _placeholder_sidebar("Model Backtesting", ctx, "Validate model performance against historical data.")
 
     def render_content(self, ctx):
         return _placeholder_content("🧪", "Model Backtesting", "Model validation and backtesting analysis")
@@ -122,33 +107,6 @@ register_tab(ModelBacktestingTab())
 # (merged from components/location_analysis.py)
 # =============================================================================
 
-
-def _create_location_analysis_sidebar(selected_portfolio, portfolios):
-    """Create simplified sidebar for Location Analysis tab - CRE only"""
-    cre_portfolios = {k: v for k, v in portfolios.items() if k == 'CRE' or (v and v.get('lob') == 'CRE')}
-    
-    if selected_portfolio not in cre_portfolios:
-        selected_portfolio = 'CRE'
-    
-    return html.Div([
-        html.Div([
-            html.H2("Location Analysis", className="text-sm font-semibold"),
-            html.P("CRE Portfolios Only", className="text-xs text-ink-500 dark:text-slate-400")
-        ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
-        html.Div([
-            html.Div([
-                html.Label("Portfolio", className="text-xs font-medium text-ink-600 dark:text-slate-400 mb-1 block"),
-                dcc.Dropdown(
-                    id='location-portfolio-dropdown',
-                    options=[{'label': name, 'value': name} for name in cre_portfolios.keys()],
-                    value=selected_portfolio,
-                    className="text-xs",
-                    style={"fontSize": "11px"}
-                )
-            ], className="mb-4"),
-            
-        ], className="p-4 space-y-4")
-    ], className="w-64 bg-white dark:bg-ink-800 border-r border-slate-200 dark:border-ink-700")
 
 
 def _get_cre_location_data(selected_portfolio, portfolios):
