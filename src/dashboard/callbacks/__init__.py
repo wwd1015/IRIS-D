@@ -1,13 +1,36 @@
 """
-CallbackRegistry — auto-wires ``callback_specs()`` from all layers.
+CallbackRegistry — wires ``callback_specs()`` from Layer 1 global controls,
+and invokes ``register_callbacks(app)`` on every registered tab.
 
-Called once at startup.  Collects every :class:`CallbackSpec` declared by
-global controls, toolbar controls, and display cards, then registers them
-with the Dash app.
+Callback registration is split by layer:
+
+* **Layer 1 (GlobalControl)** — declares callbacks via ``callback_specs()``,
+  which are collected and wired here.  This is the *only* layer that uses the
+  declarative ``CallbackSpec`` pattern.
+
+* **Layer 2 (ToolbarControl)** — passive inputs only; no callbacks.
+
+* **Layer 3 (DisplayCard)** — passive outputs only; no callbacks.
+
+* **Tabs** — declare callbacks by overriding ``register_callbacks(app)`` and
+  using ``@callback`` decorators inline.  State is accessed via the
+  ``app_state`` singleton::
+
+      from ..app_state import app_state
+
+      def register_callbacks(self, app) -> None:
+          @callback(Output("my-chart", "figure"),
+                    Input("universal-portfolio-dropdown", "value"))
+          def update(portfolio):
+              df = app_state.get_filtered_data(portfolio)
+              ...
+
+Called once at startup by ``app.py``.
 """
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from dash import Input, Output, State
@@ -19,9 +42,11 @@ from ..components.cards import CallbackSpec
 from ..components.controls import get_all_global_controls
 from ..tabs.registry import get_all_tabs
 
+logger = logging.getLogger(__name__)
+
 
 class CallbackRegistry:
-    """Collect and register all ``CallbackSpec`` instances from all layers.
+    """Collect and register all callbacks from all layers.
 
     Usage::
 
@@ -37,7 +62,7 @@ class CallbackRegistry:
     # ── Registration ───────────────────────────────────────────────────────
 
     def register_specs(self, owner_id: str, specs: list[CallbackSpec]) -> None:
-        """Register a list of CallbackSpecs from a named owner."""
+        """Register a list of :class:`CallbackSpec` instances from a named owner."""
         for spec in specs:
             outputs = [Output(*o) for o in spec.outputs]
             inputs = [Input(*i) for i in spec.inputs]
@@ -61,45 +86,29 @@ class CallbackRegistry:
             self._registered.append((owner_id, spec))
 
     def register_all(self) -> None:
-        """Discover and register every callback from all three layers.
+        """Discover and register every callback from all layers.
 
         **Call order:**
 
-        1. Layer 1 — global controls
-        2. Layer 2 + 3 — per-tab (toolbar controls + cards + tab.register_callbacks)
+        1. Layer 1 — GlobalControl ``callback_specs()`` (declarative, wired here)
+        2. Tabs — ``tab.register_callbacks(app)`` (imperative, ``@callback`` inline)
         """
-        # Layer 1: GlobalControl.callback_specs()
+        # Layer 1: GlobalControl.callback_specs() — declarative pattern.
         for ctrl in get_all_global_controls():
             self.register_specs(f"global:{ctrl.id}", ctrl.callback_specs())
 
-        # Layer 2 + 3: per-tab
+        # Tabs: each tab's register_callbacks() uses @callback decorators directly.
+        # Layer 2 (ToolbarControl) and Layer 3 (DisplayCard) are passive —
+        # they provide Input/Output IDs but declare no callbacks of their own.
         for tab in get_all_tabs():
-            # Tab-level callbacks (the traditional register_callbacks method)
             tab.register_callbacks(self.app)
-
-            # Note: Toolbar controls and cards callback_specs are registered
-            # here for any that declare them.  Most simple controls don't
-            # need callbacks — they just provide Input IDs that other
-            # callbacks reference.
-            # We create a lightweight context for introspection only.
-            try:
-                from ..app import _make_tab_context
-                ctx = _make_tab_context()
-                for tc in tab.get_toolbar_controls(ctx):
-                    self.register_specs(f"toolbar:{tc.id}", tc.callback_specs())
-                for card in tab.get_cards(ctx):
-                    self.register_specs(f"card:{card.card_id}", card.callback_specs())
-            except Exception:
-                # If context building fails (e.g. during import), skip
-                # dynamic callback registration — tab.register_callbacks
-                # already handles the critical paths.
-                pass
+            logger.debug("Registered callbacks for tab '%s'", tab.id)
 
     # ── Introspection ──────────────────────────────────────────────────────
 
     def summary(self) -> str:
-        """Return a human-readable summary of all registered callbacks."""
-        lines = [f"CallbackRegistry: {len(self._registered)} callbacks registered"]
+        """Return a human-readable summary of all Layer-1 callbacks registered."""
+        lines = [f"CallbackRegistry: {len(self._registered)} Layer-1 callbacks registered"]
         for owner, spec in self._registered:
             kind = "client" if spec.client_side else "server"
             outs = ", ".join(f"{o[0]}.{o[1]}" for o in spec.outputs)

@@ -56,7 +56,7 @@ class SIRAnalysisTab(BaseTab):
     id = "sir-analysis"
     label = "SIR Analysis"
     order = 60
-    required_role = "SAG"
+    required_roles = ["SAG"]
 
     def render_sidebar(self, ctx):
         return _placeholder_sidebar("SIR Analysis", ctx, "Special Interest Rate risk analysis.")
@@ -71,7 +71,7 @@ class LocationAnalysisTab(BaseTab):
     id = "location-analysis"
     label = "Location Analysis"
     order = 70
-    required_role = "CRE SCO"
+    required_roles = ["CRE SCO"]
 
     def render_sidebar(self, ctx):
         return _create_location_analysis_sidebar(ctx.selected_portfolio, ctx.portfolios)
@@ -86,7 +86,7 @@ class FinancialProjectionTab(BaseTab):
     id = "financial-projection"
     label = "Financial Projection"
     order = 80
-    required_role = "Corp SCO"
+    required_roles = ["Corp SCO"]
 
     def render_sidebar(self, ctx):
         return _placeholder_sidebar("Financial Projection", ctx, "Forecast future portfolio metrics.")
@@ -101,7 +101,7 @@ class ModelBacktestingTab(BaseTab):
     id = "model-backtesting"
     label = "Model Backtesting"
     order = 90
-    required_role = "BA"
+    required_roles = ["BA"]
 
     def render_sidebar(self, ctx):
         return _placeholder_sidebar("Model Backtesting", ctx, "Validate model performance against historical data.")

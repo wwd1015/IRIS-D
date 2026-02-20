@@ -7,10 +7,14 @@ across reporting quarters with customizable lookback periods.
 
 from __future__ import annotations
 
-from dash import html, dcc, dash_table
+import logging
+
+from dash import html, dcc
 import pandas as pd
 
 from ..tabs.registry import BaseTab, TabContext, register_tab
+
+logger = logging.getLogger(__name__)
 
 
 class FinancialTrendTab(BaseTab):
@@ -33,6 +37,64 @@ class FinancialTrendTab(BaseTab):
 
     def render_content(self, ctx: TabContext):
         return _create_financial_trend_content()
+
+    # ── Callbacks ────────────────────────────────────────────────────────────
+
+    def register_callbacks(self, app):
+        # Import the singleton here to avoid circular imports during auto-discovery.
+        from ..app_state import app_state
+        from dash import Input, Output, callback, no_update
+
+        @callback(
+            Output("financial-trend-details-table", "children"),
+            [Input("universal-portfolio-dropdown", "value"),
+             Input("ft-view-dropdown", "value"),
+             Input("ft-primary-period", "value"),
+             Input("ft-comparison-period", "value"),
+             Input("ft-custom-lookback", "value")],
+            prevent_initial_call=True,
+        )
+        def update_details_table(
+            portfolio, view_fields, primary_period, comparison_period, custom_lookback
+        ):
+            if not portfolio:
+                return no_update
+            return create_financial_trend_details_table(
+                app_state.facilities_df,
+                portfolio,
+                app_state.portfolios,
+                view_fields=view_fields,
+                primary_period=primary_period,
+                comparison_period=comparison_period,
+                custom_lookback=custom_lookback or 1,
+            )
+
+        @callback(
+            Output("ft-custom-lookback-container", "style"),
+            Input("ft-comparison-period", "value"),
+            prevent_initial_call=True,
+        )
+        def toggle_custom_lookback(comparison_period):
+            return {"display": "block"} if comparison_period == "customized" else {"display": "none"}
+
+        @callback(
+            [Output("ft-view-dropdown", "options"),
+             Output("ft-primary-period", "options"),
+             Output("ft-primary-period", "value")],
+            Input("universal-portfolio-dropdown", "value"),
+            prevent_initial_call=True,
+        )
+        def update_sidebar_dropdowns(portfolio):
+            if not portfolio:
+                return no_update, no_update, no_update
+            view_opts = _get_view_options(
+                portfolio, app_state.portfolios, app_state.get_filtered_data
+            )
+            quarter_opts = _get_available_quarters(
+                app_state.facilities_df, portfolio, app_state.portfolios
+            )
+            latest_q = quarter_opts[0]["value"] if quarter_opts else None
+            return view_opts, quarter_opts, latest_q
 
 
 register_tab(FinancialTrendTab())
@@ -327,7 +389,7 @@ def _calculate_comparison_period(primary_period, comparison_period, custom_lookb
             return str(primary_quarter - lookback)
         
     except Exception as e:
-        print(f"Error calculating comparison period: {e}")
+        logger.warning("Error calculating comparison period: %s", e)
     
     return None
 
@@ -346,7 +408,7 @@ def _get_period_data(df, period_str):
         return period_data.reset_index(drop=True)
     
     except Exception as e:
-        print(f"Error getting period data: {e}")
+        logger.warning("Error getting period data: %s", e)
         return pd.DataFrame()
 
 
@@ -457,7 +519,7 @@ def _build_grouped_table(primary_data, comparison_data, view_fields, primary_per
         return _create_html_table(table_rows, primary_period, comparison_period, is_grouped=True)
         
     except Exception as e:
-        print(f"Error building grouped table: {e}")
+        logger.warning("Error building grouped table: %s", e)
         return html.Div("Error creating grouped view.", className="p-4 text-center text-ink-500")
 
 

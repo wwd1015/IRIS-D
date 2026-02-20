@@ -13,8 +13,8 @@ from ..tabs.registry import get_all_tabs
 def create_navigation_tabs():
     """
     Build navigation buttons from the tab registry.
-    
-    Tabs with a required_role are hidden unless the current user has that role.
+
+    Tabs with required_roles are hidden unless the current user's role is in the list.
     Adding a new tab to the registry automatically adds it to navigation.
     """
     user_role = user_management.get_current_user_role()
@@ -22,9 +22,9 @@ def create_navigation_tabs():
 
     buttons = []
     for i, tab in enumerate(tabs):
-        # Determine visibility
+        # Determine visibility: hide if tab requires specific roles and user doesn't have one
         visible = True
-        if tab.required_role and tab.required_role != user_role and user_role != "Guest":
+        if tab.required_roles and user_role not in tab.required_roles:
             visible = False
 
         # First tab gets active styling by default
@@ -37,7 +37,7 @@ def create_navigation_tabs():
                 id=f"tab-{tab.id}",
                 n_clicks=0,
                 className=cls,
-                style=style if tab.required_role else {},
+                style=style if tab.required_roles else {},
             )
         )
 

@@ -90,6 +90,10 @@ class PortfolioSummaryTab(BaseTab):
     # ── Callbacks ──────────────────────────────────────────────────────────
 
     def register_callbacks(self, app):
+        # Import the singleton here (not at module top-level) so circular
+        # imports are avoided during the tab auto-discovery phase.
+        from ..app_state import app_state
+
         @callback(
             Output("main-content-container", "children"),
             [Input("universal-portfolio-dropdown", "value"),
@@ -97,14 +101,14 @@ class PortfolioSummaryTab(BaseTab):
             prevent_initial_call=True,
         )
         def update_main_content(selected_portfolio, quarters):
-            from ..app import portfolios, latest_facilities, facilities_df, get_filtered_data as _gfd
             if not selected_portfolio:
                 return no_update
 
-            # Filter facilities_df to the most recent N quarters
-            filtered_fdf = _filter_by_quarters(facilities_df, quarters)
-            gfd = lambda p: _gfd(p, portfolios, _get_latest(filtered_fdf))
-            return _create_main_content(selected_portfolio, gfd, filtered_fdf, portfolios)
+            filtered_fdf = _filter_by_quarters(app_state.facilities_df, quarters)
+            gfd = lambda p: app_state._apply_portfolio_filter(p, _get_latest(filtered_fdf))
+            return _create_main_content(
+                selected_portfolio, gfd, filtered_fdf, app_state.portfolios
+            )
 
         @callback(
             Output("positions-panel-container", "children"),
@@ -113,13 +117,14 @@ class PortfolioSummaryTab(BaseTab):
             prevent_initial_call=True,
         )
         def update_positions_panel(selected_portfolio, quarters):
-            from ..app import portfolios, facilities_df, latest_facilities, get_filtered_data as _gfd
             if not selected_portfolio:
                 return no_update
 
-            filtered_fdf = _filter_by_quarters(facilities_df, quarters)
-            gfd = lambda p: _gfd(p, portfolios, _get_latest(filtered_fdf))
-            return _create_positions_panel(selected_portfolio, filtered_fdf, portfolios, gfd)
+            filtered_fdf = _filter_by_quarters(app_state.facilities_df, quarters)
+            gfd = lambda p: app_state._apply_portfolio_filter(p, _get_latest(filtered_fdf))
+            return _create_positions_panel(
+                selected_portfolio, filtered_fdf, app_state.portfolios, gfd
+            )
 
 
 def _filter_by_quarters(facilities_df, n_quarters):
@@ -373,15 +378,9 @@ def _create_main_content(selected_portfolio, get_filtered_data, facilities_df, p
 
 def _create_positions_panel(selected_portfolio, facilities_df, portfolios, get_filtered_data):
     """Create portfolio positions panel with modern Tailwind styling"""
-    print(f"DEBUG: _create_positions_panel called for portfolio: {selected_portfolio}")
-    
     portfolio_data = get_filtered_data(selected_portfolio)
-    print(f"DEBUG: portfolio_data length: {len(portfolio_data)}")
-    print(f"DEBUG: portfolios keys: {list(portfolios.keys())}")
-    print(f"DEBUG: portfolio criteria: {portfolios.get(selected_portfolio, 'NOT FOUND')}")
-    
+
     if len(portfolio_data) == 0:
-        print(f"DEBUG: No data for portfolio '{selected_portfolio}' - checking portfolio existence and criteria")
         return html.Div("No data available for this portfolio.", className="p-4 positions-panel")
     
     all_portfolios_data = []

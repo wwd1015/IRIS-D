@@ -66,6 +66,8 @@ def _build_tab_navigation_callback() -> None:
 
     @callback(outputs, inputs, prevent_initial_call=False)
     def route_tabs(*args):
+        from .auth import user_management
+
         ctx = callback_context
         active_tab_id = tab_ids[0]
 
@@ -77,6 +79,14 @@ def _build_tab_navigation_callback() -> None:
 
         universal_portfolio = args[-1]
         sel_portfolio = universal_portfolio or app_state.default_portfolio
+
+        # Server-side role gating: fall back to first accessible tab
+        user_role = user_management.get_current_user_role()
+        active_tab = get_tab(active_tab_id)
+        if active_tab and active_tab.required_roles and user_role not in active_tab.required_roles:
+            # Find first tab the user can access
+            accessible = [t for t in all_tabs if not t.required_roles or user_role in t.required_roles]
+            active_tab_id = accessible[0].id if accessible else tab_ids[0]
 
         tab_ctx = app_state.make_tab_context(sel_portfolio)
 

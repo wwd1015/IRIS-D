@@ -1,13 +1,24 @@
 """
 Tab registry – the core of the extensible tab system.
 
-Each tab is a subclass of BaseTab that declares:
-  - id, label, order, required_role
-  - get_toolbar_controls(ctx) → list[ToolbarControl]  (Layer 2)
-  - get_cards(ctx)            → list[DisplayCard]      (Layer 3)
-  - render_sidebar(ctx)       → Dash component or None (Layer 3)
-  - render_content(ctx)       → Dash component         (fallback)
-  - register_callbacks(app)   → called once at startup
+Each tab is a subclass of :class:`BaseTab` that declares:
+
+  - ``id``, ``label``, ``order``, ``required_roles``
+  - ``get_toolbar_controls(ctx)`` → list[ToolbarControl]   (Layer 2)
+  - ``get_cards(ctx)``            → list[DisplayCard]       (Layer 3)
+  - ``render_sidebar(ctx)``       → Dash component or None  (Layer 3)
+  - ``render_content(ctx)``       → Dash component          (fallback)
+  - ``register_callbacks(app)``   → called once at startup
+
+Render call hierarchy
+---------------------
+::
+
+    render(ctx)
+    ├── get_toolbar_controls(ctx)  →  Layer 2: full-width toolbar bar
+    ├── render_sidebar(ctx)        →  Layer 3: optional left-side panel
+    └── render_content(ctx)        →  Layer 3: main content area
+        └── get_cards(ctx)         →      declarative card grid (if not overridden)
 
 The framework iterates over registered tabs to build navigation buttons,
 route tab clicks, and wire up callbacks — no manual wiring needed.
@@ -62,21 +73,29 @@ class BaseTab(ABC):
     1. **Declarative (recommended)**: override ``get_cards()`` to return a list
        of :class:`DisplayCard` instances.  The framework renders them in a grid.
     2. **Direct**: override ``render_content()`` for full control.
-    3. **Custom**: override ``render()`` for totally custom layout.
+    3. **Custom**: override ``render()`` for a totally custom layout.
 
-    Attributes:
-        id:            Unique slug used in HTML ids  (e.g. "portfolio-summary")
-        label:         Display text in the navigation bar
-        order:         Sort key — lower numbers appear first
-        required_role: If set, only users with this role see the tab.
-                       None means visible to everyone.
-        grid_class:    CSS grid class for the sidebar + content layout.
+    Attributes
+    ----------
+    id : str
+        Unique slug used in HTML IDs (e.g. ``"portfolio-summary"``).
+    label : str
+        Display text in the navigation bar.
+    order : int
+        Sort key — lower numbers appear first (left-most in nav bar).
+    required_roles : list[str] | None
+        If set, only users whose role appears in the list see this tab.
+        Access is enforced both client-side (nav button hidden) and
+        server-side (tab router falls back to the first accessible tab).
+        ``None`` or ``[]`` means the tab is visible to everyone.
+    grid_class : str
+        CSS grid class for the sidebar + content layout.
     """
 
     id: str
     label: str
     order: int = 100
-    required_role: Optional[str] = None
+    required_roles: Optional[list[str]] = None
     grid_class: str = "grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)] gap-4 items-stretch"
 
     # ── Layer 2: Toolbar ───────────────────────────────────────────────────
@@ -160,10 +179,26 @@ class BaseTab(ABC):
     # ── Callbacks ──────────────────────────────────────────────────────────
 
     def register_callbacks(self, app) -> None:
-        """
-        Register any Dash callbacks specific to this tab.
+        """Register any Dash callbacks specific to this tab.
 
-        Called once during app startup. Override to add interactivity.
+        Called once during app startup by :class:`CallbackRegistry`.
+        Override to add interactivity.
+
+        Pattern::
+
+            def register_callbacks(self, app) -> None:
+                from ..app_state import app_state
+                from dash import Input, Output, callback
+
+                @callback(
+                    Output("my-output-id", "children"),
+                    Input("universal-portfolio-dropdown", "value"),
+                )
+                def update(portfolio):
+                    df = app_state.get_filtered_data(
+                        portfolio or app_state.default_portfolio
+                    )
+                    ...
         """
         pass
 

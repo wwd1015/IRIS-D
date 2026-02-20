@@ -139,6 +139,9 @@ class HoldingsTab(BaseTab):
     # ── Callbacks ──────────────────────────────────────────────────────────
 
     def register_callbacks(self, app):
+        # Import the singleton here (not at module top-level) so circular
+        # imports are avoided during the tab auto-discovery phase.
+        from ..app_state import app_state
 
         @callback(
             Output("holdings-table-container", "children"),
@@ -156,10 +159,9 @@ class HoldingsTab(BaseTab):
         def update_holdings_table(
             selected_portfolio, obligor, rating, industry, prop_type, msa, balance
         ):
-            from ..app import portfolios, latest_facilities, get_filtered_data as _gfd
             if not selected_portfolio:
                 return no_update
-            data = _gfd(selected_portfolio, portfolios, latest_facilities)
+            data = app_state.get_filtered_data(selected_portfolio)
             return _create_holdings_table(
                 data,
                 rating_filter=rating,
@@ -177,8 +179,6 @@ class HoldingsTab(BaseTab):
             prevent_initial_call=True,
         )
         def toggle_expansion(n_clicks_list):
-            from ..app import facilities_df, custom_metrics
-
             ctx = callback_context
             if not ctx.triggered:
                 return no_update, no_update
@@ -197,12 +197,14 @@ class HoldingsTab(BaseTab):
 
                 facility_id = btn_id["index"]
                 if n % 2 == 1:
-                    fac_row = facilities_df[facilities_df["facility_id"] == facility_id]
+                    fac_row = app_state.facilities_df[
+                        app_state.facilities_df["facility_id"] == facility_id
+                    ]
                     if len(fac_row) == 0:
                         continue
                     latest = fac_row.sort_values("reporting_date").iloc[-1]
                     children_out[i] = _create_time_series_table(
-                        latest, facilities_df, custom_metrics
+                        latest, app_state.facilities_df, app_state.custom_metrics
                     )
                     styles_out[i] = {"display": "block"}
                 else:

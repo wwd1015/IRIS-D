@@ -3,8 +3,25 @@ AppState — encapsulates all mutable application state for IRIS-D.
 
 Replaces the scattered module-level globals in app.py with a single
 object that owns portfolios, custom_metrics, and the loaded data.
-Provides get_filtered_data() and make_tab_context() as methods so
-callbacks no longer need the ``global`` keyword.
+Provides filtering helpers and make_tab_context() as methods so
+callbacks never need the ``global`` keyword.
+
+Callback authoring pattern
+--------------------------
+* In ``render()`` / ``render_content()`` methods — use the :class:`TabContext`
+  passed in (``ctx.get_filtered_data``, ``ctx.facilities_df``, etc.).
+
+* In ``register_callbacks(app)`` — import the module-level singleton at the
+  top of the method body::
+
+      def register_callbacks(self, app) -> None:
+          from ..app_state import app_state
+
+          @callback(Output("my-chart", "figure"),
+                    Input("universal-portfolio-dropdown", "value"))
+          def update(portfolio):
+              df = app_state.get_filtered_data(portfolio or app_state.default_portfolio)
+              ...
 """
 
 from __future__ import annotations
@@ -82,15 +99,33 @@ class AppState:
         self.available_portfolios = list(self.portfolios.keys())
         self.default_portfolio = "Corporate Banking"
 
-    # ── Portfolio helpers ────────────────────────────────────────────────────
+    # ── Core filtering ────────────────────────────────────────────────────────
 
-    def get_filtered_data(self, portfolio_name: str) -> pd.DataFrame:
-        """Return latest_facilities filtered by the named portfolio's criteria."""
+    def _apply_portfolio_filter(self, portfolio_name: str, df: pd.DataFrame) -> pd.DataFrame:
+        """Apply portfolio criteria to any arbitrary DataFrame.
+
+        This is the single place where portfolio filter logic lives.
+        Both :meth:`get_filtered_data` and :meth:`get_filtered_data_windowed`
+        delegate here so the logic is never duplicated.
+
+        Parameters
+        ----------
+        portfolio_name:
+            Key into ``self.portfolios``.
+        df:
+            Input DataFrame — typically ``latest_facilities`` or a time-windowed
+            version of it produced by :meth:`get_filtered_data_windowed`.
+
+        Returns
+        -------
+        pd.DataFrame
+            Filtered copy, or an empty DataFrame if the portfolio is unknown.
+        """
         if portfolio_name not in self.portfolios:
             return pd.DataFrame()
 
         criteria = self.portfolios[portfolio_name]
-        filtered = self.latest_facilities.copy()
+        filtered = df.copy()
 
         if criteria.get("lob"):
             filtered = filtered[filtered["lob"] == criteria["lob"]]
@@ -121,6 +156,53 @@ class AppState:
                 filtered = filtered[filtered["obligor_name"] == ob]
 
         return filtered
+
+    def get_filtered_data(self, portfolio_name: str) -> pd.DataFrame:
+        """Return ``latest_facilities`` filtered by the named portfolio's criteria.
+
+        This is the standard, single-snapshot filter.  Use it in callbacks and
+        in ``render()`` methods via ``ctx.get_filtered_data``.
+        """
+        return self._apply_portfolio_filter(portfolio_name, self.latest_facilities.copy())
+
+    def get_filtered_data_windowed(
+        self, portfolio_name: str, n_quarters: int | None = None
+    ) -> pd.DataFrame:
+        """Return portfolio-filtered data restricted to the most-recent N quarters.
+
+        Used by tabs with a time-window slider (e.g. Portfolio Summary).
+        When *n_quarters* is ``None`` or exceeds the available history, the
+        full history is returned — matching the behaviour of
+        :meth:`get_filtered_data`.
+
+        Parameters
+        ----------
+        portfolio_name:
+            Key into ``self.portfolios``.
+        n_quarters:
+            How many of the most-recent reporting periods to include.
+            ``None`` means all periods.
+
+        Returns
+        -------
+        pd.DataFrame
+            Portfolio-filtered snapshot using the last quarter visible in the
+            time window.
+        """
+        fdf = self.facilities_df
+        if n_quarters is not None:
+            dates = sorted(fdf["reporting_date"].unique())
+            if n_quarters < len(dates):
+                cutoff_dates = dates[-n_quarters:]
+                fdf = fdf[fdf["reporting_date"].isin(cutoff_dates)]
+
+        # Derive "latest" snapshot within the window
+        if fdf.empty:
+            return pd.DataFrame()
+        max_date = fdf["reporting_date"].max()
+        latest_in_window = fdf[fdf["reporting_date"] == max_date]
+
+        return self._apply_portfolio_filter(portfolio_name, latest_in_window)
 
     # ── Tab context ──────────────────────────────────────────────────────────
 
@@ -160,5 +242,5 @@ class AppState:
         user_management.save_user_data(username, custom_p, self.custom_metrics)
 
 
-# Module-level singleton — imported by app.py and callback modules.
+# Module-level singleton — imported by app.py and all callback modules.
 app_state = AppState()

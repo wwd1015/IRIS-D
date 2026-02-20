@@ -177,6 +177,7 @@ rsconnect deploy dash main.py --title "Portfolio Performance Dashboard"
 - `app_state.py` owns all mutable state — no `global` keyword anywhere in callbacks.
 - Tab auto-discovery: drop a file in `tabs/` and call `register_tab()` — nothing else to edit.
 - `register_tab()` raises `ValueError` on duplicate tab IDs (caught early).
+- Role gating uses `required_roles: list[str] | None` (plural). Enforced client-side (nav hidden) AND server-side (`route_tabs` falls back to first accessible tab).
 - Structured logging via `utils/logging.py` — replace `print()` with `logging.getLogger(__name__)`.
 - Tests use `InMemoryDataSource` fixture — no SQLite DB needed for unit tests.
 - See `docs/DEVELOPER_GUIDE.md` for full framework reference.
