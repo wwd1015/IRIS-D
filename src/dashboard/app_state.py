@@ -52,7 +52,7 @@ class AppState:
         self.custom_metrics: dict = {}
         self.facilities_df: pd.DataFrame = pd.DataFrame()
         self.latest_facilities: pd.DataFrame = pd.DataFrame()
-        self.default_portfolio: str = "Corporate Banking"
+        self.default_portfolio: str = "Entire Commercial"
         self.available_portfolios: list[str] = []
 
     # ── Initialisation ───────────────────────────────────────────────────────
@@ -71,7 +71,7 @@ class AppState:
             self.portfolios = config.DEFAULT_PORTFOLIOS.copy()
             self.available_portfolios = list(self.portfolios.keys())
             self.default_portfolio = (
-                self.available_portfolios[0] if self.available_portfolios else "Corporate Banking"
+                self.available_portfolios[0] if self.available_portfolios else "Entire Commercial"
             )
             logger.info("Loaded %d facility records", len(self.facilities_df))
         except Exception as exc:
@@ -92,29 +92,85 @@ class AppState:
         })
         self.latest_facilities = self.facilities_df.copy()
         self.portfolios = {
-            "Corporate Banking": {
-                "lob": "Corporate Banking", "industry": None, "property_type": None,
-            }
+            "Entire Commercial": {"filters": []},
         }
         self.available_portfolios = list(self.portfolios.keys())
-        self.default_portfolio = "Corporate Banking"
+        self.default_portfolio = "Entire Commercial"
 
     # ── Core filtering ────────────────────────────────────────────────────────
+
+    # ── Column display names ────────────────────────────────────────────────
+
+    _COLUMN_DISPLAY_NAMES: dict[str, str] = {
+        "lob": "Line of Business",
+        "industry": "Industry",
+        "cre_property_type": "Property Type",
+        "obligor_name": "Obligor",
+        "risk_category": "Risk Category",
+        "obligor_rating": "Obligor Rating",
+    }
+
+    def get_segmentation_columns(self) -> list[str]:
+        """Return categorical column names suitable for portfolio segmentation."""
+        if self.latest_facilities.empty:
+            return []
+        cols = []
+        for col in self.latest_facilities.columns:
+            dtype = self.latest_facilities[col].dtype
+            if dtype == "object" or dtype.name == "category" or col == "risk_category":
+                # Exclude ID / date columns
+                if col not in ("facility_id", "reporting_date", "origination_date", "maturity_date"):
+                    if col not in cols:
+                        cols.append(col)
+        return cols
+
+    @staticmethod
+    def get_column_display_name(col: str) -> str:
+        """Return a user-friendly label for a raw column name."""
+        if col in AppState._COLUMN_DISPLAY_NAMES:
+            return AppState._COLUMN_DISPLAY_NAMES[col]
+        return col.replace("_", " ").title()
+
+    def get_unique_values(self, column: str, df: pd.DataFrame | None = None) -> list[str]:
+        """Return sorted unique non-null values for a column."""
+        source = df if df is not None else self.latest_facilities
+        if column not in source.columns:
+            return []
+        return sorted(source[column].dropna().unique().tolist())
+
+    # ── Core filtering ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _migrate_criteria(criteria: dict) -> dict:
+        """Convert old flat-format criteria to new filter-list format."""
+        if "filters" in criteria:
+            return criteria
+        filters = []
+        if criteria.get("lob"):
+            filters.append({"column": "lob", "values": [criteria["lob"]]})
+        if criteria.get("industry"):
+            ind = criteria["industry"]
+            filters.append({"column": "industry", "values": ind if isinstance(ind, list) else [ind]})
+        if criteria.get("property_type"):
+            pt = criteria["property_type"]
+            filters.append({"column": "cre_property_type", "values": pt if isinstance(pt, list) else [pt]})
+        if criteria.get("obligors"):
+            ob = criteria["obligors"]
+            filters.append({"column": "obligor_name", "values": ob if isinstance(ob, list) else [ob]})
+        return {"filters": filters}
 
     def _apply_portfolio_filter(self, portfolio_name: str, df: pd.DataFrame) -> pd.DataFrame:
         """Apply portfolio criteria to any arbitrary DataFrame.
 
-        This is the single place where portfolio filter logic lives.
-        Both :meth:`get_filtered_data` and :meth:`get_filtered_data_windowed`
-        delegate here so the logic is never duplicated.
+        Supports both the new ``{"filters": [...]}`` format and the legacy
+        flat format (auto-migrated on the fly).
 
         Parameters
         ----------
         portfolio_name:
             Key into ``self.portfolios``.
         df:
-            Input DataFrame — typically ``latest_facilities`` or a time-windowed
-            version of it produced by :meth:`get_filtered_data_windowed`.
+            Input DataFrame.
 
         Returns
         -------
@@ -124,36 +180,14 @@ class AppState:
         if portfolio_name not in self.portfolios:
             return pd.DataFrame()
 
-        criteria = self.portfolios[portfolio_name]
+        criteria = self._migrate_criteria(self.portfolios[portfolio_name])
         filtered = df.copy()
 
-        if criteria.get("lob"):
-            filtered = filtered[filtered["lob"] == criteria["lob"]]
-
-        if criteria.get("lob") == "Corporate Banking" and criteria.get("industry"):
-            ind = criteria["industry"]
-            if isinstance(ind, list):
-                filtered = filtered[filtered["industry"].astype(str).isin([str(i) for i in ind])]
-            else:
-                filtered = filtered[filtered["industry"] == ind]
-
-        if criteria.get("lob") == "CRE" and criteria.get("property_type"):
-            pt = criteria["property_type"]
-            if isinstance(pt, list):
-                filtered = filtered[
-                    filtered["cre_property_type"].astype(str).isin([str(i) for i in pt])
-                ]
-            else:
-                filtered = filtered[filtered["cre_property_type"] == pt]
-
-        if criteria.get("obligors"):
-            ob = criteria["obligors"]
-            if isinstance(ob, list):
-                filtered = filtered[
-                    filtered["obligor_name"].astype(str).isin([str(i) for i in ob])
-                ]
-            else:
-                filtered = filtered[filtered["obligor_name"] == ob]
+        for level in criteria.get("filters", []):
+            col = level.get("column")
+            vals = level.get("values", [])
+            if col and vals and col in filtered.columns:
+                filtered = filtered[filtered[col].astype(str).isin([str(v) for v in vals])]
 
         return filtered
 

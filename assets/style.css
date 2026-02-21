@@ -306,17 +306,25 @@ html.dark .header-btn:hover {
 }
 
 .portfolio-selector-btn {
-  min-width: 200px;
+  min-width: auto;
+  width: auto;
   text-align: left;
   font-size: var(--fs-sm);
-  background: var(--glass-bg);
-  color: var(--text-primary);
+  font-weight: 600;
+  background: var(--primary-500);
+  color: #ffffff;
+  padding: 6px 16px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.portfolio-selector-btn:hover {
+  background: var(--primary-600);
 }
 
 html.dark .portfolio-selector-btn {
-  color: #c4b5fd;
-  /* purple-200 */
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--primary-500);
+  color: #ffffff;
 }
 
 .theme-toggle-btn {

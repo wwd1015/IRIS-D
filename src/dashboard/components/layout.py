@@ -68,7 +68,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         html.Header([
             html.Div([
                 html.Div([
-                    html.Div("IRIS-D", className="dashboard-title"),
+                    html.Div("Portfolio Dashboard", className="dashboard-title"),
                     *left_controls,
                 ], className="flex items-center gap-3"),
                 html.Div([
@@ -91,11 +91,9 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         _profile_switch_modal(),
         _contact_modal(),
         _portfolio_modal(),
-        _auto_save_notification(),
+        _portfolio_create_modal(),
 
         # ── Hidden infrastructure ───────────────────────────────────────────
-        dcc.Interval(id="auto-save-interval", interval=30_000, n_intervals=0),
-        dcc.Interval(id="hide-notification-interval", interval=3_000, n_intervals=0, disabled=True),
         dcc.Store(id="current-user-store", data=user_management.get_current_user()),
         *signal_stores,
     ])
@@ -104,12 +102,12 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
 # ── Modal helpers (keep layout.py clean) ────────────────────────────────────
 
 _MODAL_BG = {
-    "background": "rgba(17, 22, 39, 0.95)",
+    "background": "var(--bg-raised)",
     "backdropFilter": "blur(20px)",
     "WebkitBackdropFilter": "blur(20px)",
     "borderRadius": "16px",
-    "border": "1px solid rgba(255,255,255,0.08)",
-    "boxShadow": "0 20px 60px rgba(0, 0, 0, 0.5), 0 0 40px rgba(139, 92, 246, 0.08)",
+    "border": "1px solid var(--glass-border)",
+    "boxShadow": "0 20px 60px rgba(0, 0, 0, 0.3), 0 0 40px var(--primary-glow)",
 }
 
 _MODAL_OVERLAY = {
@@ -162,6 +160,7 @@ def _contact_modal():
 
 
 def _portfolio_modal():
+    """Portfolio Manager modal — dropdown selector + action buttons."""
     return html.Div([
         html.Div([
             html.Header([
@@ -172,115 +171,145 @@ def _portfolio_modal():
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
+                html.Label("Select a portfolio or create a new one:", className="block text-sm font-medium mb-2 text-ink-600 dark:text-slate-300"),
+                dcc.Dropdown(id="portfolio-modal-dropdown", placeholder="Choose portfolio...", className="text-sm mb-4", style={"fontSize": "14px"}),
                 html.Div([
-                    html.Label("Current Portfolio:", className="block text-sm font-medium mb-2 text-ink-600 dark:text-slate-300"),
-                    dcc.Dropdown(id="portfolio-modal-dropdown", placeholder="Select portfolio...", className="text-sm mb-4", style={"fontSize": "14px"}),
-                    html.Button("✓ Select Portfolio", id="portfolio-select-confirm", className="btn btn-primary w-full mb-4", style={"fontSize": "13px"}),
-                ]),
-                html.Div([
-                    html.H3("Create New Portfolio", className="text-sm font-semibold mb-3 text-brand-500"),
-                    html.Div([
-                        html.Label("Line of Business", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                        dcc.Dropdown(id="modal-lob-dropdown", options=[{"label": "Corporate Banking", "value": "Corporate Banking"}, {"label": "CRE", "value": "CRE"}], placeholder="Select LOB...", className="text-xs mb-3"),
-                    ], className="mb-3"),
-                    html.Div([
-                        html.Label("Industry", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                        dcc.Dropdown(id="modal-industry-dropdown", options=[], placeholder="Select Industry...", className="text-xs", multi=True),
-                    ], className="mb-3", id="modal-industry-group", style={"display": "none"}),
-                    html.Div([
-                        html.Label("Property Type", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                        dcc.Dropdown(id="modal-property-type-dropdown", options=[], placeholder="Select Property Type...", className="text-xs", multi=True),
-                    ], className="mb-3", id="modal-property-type-group", style={"display": "none"}),
-                    html.Div([
-                        html.Label("OR Select Obligors Directly", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                        dcc.Dropdown(id="modal-obligor-dropdown", options=[], placeholder="Select obligors...", className="text-xs", multi=True),
-                    ], className="mb-3", id="modal-obligor-group"),
-                    html.Div([
-                        html.Label("Portfolio Name", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                        dcc.Input(id="modal-portfolio-name-input", type="text", placeholder="Enter portfolio name...",
-                                  className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500"),
-                    ], className="mb-3"),
-                    html.Button("Save Portfolio", id="modal-save-portfolio-btn", className="btn btn-primary btn-glow w-full mb-4", style={"fontSize": "12px"}),
-                    html.Hr(className="border-slate-200 dark:border-ink-700 mb-4"),
-                    html.H3("Delete Portfolio", className="text-sm font-semibold mb-3 text-red-600"),
-                    html.Div([
-                        html.Label("Select Portfolio to Delete", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                        dcc.Dropdown(id="modal-delete-portfolio-dropdown", options=[], placeholder="Select portfolio to delete...", className="text-xs"),
-                    ], className="mb-3"),
-                    html.Button("Delete Portfolio", id="modal-delete-confirm-btn", className="btn btn-danger w-full", style={"fontSize": "12px"}),
-                ], className="space-y-3 mt-4"),
-            ], className="p-4 flex-1 overflow-auto"),
-        ], className="overflow-hidden flex flex-col",
-           style={**_MODAL_BG, **_MODAL_CENTER, "width": "420px", "maxWidth": "90vw", "maxHeight": "85vh"}),
+                    html.Button("Select", id="portfolio-select-confirm", className="btn btn-primary", style={"fontSize": "13px", "flex": "1"}),
+                    html.Button("Update", id="portfolio-update-btn", className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}, disabled=True),
+                    html.Button("Delete", id="portfolio-delete-btn", className="btn btn-outline", style={"fontSize": "13px", "flex": "1", "color": "#ef4444", "borderColor": "#ef4444"}, disabled=True),
+                ], className="flex gap-2"),
+                html.Div(id="portfolio-delete-error", className="text-red-500 text-xs mt-2", style={"textAlign": "center"}),
+            ], className="p-4"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw", "overflow": "visible"}),
     ], id="portfolio-modal", style=_MODAL_OVERLAY)
 
 
-def _auto_save_notification():
+def _portfolio_create_modal():
+    """Portfolio Creation/Edit Wizard — dynamic hierarchical filter builder."""
     return html.Div([
         html.Div([
-            html.Span("💾", style={"marginRight": "8px", "fontSize": "16px"}),
-            html.Span("Data auto-saved", id="save-message"),
-        ], style={
-            "backgroundColor": "#10b981", "color": "white", "padding": "10px 20px",
-            "borderRadius": "6px", "boxShadow": "0 2px 4px rgba(0,0,0,0.1)",
-            "display": "flex", "alignItems": "center",
-            "position": "absolute", "bottom": "20px", "right": "20px",
-            "zIndex": "1000", "fontSize": "14px", "fontWeight": "500",
-        }),
-    ], id="auto-save-notification", style={
-        "position": "fixed", "top": "0", "right": "0", "width": "100%", "height": "100%",
-        "pointerEvents": "none", "zIndex": "999", "display": "none",
-    })
+            html.Header([
+                html.Div([
+                    html.H2(id="portfolio-wizard-title", children="Create New Portfolio",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.Button("✕", id="portfolio-create-cancel", className="btn btn-ghost text-xl cursor-pointer",
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                ], className="flex items-center justify-between"),
+            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            html.Div([
+                # Dynamic filter levels container — populated by callback
+                html.Div(id="filter-levels-container", children=[]),
+                # Add Level button
+                html.Div([
+                    html.Button("+ Add Level", id="add-filter-level-btn", className="btn btn-outline text-sm mt-2",
+                                style={"fontSize": "12px"}),
+                ], className="text-right"),
+                # Portfolio name input
+                html.Div([
+                    html.Label("Portfolio Name", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Input(id="create-portfolio-name-input", type="text", placeholder="Enter portfolio name...",
+                              className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500"),
+                ], className="mt-4 mb-3"),
+                html.Button("Save Portfolio", id="save-new-portfolio-btn", className="btn btn-primary btn-glow w-full",
+                            style={"fontSize": "13px"}),
+                html.Div(id="create-portfolio-error", className="text-red-500 text-xs mt-2", style={"textAlign": "center"}),
+            ], className="p-4 flex-1 overflow-auto"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "480px", "maxWidth": "90vw", "maxHeight": "85vh", "overflow": "auto"}),
+        # Store for in-progress filter state: list of {column, values}
+        dcc.Store(id="portfolio-filter-state", data=[]),
+        # Store for edit mode: portfolio name being edited (None = create mode)
+        dcc.Store(id="portfolio-edit-name", data=None),
+    ], id="portfolio-create-modal", style=_MODAL_OVERLAY)
 
 
 def get_app_index_string():
-    """Get the HTML template string for the app."""
-    return '''
+    """Get the HTML template string for the app.
+
+    Injects the accent-color CSS overrides based on ``config.settings.ui.accent_color``.
+    """
+    from .. import config as _cfg
+    palette = _cfg.COLOR_PALETTES.get(
+        _cfg.settings.ui.accent_color,
+        _cfg.COLOR_PALETTES["blue"],
+    )
+    p400, p500, p600, p700 = palette["400"], palette["500"], palette["600"], palette["700"]
+    glow_rgb = palette["glow"]
+
+    import json as _json
+    palettes_js = _json.dumps(_cfg.COLOR_PALETTES)
+
+    return f'''
 <!DOCTYPE html>
 <html lang="en" class="dark">
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>IRIS-D</title>
+    <title>Portfolio Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
-      tailwind.config = {
+      tailwind.config = {{
         darkMode: 'class',
-        theme: { extend: {
-          colors: {
-            ink: { 900:'#06080f',800:'#0c1020',700:'#111627',600:'#1c2333',500:'#64748b',100:'#e2e8f0',50:'#f1f5f9' },
-            brand: {500:'#8b5cf6',400:'#a78bfa',300:'#c4b5fd'}
-          },
-          boxShadow: {
+        theme: {{ extend: {{
+          colors: {{
+            ink: {{ 900:'#06080f',800:'#0c1020',700:'#111627',600:'#1c2333',500:'#64748b',100:'#e2e8f0',50:'#f1f5f9' }},
+            brand: {{500:'{p500}',400:'{p400}',300:'{p400}'}}
+          }},
+          boxShadow: {{
             soft: '0 2px 12px rgba(0,0,0,.25)',
-            glow: '0 0 20px rgba(139,92,246,.15)'
-          }
-        }}
-      };
+            glow: '0 0 20px rgba({glow_rgb},.15)'
+          }}
+        }}}}
+      }};
     </script>
+    <script>
+      window.__IRIS_PALETTES = {palettes_js};
+    </script>
+    <style>
+      :root {{
+        --primary-400: {p400};
+        --primary-500: {p500};
+        --primary-600: {p600};
+        --primary-700: {p700};
+        --primary-glow: rgba({glow_rgb}, 0.18);
+      }}
+      html.dark {{
+        --primary-glow: rgba({glow_rgb}, 0.25);
+      }}
+    </style>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    {%metas%}
-    {%favicon%}
-    {%css%}
+    {{%metas%}}
+    {{%favicon%}}
+    {{%css%}}
   </head>
   <body>
-    <div id="root">{%app_entry%}</div>
+    <div id="root">{{%app_entry%}}</div>
     <footer>
-      {%config%}
-      {%scripts%}
-      {%renderer%}
+      {{%config%}}
+      {{%scripts%}}
+      {{%renderer%}}
     </footer>
     <script>
-      // Apply saved theme on page load (before first paint).
-      // Only toggle the class — CSS variables handle colors/backgrounds.
-      (function(){
+      (function(){{
         var t = localStorage.getItem('theme');
-        if (t === 'light') {
+        if (t === 'light') {{
           document.documentElement.classList.remove('dark');
-        } else {
+        }} else {{
           document.documentElement.classList.add('dark');
-        }
-      })();
+        }}
+        // Restore saved accent color
+        var ac = localStorage.getItem('accent_color');
+        var p = ac && window.__IRIS_PALETTES && window.__IRIS_PALETTES[ac];
+        if (p) {{
+          var r = document.documentElement.style;
+          r.setProperty('--primary-400', p['400']);
+          r.setProperty('--primary-500', p['500']);
+          r.setProperty('--primary-600', p['600']);
+          r.setProperty('--primary-700', p['700']);
+          r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.25)');
+        }}
+      }})();
     </script>
   </body>
 </html>

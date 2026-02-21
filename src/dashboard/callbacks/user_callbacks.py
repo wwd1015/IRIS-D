@@ -79,15 +79,20 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
 
     @callback(
         [Output("current-user-store", "data"),
-         Output("profile-avatar-btn", "children")],
+         Output("profile-avatar-btn", "children"),
+         Output("portfolio-selector-btn", "children", allow_duplicate=True),
+         Output("universal-portfolio-dropdown", "value", allow_duplicate=True),
+         Output("universal-portfolio-dropdown", "options", allow_duplicate=True)],
         Input("profile-switch-confirm", "n_clicks"),
         State("profile-switch-dropdown", "value"),
         prevent_initial_call=True,
     )
     def update_current_user_store(switch_clicks, selected_profile):
         if selected_profile:
-            return selected_profile, _initials(selected_profile)
-        return no_update, no_update
+            default = app_state.default_portfolio
+            portfolio_opts = [{"label": p, "value": p} for p in app_state.portfolios]
+            return selected_profile, _initials(selected_profile), default, default, portfolio_opts
+        return no_update, no_update, no_update, no_update, no_update
 
     @callback(
         Output("navigation-tabs-container", "children"),

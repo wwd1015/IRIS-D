@@ -9,49 +9,102 @@ class TestAppStateInitialisation:
         assert len(app_state.facilities_df) > 0
 
     def test_default_portfolios_present(self, app_state):
-        assert "Corporate Banking" in app_state.portfolios
-        assert "CRE" in app_state.portfolios
+        assert "Entire Commercial" in app_state.portfolios
 
     def test_default_portfolio_is_first(self, app_state):
         assert app_state.default_portfolio == app_state.available_portfolios[0]
 
     def test_latest_facilities_subset(self, app_state):
-        # latest_facilities should have at most one row per facility_id
         assert app_state.latest_facilities["facility_id"].is_unique
+
+    def test_default_portfolios_use_filter_format(self, app_state):
+        for name, criteria in app_state.portfolios.items():
+            assert "filters" in criteria, f"Portfolio '{name}' missing 'filters' key"
+            assert isinstance(criteria["filters"], list)
 
 
 class TestGetFilteredData:
-    def test_corporate_banking_filter(self, app_state):
-        df = app_state.get_filtered_data("Corporate Banking")
-        assert set(df["lob"].unique()) == {"Corporate Banking"}
-
-    def test_cre_filter(self, app_state):
-        df = app_state.get_filtered_data("CRE")
-        assert set(df["lob"].unique()) == {"CRE"}
+    def test_entire_commercial_returns_all(self, app_state):
+        df = app_state.get_filtered_data("Entire Commercial")
+        assert not df.empty
+        assert len(df) == len(app_state.latest_facilities)
 
     def test_missing_portfolio_returns_empty(self, app_state):
         df = app_state.get_filtered_data("Nonexistent Portfolio")
         assert df.empty
 
-    def test_custom_portfolio_industry_filter(self, app_state):
+    def test_custom_portfolio_multi_level_filter(self, app_state):
+        app_state.portfolios["CRE Office"] = {
+            "filters": [
+                {"column": "lob", "values": ["CRE"]},
+                {"column": "cre_property_type", "values": ["Office"]},
+            ]
+        }
+        df = app_state.get_filtered_data("CRE Office")
+        assert all(df["lob"] == "CRE")
+        assert all(df["cre_property_type"] == "Office")
+
+    def test_custom_portfolio_single_level_filter(self, app_state):
         app_state.portfolios["Tech Only"] = {
-            "lob": "Corporate Banking",
-            "industry": "Technology",
-            "property_type": None,
-            "obligors": None,
+            "filters": [
+                {"column": "lob", "values": ["Corporate Banking"]},
+                {"column": "industry", "values": ["Technology"]},
+            ]
         }
         df = app_state.get_filtered_data("Tech Only")
         assert all(df["industry"] == "Technology")
 
-    def test_custom_portfolio_property_type_filter(self, app_state):
-        app_state.portfolios["Office CRE"] = {
-            "lob": "CRE",
-            "industry": None,
-            "property_type": "Office",
-            "obligors": None,
+    def test_legacy_format_backward_compat(self, app_state):
+        """Old flat-format portfolios should still work via migration shim."""
+        app_state.portfolios["Legacy CB"] = {
+            "lob": "Corporate Banking",
+            "industry": "Technology",
+            "property_type": None,
         }
-        df = app_state.get_filtered_data("Office CRE")
-        assert all(df["cre_property_type"] == "Office")
+        df = app_state.get_filtered_data("Legacy CB")
+        assert all(df["lob"] == "Corporate Banking")
+        assert all(df["industry"] == "Technology")
+
+
+class TestSegmentationColumns:
+    def test_returns_categorical_columns(self, app_state):
+        cols = app_state.get_segmentation_columns()
+        assert "lob" in cols
+        assert "industry" in cols
+        assert "cre_property_type" in cols
+        assert "risk_category" in cols
+
+    def test_excludes_numeric_and_date_columns(self, app_state):
+        cols = app_state.get_segmentation_columns()
+        assert "balance" not in cols
+        assert "reporting_date" not in cols
+        assert "facility_id" not in cols
+
+    def test_get_column_display_name(self, app_state):
+        assert app_state.get_column_display_name("lob") == "Line of Business"
+        assert app_state.get_column_display_name("cre_property_type") == "Property Type"
+        assert app_state.get_column_display_name("some_col") == "Some Col"
+
+    def test_get_unique_values(self, app_state):
+        vals = app_state.get_unique_values("lob")
+        assert "Corporate Banking" in vals
+        assert "CRE" in vals
+
+
+class TestMigratePortfolioCriteria:
+    def test_new_format_passthrough(self):
+        from src.dashboard.app_state import AppState
+        criteria = {"filters": [{"column": "lob", "values": ["CRE"]}]}
+        assert AppState._migrate_criteria(criteria) is criteria
+
+    def test_old_format_converted(self):
+        from src.dashboard.app_state import AppState
+        old = {"lob": "CRE", "industry": None, "property_type": "Office"}
+        result = AppState._migrate_criteria(old)
+        assert "filters" in result
+        cols = [f["column"] for f in result["filters"]]
+        assert "lob" in cols
+        assert "cre_property_type" in cols
 
 
 class TestMakeTabContext:
@@ -70,7 +123,7 @@ class TestMakeTabContext:
 
     def test_get_filtered_data_callable(self, app_state):
         ctx = app_state.make_tab_context()
-        df = ctx.get_filtered_data("Corporate Banking")
+        df = ctx.get_filtered_data("Entire Commercial")
         assert isinstance(df, pd.DataFrame)
         assert not df.empty
 
@@ -78,7 +131,7 @@ class TestMakeTabContext:
 class TestLoadUserPortfolios:
     def test_guest_loads_only_defaults(self, app_state):
         app_state.load_user_portfolios("Guest")
-        assert set(app_state.portfolios.keys()) == {"Corporate Banking", "CRE"}
+        assert set(app_state.portfolios.keys()) == {"Entire Commercial"}
 
     def test_custom_metrics_cleared_on_switch(self, app_state):
         app_state.custom_metrics["test_metric"] = "value"

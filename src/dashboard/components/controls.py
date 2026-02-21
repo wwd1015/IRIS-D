@@ -211,6 +211,53 @@ class ThemeToggle(GlobalControl):
         )]
 
 
+class AccentColorPicker(GlobalControl):
+    """Small button to cycle through accent color palettes at runtime."""
+
+    id = "accent-color-picker"
+    label = "Accent Color"
+    position = ControlPosition.RIGHT
+    order = 31  # right after theme toggle
+
+    def render(self, **kwargs) -> html.Button:
+        return html.Button(
+            "🎨",
+            id="accent-color-btn",
+            n_clicks=0,
+            className="header-btn",
+            title="Change accent color",
+        )
+
+    def callback_specs(self) -> list[CallbackSpec]:
+        return [CallbackSpec(
+            outputs=[("accent-color-btn", "title")],
+            inputs=[("accent-color-btn", "n_clicks")],
+            client_side="""\
+            function(n_clicks){
+              var palettes = window.__IRIS_PALETTES || {};
+              var keys = Object.keys(palettes);
+              if (!keys.length) return window.dash_clientside.no_update;
+              var cur = localStorage.getItem('accent_color') || keys[0];
+              if (n_clicks && n_clicks > 0){
+                var idx = keys.indexOf(cur);
+                cur = keys[(idx + 1) % keys.length];
+                localStorage.setItem('accent_color', cur);
+              }
+              var p = palettes[cur];
+              if (p){
+                var r = document.documentElement.style;
+                r.setProperty('--primary-400', p['400']);
+                r.setProperty('--primary-500', p['500']);
+                r.setProperty('--primary-600', p['600']);
+                r.setProperty('--primary-700', p['700']);
+                r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.25)');
+              }
+              return 'Accent: ' + cur;
+            }
+            """,
+        )]
+
+
 class ContactButton(GlobalControl):
     """Button that opens the contact/support modal."""
 
@@ -235,4 +282,5 @@ class ContactButton(GlobalControl):
 register_global_control(PortfolioSelector())
 register_global_control(ProfileAvatar())
 register_global_control(ThemeToggle())
+register_global_control(AccentColorPicker())
 register_global_control(ContactButton())

@@ -35,9 +35,6 @@ class DatabaseSettings:
     profiles_file: str = field(
         default_factory=lambda: os.environ.get("PROFILES_FILE", "data/user_profiles.json")
     )
-    roster_file: str = field(
-        default_factory=lambda: os.environ.get("ROSTER_FILE", "data/user_roster.parquet")
-    )
 
     def __post_init__(self) -> None:
         import logging
@@ -64,11 +61,35 @@ class AppSettings:
             raise ValueError(f"PORT must be between 1 and 65535, got {self.port}")
 
 
+# Color palettes — change ``accent_color`` in UISettings to switch.
+COLOR_PALETTES: dict[str, dict[str, str]] = {
+    "violet": {
+        "400": "#a78bfa", "500": "#8b5cf6", "600": "#7c3aed", "700": "#6d28d9",
+        "glow": "139, 92, 246",  # RGB for rgba()
+    },
+    "blue": {
+        "400": "#60a5fa", "500": "#3b82f6", "600": "#2563eb", "700": "#1d4ed8",
+        "glow": "59, 130, 246",
+    },
+    "teal": {
+        "400": "#2dd4bf", "500": "#14b8a6", "600": "#0d9488", "700": "#0f766e",
+        "glow": "20, 184, 166",
+    },
+    "rose": {
+        "400": "#fb7185", "500": "#f43f5e", "600": "#e11d48", "700": "#be123c",
+        "glow": "244, 63, 94",
+    },
+}
+
+
 @dataclass(frozen=True)
 class UISettings:
     """UI and asset configuration."""
     assets_folder: str = "assets"
     default_theme: str = "dark"
+    accent_color: str = field(
+        default_factory=lambda: os.environ.get("ACCENT_COLOR", "blue")
+    )
 
 
 @dataclass(frozen=True)
@@ -92,8 +113,7 @@ settings = Settings()
 
 # Default portfolios (data, not a setting)
 DEFAULT_PORTFOLIOS = {
-    "Corporate Banking": {"lob": "Corporate Banking", "industry": None, "property_type": None},
-    "CRE": {"lob": "CRE", "industry": None, "property_type": None},
+    "Entire Commercial": {"filters": []},
 }
 
 # Flat aliases — kept so existing imports don't need changing
@@ -105,6 +125,6 @@ HOST: str = settings.app.host
 PORT: int = settings.app.port
 DEBUG_MODE: bool = settings.app.debug
 DEFAULT_USER: str = settings.app.default_user
-ROSTER_FILE: str = settings.db.roster_file
+
 
 ASSETS_FOLDER: str = settings.ui.assets_folder

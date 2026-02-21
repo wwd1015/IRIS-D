@@ -1,1 +1,59 @@
-{}
+{
+  "John Smith": {
+    "role": "SAG",
+    "portfolios": {
+      "ree": {
+        "filters": [
+          {
+            "column": "industry",
+            "values": [
+              "Energy",
+              "Manufacturing"
+            ]
+          },
+          {
+            "column": "obligor_name",
+            "values": [
+              "Advanced Tech International",
+              "Corporation Group Systems"
+            ]
+          }
+        ]
+      }
+    },
+    "custom_metrics": {},
+    "last_saved": "2026-02-20T22:15:45.572048"
+  },
+  "Jane Doe": {
+    "role": "Corp SCO",
+    "portfolios": {
+      "test": {
+        "filters": [
+          {
+            "column": "industry",
+            "values": [
+              "Financial Services"
+            ]
+          }
+        ]
+      }
+    },
+    "custom_metrics": {},
+    "last_saved": "2026-02-20T22:24:03.002115"
+  },
+  "Bob Wilson": {
+    "role": "CRE SCO",
+    "portfolios": {},
+    "custom_metrics": {}
+  },
+  "Alice Chen": {
+    "role": "BA",
+    "portfolios": {},
+    "custom_metrics": {}
+  },
+  "Mike Johnson": {
+    "role": "SAG",
+    "portfolios": {},
+    "custom_metrics": {}
+  }
+}

@@ -1,17 +1,19 @@
 """
-Portfolio CRUD callbacks for IRIS-D.
+Portfolio callbacks for IRIS-D.
 
-Handles portfolio modal open/close, portfolio creation, selection,
-and deletion.  All mutable state is owned by :data:`app_state`.
+Handles the Portfolio Manager modal (select/manage) and the Portfolio
+Creation/Edit Wizard (hierarchical filter builder).  All mutable state is
+owned by :data:`app_state`.
 """
 
 from __future__ import annotations
 
+import json
 import logging
 
-from dash import Input, Output, State, callback, callback_context, no_update
+from dash import Input, Output, State, callback, callback_context, html, dcc, no_update, ALL
 
-from ..app_state import app_state
+from ..app_state import app_state, AppState
 from ..auth import user_management
 from .. import config
 
@@ -24,15 +26,80 @@ _MODAL_SHOWN = {
 }
 _MODAL_HIDDEN = {"display": "none"}
 
+_CREATE_NEW = "__create_new__"
+
+
+def _render_filter_levels(state: list[dict]) -> list:
+    """Build the UI rows for each filter level from the current filter state."""
+    rows = []
+    for i, level in enumerate(state):
+        used_cols = {s["column"] for j, s in enumerate(state) if j < i and s.get("column")}
+        all_cols = app_state.get_segmentation_columns()
+        available_cols = [c for c in all_cols if c not in used_cols]
+        col_options = [
+            {"label": AppState.get_column_display_name(c), "value": c}
+            for c in available_cols
+        ]
+
+        val_options = []
+        if level.get("column"):
+            df = app_state.latest_facilities.copy()
+            for j in range(i):
+                prev = state[j]
+                if prev.get("column") and prev.get("values") and prev["column"] in df.columns:
+                    df = df[df[prev["column"]].astype(str).isin([str(v) for v in prev["values"]])]
+            vals = app_state.get_unique_values(level["column"], df)
+            val_options = [{"label": str(v), "value": str(v)} for v in vals]
+
+        rows.append(
+            html.Div([
+                html.Label(f"Filter Level {i + 1}", className="block text-xs font-semibold mb-1 text-brand-400"),
+                html.Div([
+                    dcc.Dropdown(
+                        id={"type": "filter-col-dropdown", "index": i},
+                        options=col_options,
+                        value=level.get("column"),
+                        placeholder="Column...",
+                        className="text-xs",
+                        style={"flex": "1"},
+                    ),
+                    dcc.Dropdown(
+                        id={"type": "filter-val-dropdown", "index": i},
+                        options=val_options,
+                        value=level.get("values") or [],
+                        placeholder="Values...",
+                        className="text-xs",
+                        style={"flex": "1"},
+                        multi=True,
+                    ),
+                ], className="flex gap-2"),
+            ], className="mb-3")
+        )
+    return rows
+
+
+def _build_modal_opts() -> list[dict]:
+    """Build the portfolio manager dropdown options."""
+    opts = [{"label": "➕ Create New Portfolio", "value": _CREATE_NEW}]
+    opts += [{"label": n, "value": n} for n in app_state.portfolios]
+    return opts
+
+
+def _build_portfolio_opts() -> list[dict]:
+    """Build the hidden universal-portfolio-dropdown options."""
+    return [{"label": p, "value": p} for p in app_state.portfolios]
+
 
 def register(app) -> None:  # noqa: ARG001
     """Register all portfolio-management callbacks with the Dash app."""
+
+    # ── Modal 1: Portfolio Manager ────────────────────────────────────────
 
     @callback(
         [Output("portfolio-modal", "style"),
          Output("portfolio-modal-dropdown", "options"),
          Output("portfolio-modal-dropdown", "value"),
-         Output("modal-delete-portfolio-dropdown", "options")],
+         Output("portfolio-delete-error", "children")],
         [Input("portfolio-selector-btn", "n_clicks"),
          Input("portfolio-modal-cancel", "n_clicks")],
         prevent_initial_call=True,
@@ -43,120 +110,240 @@ def register(app) -> None:  # noqa: ARG001
             return no_update, no_update, no_update, no_update
         trigger = ctx.triggered[0]["prop_id"].split(".")[0]
         if trigger == "portfolio-selector-btn":
-            opts = [{"label": n, "value": n} for n in app_state.portfolios]
-            del_opts = [
-                {"label": n, "value": n}
-                for n in app_state.portfolios
-                if n not in ("Corporate Banking", "CRE")
-            ]
-            return _MODAL_SHOWN, opts, None, del_opts
-        return _MODAL_HIDDEN, no_update, no_update, no_update
+            return _MODAL_SHOWN, _build_modal_opts(), None, ""
+        return _MODAL_HIDDEN, no_update, no_update, ""
+
+    @callback(
+        [Output("portfolio-update-btn", "disabled"),
+         Output("portfolio-delete-btn", "disabled")],
+        Input("portfolio-modal-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def toggle_update_delete_buttons(selected):
+        """Enable Update/Delete only for custom (non-default) portfolios."""
+        if not selected or selected == _CREATE_NEW or selected in config.DEFAULT_PORTFOLIOS:
+            return True, True
+        return False, False
+
+    # ── Select button ─────────────────────────────────────────────────────
 
     @callback(
         [Output("portfolio-selector-btn", "children"),
          Output("universal-portfolio-dropdown", "value", allow_duplicate=True),
-         Output("portfolio-modal", "style", allow_duplicate=True)],
+         Output("universal-portfolio-dropdown", "options", allow_duplicate=True),
+         Output("portfolio-modal", "style", allow_duplicate=True),
+         Output("portfolio-create-modal", "style"),
+         Output("portfolio-filter-state", "data"),
+         Output("filter-levels-container", "children"),
+         Output("portfolio-edit-name", "data"),
+         Output("portfolio-wizard-title", "children"),
+         Output("create-portfolio-name-input", "value"),
+         Output("create-portfolio-name-input", "disabled")],
         Input("portfolio-select-confirm", "n_clicks"),
         State("portfolio-modal-dropdown", "value"),
         prevent_initial_call=True,
     )
-    def confirm_portfolio_selection(confirm_clicks, selected_portfolio):
-        if confirm_clicks and selected_portfolio:
-            return selected_portfolio, selected_portfolio, _MODAL_HIDDEN
-        return no_update, no_update, no_update
+    def confirm_portfolio_selection(confirm_clicks, selected):
+        n_out = 11
+        if not confirm_clicks or not selected:
+            return (no_update,) * n_out
+        if selected == _CREATE_NEW:
+            initial_state = [{"column": None, "values": []}]
+            return (no_update, no_update, no_update, _MODAL_HIDDEN, _MODAL_SHOWN,
+                    initial_state, _render_filter_levels(initial_state),
+                    None, "Create New Portfolio", "", False)
+        # Normal portfolio selection
+        return (selected, selected, _build_portfolio_opts(), _MODAL_HIDDEN,
+                no_update, no_update, no_update,
+                no_update, no_update, no_update, no_update)
+
+    # ── Update button ─────────────────────────────────────────────────────
 
     @callback(
-        [Output("modal-industry-group", "style"),
-         Output("modal-property-type-group", "style"),
-         Output("modal-industry-dropdown", "options"),
-         Output("modal-property-type-dropdown", "options"),
-         Output("modal-obligor-dropdown", "options")],
-        Input("modal-lob-dropdown", "value"),
+        [Output("portfolio-modal", "style", allow_duplicate=True),
+         Output("portfolio-create-modal", "style", allow_duplicate=True),
+         Output("portfolio-filter-state", "data", allow_duplicate=True),
+         Output("filter-levels-container", "children", allow_duplicate=True),
+         Output("portfolio-edit-name", "data", allow_duplicate=True),
+         Output("portfolio-wizard-title", "children", allow_duplicate=True),
+         Output("create-portfolio-name-input", "value", allow_duplicate=True),
+         Output("create-portfolio-name-input", "disabled", allow_duplicate=True)],
+        Input("portfolio-update-btn", "n_clicks"),
+        State("portfolio-modal-dropdown", "value"),
         prevent_initial_call=True,
     )
-    def update_modal_dropdown_visibility(lob_value):
-        if not lob_value:
-            return {"display": "none"}, {"display": "none"}, [], [], []
-        obligor_opts = [
-            {"label": n, "value": n}
-            for n in sorted(app_state.latest_facilities["obligor_name"].unique())
+    def open_update_wizard(n_clicks, selected):
+        if not n_clicks or not selected or selected == _CREATE_NEW:
+            return (no_update,) * 8
+        if selected not in app_state.portfolios:
+            return (no_update,) * 8
+
+        criteria = app_state.portfolios[selected]
+        # Migrate old format if needed
+        criteria = AppState._migrate_criteria(criteria)
+        existing_filters = criteria.get("filters", [])
+        # Ensure at least one level
+        state = existing_filters if existing_filters else [{"column": None, "values": []}]
+
+        return (_MODAL_HIDDEN, _MODAL_SHOWN,
+                state, _render_filter_levels(state),
+                selected, f"Update Portfolio: {selected}",
+                selected, False)
+
+    # ── Delete button ─────────────────────────────────────────────────────
+
+    @callback(
+        [Output("portfolio-modal-dropdown", "options", allow_duplicate=True),
+         Output("portfolio-modal-dropdown", "value", allow_duplicate=True),
+         Output("portfolio-delete-error", "children", allow_duplicate=True),
+         Output("universal-portfolio-dropdown", "options", allow_duplicate=True),
+         Output("portfolio-selector-btn", "children", allow_duplicate=True),
+         Output("universal-portfolio-dropdown", "value", allow_duplicate=True)],
+        Input("portfolio-delete-btn", "n_clicks"),
+        State("portfolio-modal-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def delete_portfolio(n_clicks, selected):
+        if not n_clicks or not selected:
+            return (no_update,) * 6
+        if selected in config.DEFAULT_PORTFOLIOS:
+            return no_update, no_update, "Cannot delete default portfolios.", no_update, no_update, no_update
+        if selected == _CREATE_NEW:
+            return (no_update,) * 6
+
+        app_state.portfolios.pop(selected, None)
+        app_state.available_portfolios = list(app_state.portfolios.keys())
+        app_state.save_user_data(user_management.get_current_user())
+        logger.info("Deleted portfolio '%s'. Remaining: %s", selected, list(app_state.portfolios.keys()))
+
+        # Switch to default portfolio
+        default = app_state.default_portfolio
+        return (_build_modal_opts(), None, "",
+                _build_portfolio_opts(), default, default)
+
+    # ── Modal 2: Creation/Edit Wizard ─────────────────────────────────────
+
+    @callback(
+        Output("portfolio-create-modal", "style", allow_duplicate=True),
+        Input("portfolio-create-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def close_create_modal(n_clicks):
+        if n_clicks:
+            return _MODAL_HIDDEN
+        return no_update
+
+    @callback(
+        [Output("portfolio-filter-state", "data", allow_duplicate=True),
+         Output("filter-levels-container", "children", allow_duplicate=True)],
+        Input("add-filter-level-btn", "n_clicks"),
+        State("portfolio-filter-state", "data"),
+        prevent_initial_call=True,
+    )
+    def add_filter_level(add_clicks, current_state):
+        if not add_clicks:
+            return no_update, no_update
+        state = current_state or []
+        state.append({"column": None, "values": []})
+        return state, _render_filter_levels(state)
+
+    @callback(
+        [Output("portfolio-filter-state", "data", allow_duplicate=True),
+         Output("filter-levels-container", "children", allow_duplicate=True)],
+        [Input({"type": "filter-col-dropdown", "index": ALL}, "value"),
+         Input({"type": "filter-val-dropdown", "index": ALL}, "value")],
+        State("portfolio-filter-state", "data"),
+        prevent_initial_call=True,
+    )
+    def update_filter_state(col_values, val_values, current_state):
+        """Sync dropdown selections back into the filter state store."""
+        ctx = callback_context
+        if not ctx.triggered or not current_state:
+            return no_update, no_update
+
+        state = [dict(s) for s in current_state]
+
+        trigger = ctx.triggered[0]["prop_id"]
+        try:
+            prop_id_str = trigger.rsplit(".", 1)[0]
+            prop_id = json.loads(prop_id_str)
+            idx = prop_id["index"]
+            is_column = prop_id["type"] == "filter-col-dropdown"
+        except (json.JSONDecodeError, KeyError):
+            return no_update, no_update
+
+        if idx >= len(state):
+            return no_update, no_update
+
+        if is_column:
+            new_col = col_values[idx] if idx < len(col_values) else None
+            if new_col == state[idx].get("column"):
+                return no_update, no_update
+            state[idx] = {"column": new_col, "values": []}
+            state = state[:idx + 1]
+        else:
+            new_vals = val_values[idx] if idx < len(val_values) else []
+            if not isinstance(new_vals, list):
+                new_vals = [new_vals] if new_vals else []
+            if new_vals == state[idx].get("values", []):
+                return no_update, no_update
+            state[idx] = {"column": state[idx].get("column"), "values": new_vals}
+
+        return state, _render_filter_levels(state)
+
+    # ── Save (create or update) ───────────────────────────────────────────
+
+    @callback(
+        [Output("portfolio-create-modal", "style", allow_duplicate=True),
+         Output("portfolio-modal-dropdown", "options", allow_duplicate=True),
+         Output("portfolio-modal-dropdown", "value", allow_duplicate=True),
+         Output("create-portfolio-name-input", "value", allow_duplicate=True),
+         Output("create-portfolio-error", "children"),
+         Output("portfolio-selector-btn", "children", allow_duplicate=True),
+         Output("universal-portfolio-dropdown", "value", allow_duplicate=True),
+         Output("universal-portfolio-dropdown", "options", allow_duplicate=True)],
+        Input("save-new-portfolio-btn", "n_clicks"),
+        [State("create-portfolio-name-input", "value"),
+         State("portfolio-filter-state", "data"),
+         State("portfolio-edit-name", "data")],
+        prevent_initial_call=True,
+    )
+    def save_portfolio(n_clicks, name, filter_state, edit_name):
+        if not n_clicks:
+            return (no_update,) * 8
+
+        n_out = 8
+        valid_filters = [
+            f for f in (filter_state or [])
+            if f.get("column") and f.get("values")
         ]
-        if lob_value == "Corporate Banking":
-            cb_df = app_state.latest_facilities[
-                app_state.latest_facilities["lob"] == "Corporate Banking"
-            ]
-            ind_opts = [
-                {"label": i, "value": i}
-                for i in sorted(cb_df["industry"].dropna().unique())
-            ]
-            return {"display": "block"}, {"display": "none"}, ind_opts, [], obligor_opts
-        if lob_value == "CRE":
-            cre_df = app_state.latest_facilities[
-                app_state.latest_facilities["lob"] == "CRE"
-            ]
-            prop_opts = [
-                {"label": p, "value": p}
-                for p in sorted(cre_df["cre_property_type"].dropna().unique())
-            ]
-            return {"display": "none"}, {"display": "block"}, [], prop_opts, obligor_opts
-        return {"display": "none"}, {"display": "none"}, [], [], obligor_opts
+        if not valid_filters:
+            return (no_update,) * 4 + ("Please define at least one filter level.",) + (no_update,) * 3
 
-    @callback(
-        [Output("portfolio-modal-dropdown", "options", allow_duplicate=True),
-         Output("portfolio-modal-dropdown", "value", allow_duplicate=True),
-         Output("modal-delete-portfolio-dropdown", "options", allow_duplicate=True),
-         Output("modal-portfolio-name-input", "value"),
-         Output("modal-lob-dropdown", "value"),
-         Output("modal-industry-dropdown", "value"),
-         Output("modal-property-type-dropdown", "value"),
-         Output("modal-obligor-dropdown", "value")],
-        Input("modal-save-portfolio-btn", "n_clicks"),
-        [State("modal-portfolio-name-input", "value"),
-         State("modal-lob-dropdown", "value"),
-         State("modal-industry-dropdown", "value"),
-         State("modal-property-type-dropdown", "value"),
-         State("modal-obligor-dropdown", "value")],
-        prevent_initial_call=True,
-    )
-    def save_portfolio_from_modal(n_clicks, name, lob, industry, prop_type, obligors):
-        if n_clicks and name and (lob or obligors):
-            app_state.portfolios[name] = {
-                "lob": lob, "industry": industry,
-                "property_type": prop_type, "obligors": obligors,
-            }
-            app_state.available_portfolios = list(app_state.portfolios.keys())
-            opts = [{"label": p, "value": p} for p in app_state.available_portfolios]
-            del_opts = [
-                {"label": p, "value": p}
-                for p in app_state.available_portfolios
-                if p not in ("Corporate Banking", "CRE")
-            ]
-            app_state.save_user_data(user_management.get_current_user())
-            return opts, name, del_opts, "", None, None, None, None
-        return (no_update,) * 8
+        if edit_name:
+            # Update mode — allow rename
+            if not name or not name.strip():
+                return (no_update,) * 4 + ("Please enter a portfolio name.",) + (no_update,) * 3
+            name = name.strip()
+            if name != edit_name and name in config.DEFAULT_PORTFOLIOS:
+                return (no_update,) * 4 + ("Cannot overwrite a default portfolio.",) + (no_update,) * 3
+            # Remove old entry if renamed
+            if name != edit_name:
+                app_state.portfolios.pop(edit_name, None)
+        else:
+            # Create mode — validate name
+            if not name or not name.strip():
+                return (no_update,) * 4 + ("Please enter a portfolio name.",) + (no_update,) * 3
+            name = name.strip()
+            if name in config.DEFAULT_PORTFOLIOS:
+                return (no_update,) * 4 + ("Cannot overwrite a default portfolio.",) + (no_update,) * 3
 
-    @callback(
-        [Output("portfolio-modal-dropdown", "options", allow_duplicate=True),
-         Output("portfolio-modal-dropdown", "value", allow_duplicate=True),
-         Output("modal-delete-portfolio-dropdown", "options", allow_duplicate=True)],
-        Input("modal-delete-confirm-btn", "n_clicks"),
-        State("modal-delete-portfolio-dropdown", "value"),
-        prevent_initial_call=True,
-    )
-    def delete_portfolio_from_modal(n_clicks, portfolio_to_delete):
-        if (
-            n_clicks
-            and portfolio_to_delete
-            and portfolio_to_delete not in ("Corporate Banking", "CRE")
-        ):
-            app_state.portfolios.pop(portfolio_to_delete, None)
-            app_state.available_portfolios = list(app_state.portfolios.keys())
-            opts = [{"label": p, "value": p} for p in app_state.available_portfolios]
-            del_opts = [
-                {"label": p, "value": p}
-                for p in app_state.available_portfolios
-                if p not in ("Corporate Banking", "CRE")
-            ]
-            app_state.save_user_data(user_management.get_current_user())
-            return opts, None, del_opts
-        return no_update, no_update, no_update
+        # Save
+        app_state.portfolios[name] = {"filters": valid_filters}
+        app_state.available_portfolios = list(app_state.portfolios.keys())
+        app_state.save_user_data(user_management.get_current_user())
+        action = "Updated" if edit_name else "Created"
+        logger.info("%s portfolio '%s' with %d filters.", action, name, len(valid_filters))
+
+        return (_MODAL_HIDDEN, _build_modal_opts(), name, "", "",
+                name, name, _build_portfolio_opts())
