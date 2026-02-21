@@ -9,7 +9,6 @@ value contains ``role``, ``portfolios``, ``custom_metrics``, etc.
 import json
 import logging
 import os
-from datetime import datetime
 
 from .. import config
 
@@ -109,7 +108,22 @@ def save_user_data(username: str, portfolios_data: dict, custom_metrics_data: di
     profiles[username].update({
         "portfolios": portfolios_data,
         "custom_metrics": custom_metrics_data,
-        "last_saved": datetime.now().isoformat(),
     })
     save_profiles(profiles)
     logger.debug("Saved user data for '%s'", username)
+
+
+def get_last_active_portfolio(username: str) -> str | None:
+    """Return the last active portfolio name for a user, or None."""
+    profiles = load_profiles()
+    return profiles.get(username, {}).get("last_active_portfolio")
+
+
+def set_last_active_portfolio(username: str, portfolio_name: str) -> None:
+    """Record which portfolio the user last activated."""
+    profiles = load_profiles()
+    if username not in profiles:
+        profiles[username] = {"role": "BA"}
+    profiles[username]["last_active_portfolio"] = portfolio_name
+    save_profiles(profiles)
+    logger.debug("Set last active portfolio for '%s' to '%s'", username, portfolio_name)

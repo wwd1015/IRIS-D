@@ -160,12 +160,14 @@ class ProfileAvatar(GlobalControl):
             children=initials,
             n_clicks=0,
             className=(
-                "ml-2 h-8 w-8 rounded-full bg-gradient-to-br "
-                "from-purple-500 to-indigo-600 text-white text-sm font-semibold "
-                "hover:from-purple-400 hover:to-indigo-500 flex items-center "
-                "justify-center cursor-pointer shadow-lg shadow-purple-500/20 "
+                "ml-2 h-8 w-8 rounded-full text-white text-sm font-semibold "
+                "flex items-center justify-center cursor-pointer "
                 "transition-all duration-200"
             ),
+            style={
+                "background": "linear-gradient(135deg, var(--primary-500), var(--primary-700))",
+                "boxShadow": "0 2px 8px var(--primary-glow)",
+            },
             title="Switch Profile",
         )
 

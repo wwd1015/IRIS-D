@@ -57,8 +57,6 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
         if trigger == "profile-switch-cancel":
             return _HIDDEN, opts, user_management.get_current_user()
         if trigger == "profile-switch-confirm" and selected_profile:
-            user_management.set_current_user(selected_profile)
-            app_state.load_user_portfolios(selected_profile)
             return _HIDDEN, opts, selected_profile
 
         return _HIDDEN, opts, user_management.get_current_user()
@@ -89,9 +87,17 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
     )
     def update_current_user_store(switch_clicks, selected_profile):
         if selected_profile:
-            default = app_state.default_portfolio
+            # Load user state first (must happen before checking portfolios)
+            user_management.set_current_user(selected_profile)
+            app_state.load_user_portfolios(selected_profile)
+            # Restore last-used portfolio, fall back to default
+            last_active = user_management.get_last_active_portfolio(selected_profile)
+            if last_active and last_active in app_state.portfolios:
+                active = last_active
+            else:
+                active = app_state.default_portfolio
             portfolio_opts = [{"label": p, "value": p} for p in app_state.portfolios]
-            return selected_profile, _initials(selected_profile), default, default, portfolio_opts
+            return selected_profile, _initials(selected_profile), active, active, portfolio_opts
         return no_update, no_update, no_update, no_update, no_update
 
     @callback(

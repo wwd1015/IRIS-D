@@ -2,32 +2,36 @@
   "John Smith": {
     "role": "SAG",
     "portfolios": {
-      "ree": {
+      "2": {
         "filters": [
           {
             "column": "industry",
             "values": [
-              "Energy",
+              "Financial Services",
               "Manufacturing"
             ]
-          },
+          }
+        ]
+      },
+      "3": {
+        "filters": [
           {
-            "column": "obligor_name",
+            "column": "industry",
             "values": [
-              "Advanced Tech International",
-              "Corporation Group Systems"
+              "Financial Services",
+              "Manufacturing"
             ]
           }
         ]
       }
     },
     "custom_metrics": {},
-    "last_saved": "2026-02-20T22:15:45.572048"
+    "last_active_portfolio": "2"
   },
   "Jane Doe": {
     "role": "Corp SCO",
     "portfolios": {
-      "test": {
+      "test2": {
         "filters": [
           {
             "column": "industry",
@@ -39,7 +43,7 @@
       }
     },
     "custom_metrics": {},
-    "last_saved": "2026-02-20T22:24:03.002115"
+    "last_active_portfolio": "test2"
   },
   "Bob Wilson": {
     "role": "CRE SCO",

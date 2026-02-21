@@ -152,7 +152,10 @@ def register(app) -> None:  # noqa: ARG001
             return (no_update, no_update, no_update, _MODAL_HIDDEN, _MODAL_SHOWN,
                     initial_state, _render_filter_levels(initial_state),
                     None, "Create New Portfolio", "", False)
-        # Normal portfolio selection
+        # Normal portfolio selection — record as last active
+        user_management.set_last_active_portfolio(
+            user_management.get_current_user(), selected,
+        )
         return (selected, selected, _build_portfolio_opts(), _MODAL_HIDDEN,
                 no_update, no_update, no_update,
                 no_update, no_update, no_update, no_update)
@@ -339,9 +342,11 @@ def register(app) -> None:  # noqa: ARG001
                 return (no_update,) * 4 + ("Cannot overwrite a default portfolio.",) + (no_update,) * 3
 
         # Save
+        user = user_management.get_current_user()
         app_state.portfolios[name] = {"filters": valid_filters}
         app_state.available_portfolios = list(app_state.portfolios.keys())
-        app_state.save_user_data(user_management.get_current_user())
+        user_management.set_last_active_portfolio(user, name)
+        app_state.save_user_data(user)
         action = "Updated" if edit_name else "Created"
         logger.info("%s portfolio '%s' with %d filters.", action, name, len(valid_filters))
 
