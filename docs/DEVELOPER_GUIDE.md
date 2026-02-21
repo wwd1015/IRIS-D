@@ -41,6 +41,8 @@ graph TB
 | File | Purpose |
 |---|---|
 | `src/dashboard/tabs/registry.py` | `BaseTab`, `TabContext`, tab registry |
+| `src/dashboard/data/dataset.py` | `Dataset` — generic dataset with filtering + caching |
+| `src/dashboard/data/registry.py` | `DatasetRegistry` — global dataset access |
 | `src/dashboard/components/cards.py` | `DisplayCard` hierarchy + `CallbackSpec` |
 | `src/dashboard/components/controls.py` | `GlobalControl` hierarchy + registry |
 | `src/dashboard/components/toolbar.py` | `ToolbarControl` presets |
@@ -188,9 +190,9 @@ class TopHoldings(TableCard):
         {"name": "Rating", "id": "risk_rating", "type": "numeric"},
     ]
 
-    def get_data(self, ctx: TabContext) -> pd.DataFrame:
+    def get_data(self, ctx: TabContext) -> pl.DataFrame:
         df = ctx.get_filtered_data(ctx.selected_portfolio)
-        return df.nlargest(self.max_rows, "balance")[["obligor_name", "balance", "risk_rating"]]
+        return df.sort("balance", descending=True).head(self.max_rows).select(["obligor_name", "balance", "risk_rating"])
 ```
 
 ### MetricCard — KPI summaries
@@ -387,7 +389,7 @@ class RiskMetrics(MetricCard):
         dscr = df["dscr"].mean()
 
         # Loss Given Default (LGD)
-        defaulted = df[df["risk_category"] == "Defaulted"]
+        defaulted = df.filter(pl.col("risk_category") == "Defaulted")
         lgd = defaulted["loss"].sum() / defaulted["balance"].sum() if len(defaulted) > 0 else 0
 
         return [
@@ -412,9 +414,14 @@ class WARFTrendChart(ChartCard):
         portfolio_config = ctx.portfolios.get(ctx.selected_portfolio, {})
 
         # Group by quarter and compute weighted metric
-        quarterly = df.groupby("report_quarter").apply(
-            lambda g: (g["risk_rating"] * g["balance"]).sum() / g["balance"].sum()
-        ).reset_index(name="warf")
+        quarterly = (
+            df.group_by("report_quarter")
+            .agg(
+                (pl.col("risk_rating") * pl.col("balance")).sum() / pl.col("balance").sum()
+            )
+            .rename({"risk_rating": "warf"})
+            .sort("report_quarter")
+        )
 
         fig = go.Figure()
         fig.add_trace(go.Scatter(
@@ -531,10 +538,10 @@ Every render method receives a `TabContext` with these attributes:
 | `selected_portfolio` | `str` | Currently active portfolio name |
 | `available_portfolios` | `list[str]` | All portfolio names |
 | `portfolios` | `dict` | Portfolio config (LOB filters, metrics) |
-| `facilities_df` | `DataFrame` | Full facilities dataset (all quarters) |
-| `latest_facilities` | `DataFrame` | Latest quarter only |
+| `facilities_df` | `pl.DataFrame` | Full facilities dataset (all quarters) |
+| `latest_facilities` | `pl.DataFrame` | Latest quarter only |
 | `custom_metrics` | `dict` | User-defined custom metric formulas |
-| `get_filtered_data` | `callable` | `get_filtered_data(portfolio_name) → DataFrame` |
+| `get_filtered_data` | `callable` | `get_filtered_data(portfolio_name) → pl.DataFrame` |
 
 ---
 
@@ -545,6 +552,69 @@ Every render method receives a `TabContext` with these attributes:
 | `Signal.PORTFOLIO` | `PortfolioSelector` (L1) | Any card | `str` |
 | `Signal.USER` | Auth system (L1) | Any card | `str` |
 | `Signal.tab_filter(tab_id)` | Toolbar controls (L2) | Cards in that tab | `dict` |
+
+---
+
+## Data Layer — Dataset Abstraction
+
+All data flows through **polars** (`pl.DataFrame`). The `Dataset` class provides a generic abstraction for any tabular dataset with portfolio-based filtering and caching.
+
+### Accessing Data
+
+```python
+from src.dashboard.data.registry import DatasetRegistry
+
+# Get the facilities dataset
+ds = DatasetRegistry.get("facilities")
+df = ds.get_filtered("Corporate Banking", portfolios)      # latest snapshot, filtered
+df = ds.get_filtered_windowed("CRE", portfolios, n_periods=12)  # multi-period window
+```
+
+In tabs, use `ctx.get_filtered_data(portfolio_name)` which delegates to the Dataset.
+
+### Adding a New Dataset
+
+1. **Create a loader** in `src/dashboard/data/loader.py`:
+
+```python
+def load_my_dataset() -> Dataset:
+    from .dataset import Dataset
+    from .registry import DatasetRegistry
+
+    source = get_default_source()
+    df = source.load_my_data()  # add method to DataSource protocol
+    latest = df.sort("report_date").group_by("entity_id").tail(1)
+
+    ds = Dataset(name="my_data", full_df=df, latest_df=latest,
+                 id_column="entity_id", date_column="report_date")
+    DatasetRegistry.register(ds)
+    return ds
+```
+
+2. **Register during startup** in `app_state.py`'s `initialize()` method.
+
+3. **Access from any tab**:
+
+```python
+ds = DatasetRegistry.get("my_data")
+df = ds.get_filtered(ctx.selected_portfolio, ctx.portfolios)
+```
+
+Portfolio filters apply identically across all datasets — no new filter code needed.
+
+### Polars Quick Reference (vs pandas)
+
+| pandas | polars |
+|---|---|
+| `df[df["col"] == "x"]` | `df.filter(pl.col("col") == "x")` |
+| `df.groupby("col").sum()` | `df.group_by("col").agg(pl.col("val").sum())` |
+| `df.sort_values("col")` | `df.sort("col")` |
+| `df.empty` | `df.is_empty()` |
+| `df.to_dict("records")` | `df.to_dicts()` |
+| `df.iterrows()` | `df.iter_rows(named=True)` |
+| `df.iloc[-1]` | `df.tail(1).row(0, named=True)` |
+| `pd.isna(val)` | `val is None` |
+| `df.copy()` | not needed (polars is immutable) |
 
 ---
 
@@ -561,6 +631,12 @@ src/dashboard/
 │   ├── portfolio_trend.py       # Portfolio trends (benchmark charts)
 │   ├── vintage_analysis.py      # Vintage analysis (cohort charts)
 │   └── role_tabs.py             # Role-gated: SIR, Location, Projection, Backtesting
+├── data/                        # Data loading & dataset abstraction
+│   ├── sources.py               # DataSource protocol + SqliteDataSource + InMemoryDataSource
+│   ├── dataset.py               # Dataset class (filtering, caching, introspection)
+│   ├── registry.py              # DatasetRegistry (global dataset access)
+│   ├── loader.py                # Thin façade: load_dataset(), load_facilities_data()
+│   └── models.py                # Pydantic FacilityRecord + FacilityDataset
 ├── components/                  # Shared UI framework ONLY (no tab-specific code)
 │   ├── cards.py                 # DisplayCard, ChartCard, TableCard, MetricCard, FilterCard
 │   ├── controls.py              # GlobalControl, PortfolioSelector, ThemeToggle, ...

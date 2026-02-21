@@ -8,7 +8,7 @@ fixtures without touching anything outside this module.
 Usage::
 
     source = SqliteDataSource("data/bank_risk.db")
-    df = source.load_facilities()        # pd.DataFrame
+    df = source.load_facilities()        # pl.DataFrame
     source.save_user_profiles(profiles)  # persists to JSON
 """
 
@@ -20,7 +20,8 @@ import time
 from typing import Protocol, runtime_checkable
 
 import pandas as pd
-from sqlalchemy import create_engine
+import polars as pl
+from sqlalchemy import create_engine, text
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ _CACHE_TTL = 86_400
 class DataSource(Protocol):
     """Minimal interface every data source must satisfy."""
 
-    def load_facilities(self) -> pd.DataFrame:
+    def load_facilities(self) -> pl.DataFrame:
         """Return all facility records as a DataFrame."""
         ...
 
@@ -56,12 +57,12 @@ class SqliteDataSource:
         from .. import config
         self._db_path = db_path or config.DATABASE_PATH
         self._cache_ttl = cache_ttl
-        self._cache: pd.DataFrame | None = None
+        self._cache: pl.DataFrame | None = None
         self._cache_ts: float = 0.0
 
     # ── DataSource interface ─────────────────────────────────────────────────
 
-    def load_facilities(self) -> pd.DataFrame:
+    def load_facilities(self) -> pl.DataFrame:
         """Load (and cache) facilities from SQLite, with Pydantic validation."""
         now = time.time()
         if self._cache is not None and (now - self._cache_ts) < self._cache_ttl:
@@ -85,8 +86,28 @@ class SqliteDataSource:
 
     # ── Internal helpers ─────────────────────────────────────────────────────
 
-    def _load_with_validation(self) -> pd.DataFrame:
-        """Attempt Pydantic-validated load; fall back to raw load on error."""
+    _PYDANTIC_ROW_LIMIT = 50_000  # skip row-by-row validation above this
+
+    def _load_with_validation(self) -> pl.DataFrame:
+        """Attempt Pydantic-validated load; fall back to raw load on error.
+
+        For large datasets (>50K rows), skip Pydantic to avoid slow
+        row-by-row validation and use the raw load path directly.
+        """
+        # Quick row count check to avoid slow Pydantic on large datasets
+        try:
+            engine = create_engine(f"sqlite:///{self._db_path}")
+            with engine.connect() as conn:
+                count = conn.execute(text("SELECT COUNT(*) FROM raw_facilities")).scalar()
+            if count > self._PYDANTIC_ROW_LIMIT:
+                logger.info(
+                    "Dataset has %d rows (>%d); skipping Pydantic validation.",
+                    count, self._PYDANTIC_ROW_LIMIT,
+                )
+                return self._load_raw()
+        except Exception:
+            pass
+
         try:
             return self._load_pydantic()
         except Exception as exc:
@@ -95,16 +116,16 @@ class SqliteDataSource:
             )
             return self._load_raw()
 
-    def _load_pydantic(self) -> pd.DataFrame:
+    def _load_pydantic(self) -> pl.DataFrame:
         from .models import FacilityDataset
 
         logger.info("Loading facilities with Pydantic validation from %s", self._db_path)
         engine = create_engine(f"sqlite:///{self._db_path}")
-        raw_df = pd.read_sql(
+        raw_pdf = pd.read_sql(
             "SELECT * FROM raw_facilities ORDER BY facility_id, reporting_date", engine
         )
-        logger.info("Loaded %d raw records; validating…", len(raw_df))
-        dataset = FacilityDataset.from_dataframe(raw_df)
+        logger.info("Loaded %d raw records; validating…", len(raw_pdf))
+        dataset = FacilityDataset.from_dataframe(raw_pdf)
         df = dataset.to_dataframe()
         stats = dataset.get_summary_stats()
         logger.info(
@@ -113,15 +134,15 @@ class SqliteDataSource:
         )
         return df
 
-    def _load_raw(self) -> pd.DataFrame:
+    def _load_raw(self) -> pl.DataFrame:
         """Direct SQL load without Pydantic — last resort fallback."""
         logger.info("Raw fallback load from %s", self._db_path)
         engine = create_engine(f"sqlite:///{self._db_path}")
-        df = pd.read_sql(
+        pdf = pd.read_sql(
             "SELECT * FROM raw_facilities ORDER BY facility_id, reporting_date", engine
         )
-        df["balance_millions"] = df["balance"] / 1_000_000
-        df["risk_category"] = df["obligor_rating"].apply(
+        pdf["balance_millions"] = pdf["balance"] / 1_000_000
+        pdf["risk_category"] = pdf["obligor_rating"].apply(
             lambda x: (
                 "Pass Rated" if x <= 13
                 else "Watch" if x == 14
@@ -129,21 +150,25 @@ class SqliteDataSource:
                 else "Defaulted"
             )
         )
-        logger.info("Raw load complete — %d records", len(df))
-        return df
+        logger.info("Raw load complete — %d records", len(pdf))
+        return pl.from_pandas(pdf)
 
 
 class InMemoryDataSource:
     """Lightweight in-memory DataSource — primarily for testing.
 
-    Pass a pre-built DataFrame; ``load_facilities()`` returns it immediately.
+    Pass a pre-built DataFrame (pandas or polars); ``load_facilities()``
+    returns it as a polars DataFrame.
     """
 
-    def __init__(self, df: pd.DataFrame) -> None:
-        self._df = df
+    def __init__(self, df: pd.DataFrame | pl.DataFrame) -> None:
+        if isinstance(df, pd.DataFrame):
+            self._df = pl.from_pandas(df)
+        else:
+            self._df = df
 
-    def load_facilities(self) -> pd.DataFrame:
-        return self._df.copy()
+    def load_facilities(self) -> pl.DataFrame:
+        return self._df
 
     def clear_cache(self) -> None:
         pass  # nothing to clear

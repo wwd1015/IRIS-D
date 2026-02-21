@@ -1,51 +1,68 @@
 """
-Database-backed Bank Risk Data Generator with DataTidy Integration
+Database-backed Bank Risk Data Generator
 
-This module creates a SQLite database with raw bank risk data and uses DataTidy
-to transform it into the final dataset consumed by the Dash app.
-
-Key Features:
-- SQLite database for data storage
-- DataTidy YAML configuration for transformations
-- Same data model as original generator but database-backed
+Generates ~10K facilities with monthly reporting over 10 years of history.
+70/30 Corporate Banking / CRE split.
 """
 
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
+import calendar
 import random
 import sqlite3
 from sqlalchemy import create_engine, text
 import os
-from datatidy import DataTidy
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+# MSA city coordinates for realistic lat/lon generation
+MSA_COORDS = {
+    'New York': (40.7128, -74.0060),
+    'Dallas': (32.7767, -96.7970),
+    'Chicago': (41.8781, -87.6298),
+    'Los Angeles': (34.0522, -118.2437),
+    'Houston': (29.7604, -95.3698),
+    'Phoenix': (33.4484, -112.0740),
+    'Philadelphia': (39.9526, -75.1652),
+    'San Antonio': (29.4241, -98.4936),
+    'San Diego': (32.7157, -117.1611),
+    'San Jose': (37.3382, -121.8863),
+    'Austin': (30.2672, -97.7431),
+    'Jacksonville': (30.3322, -81.6557),
+    'Fort Worth': (32.7555, -97.3308),
+    'Columbus': (39.9612, -82.9988),
+    'Charlotte': (35.2271, -80.8431),
+    'San Francisco': (37.7749, -122.4194),
+    'Indianapolis': (39.7684, -86.1581),
+    'Seattle': (47.6062, -122.3321),
+}
+
 
 class DatabaseRiskDataGenerator:
     def __init__(self, db_path='data/bank_risk.db'):
         self.db_path = db_path
         self.engine = create_engine(f'sqlite:///{db_path}')
-        
-        # Same industry/property data as original
+
         self.corporate_industries = [
-            'Manufacturing', 'Retail', 'Energy', 'Technology', 'Healthcare', 
+            'Manufacturing', 'Retail', 'Energy', 'Technology', 'Healthcare',
             'Financial Services', 'Transportation', 'Telecommunications', 'Real Estate', 'Consumer Goods'
         ]
-        
+
         self.cre_property_types = [
             'Office', 'Retail', 'Multifamily', 'Industrial', 'Hotel', 'Mixed Use'
         ]
-        
-        self.msa_cities = [
-            'New York', 'Dallas', 'Chicago', 'Los Angeles', 'Houston', 'Phoenix',
-            'Philadelphia', 'San Antonio', 'San Diego', 'San Jose', 'Austin', 'Jacksonville',
-            'Fort Worth', 'Columbus', 'Charlotte', 'San Francisco', 'Indianapolis', 'Seattle'
-        ]
-        
+
+        self.msa_cities = list(MSA_COORDS.keys())
+
         self.company_prefixes = [
             'Global', 'Advanced', 'Premier', 'Elite', 'Innovative', 'Strategic', 'Dynamic',
             'Progressive', 'Excellence', 'Quality', 'Professional', 'Enterprise', 'Solutions',
             'Industries', 'Corporation', 'Enterprises', 'Group', 'Partners', 'Holdings', 'International'
         ]
-        
+
         self.company_suffixes = [
             'Inc', 'Corp', 'LLC', 'Ltd', 'Co', 'Company', 'Industries', 'Enterprises',
             'Group', 'Partners', 'Holdings', 'International', 'Solutions', 'Systems', 'Technologies'
@@ -54,11 +71,8 @@ class DatabaseRiskDataGenerator:
     def setup_database(self):
         """Create database tables for raw data storage"""
         with self.engine.connect() as conn:
-            # Raw facilities table
-            conn.execute(text("""
-                DROP TABLE IF EXISTS raw_facilities
-            """))
-            
+            conn.execute(text("DROP TABLE IF EXISTS raw_facilities"))
+
             conn.execute(text("""
                 CREATE TABLE raw_facilities (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +94,8 @@ class DatabaseRiskDataGenerator:
                     sir REAL,
                     cre_property_type TEXT,
                     msa TEXT,
+                    latitude REAL,
+                    longitude REAL,
                     noi REAL,
                     property_value REAL,
                     dscr REAL,
@@ -87,12 +103,9 @@ class DatabaseRiskDataGenerator:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """))
-            
-            # Metadata table for tracking generation runs
-            conn.execute(text("""
-                DROP TABLE IF EXISTS generation_metadata
-            """))
-            
+
+            conn.execute(text("DROP TABLE IF EXISTS generation_metadata"))
+
             conn.execute(text("""
                 CREATE TABLE generation_metadata (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -103,7 +116,7 @@ class DatabaseRiskDataGenerator:
                     data_version TEXT
                 )
             """))
-            
+
             conn.commit()
 
     def generate_company_name(self):
@@ -113,46 +126,36 @@ class DatabaseRiskDataGenerator:
         industry_word = random.choice(['Tech', 'Solutions', 'Systems', 'Industries', 'Group', 'Corp'])
         return f"{prefix} {industry_word} {suffix}"
 
-    def get_quarter_end_date(self, date):
-        """Get the end of quarter date for any given date"""
-        year = date.year
-        month = date.month
-        
-        if month <= 3:
-            return datetime(year, 3, 31)
-        elif month <= 6:
-            return datetime(year, 6, 30)
-        elif month <= 9:
-            return datetime(year, 9, 30)
-        else:
-            return datetime(year, 12, 31)
+    @staticmethod
+    def get_month_end_date(date):
+        """Get the end-of-month date for any given date."""
+        last_day = calendar.monthrange(date.year, date.month)[1]
+        return datetime(date.year, date.month, last_day)
 
-    def get_current_quarter_end(self):
-        """Get the current quarter end date based on system time"""
+    def get_current_month_end(self):
+        """Get the current month-end date."""
         now = datetime.now()
-        return self.get_quarter_end_date(now)
+        return self.get_month_end_date(now)
 
-    def generate_quarterly_dates(self, start_date, end_date=None):
-        """Generate end-of-quarter dates from start_date to current quarter end or end_date"""
+    def generate_monthly_dates(self, start_date, end_date=None):
+        """Generate end-of-month dates from start_date to end_date."""
         dates = []
-        
         if end_date is None:
-            end_date = self.get_current_quarter_end()
-        
-        current_date = self.get_quarter_end_date(start_date)
-        
-        while current_date <= end_date:
-            dates.append(current_date)
-            
-            if current_date.month == 3:
-                current_date = datetime(current_date.year, 6, 30)
-            elif current_date.month == 6:
-                current_date = datetime(current_date.year, 9, 30)
-            elif current_date.month == 9:
-                current_date = datetime(current_date.year, 12, 31)
+            end_date = self.get_current_month_end()
+
+        current = self.get_month_end_date(start_date)
+
+        while current <= end_date:
+            dates.append(current)
+            # Advance to next month
+            if current.month == 12:
+                current = datetime(current.year + 1, 1, 31)
             else:
-                current_date = datetime(current_date.year + 1, 3, 31)
-        
+                next_month = current.month + 1
+                next_year = current.year
+                last_day = calendar.monthrange(next_year, next_month)[1]
+                current = datetime(next_year, next_month, last_day)
+
         return dates
 
     def generate_initial_rating(self):
@@ -161,26 +164,31 @@ class DatabaseRiskDataGenerator:
         rating = max(1, min(16, round(rating)))
         return int(rating)
 
-    def simulate_rating_transition(self, current_rating, is_defaulted=False, quarters_defaulted=0):
-        """Simulate rating transition using Poisson distribution"""
+    def simulate_rating_transition(self, current_rating, is_defaulted=False, months_defaulted=0):
+        """Simulate rating transition (monthly granularity).
+
+        Default probability ~0.0017/month (≈0.005/quarter).
+        Exit after 6 months defaulted (same real-time as 2 quarters).
+        Lower per-step volatility since monthly is 3× more granular.
+        """
         if is_defaulted:
-            if quarters_defaulted >= 2:
-                return None, True, quarters_defaulted + 1
+            if months_defaulted >= 6:
+                return None, True, months_defaulted + 1
             else:
-                return 17, True, quarters_defaulted + 1
-        
-        if np.random.random() < 0.005:
+                return 17, True, months_defaulted + 1
+
+        if np.random.random() < 0.0017:
             return 17, True, 1
-        
-        change = np.random.poisson(0.3)
-        
+
+        change = np.random.poisson(0.15)
+
         if change > 0:
             direction = 1 if np.random.random() < 0.5 else -1
             change = change * direction
-        
+
         new_rating = current_rating + change
         new_rating = max(1, min(16, new_rating))
-        
+
         return int(new_rating), False, 0
 
     def calculate_sir(self, balance):
@@ -189,30 +197,42 @@ class DatabaseRiskDataGenerator:
         sir = balance * loss_rate
         return min(sir, balance)
 
-    def generate_and_store_data(self, num_corporate=100, num_cre=100):
+    def _jitter_coords(self, lat, lon):
+        """Add slight random jitter to lat/lon (±0.15 degrees ≈ ±10 miles)."""
+        return (
+            lat + np.random.uniform(-0.15, 0.15),
+            lon + np.random.uniform(-0.15, 0.15),
+        )
+
+    def generate_and_store_data(self, num_corporate=3500, num_cre=1500):
         """Generate data and store in database"""
         all_facilities = []
-        
+
         # Generate Corporate Banking facilities
-        print("Generating Corporate Banking facilities...")
+        print(f"Generating {num_corporate} Corporate Banking obligors...")
         obligor_id = 1
-        
+
         for i in range(num_corporate):
+            if (i + 1) % 500 == 0:
+                print(f"  Corporate progress: {i + 1}/{num_corporate}")
+
             obligor_name = self.generate_company_name()
             industry = random.choice(self.corporate_industries)
-            
+            msa = random.choice(self.msa_cities)
+            lat, lon = self._jitter_coords(*MSA_COORDS[msa])
+
             num_facilities = random.randint(1, 3)
-            
+
             for j in range(num_facilities):
-                facility_id = f"F{obligor_id:04d}_{j+1:02d}"
-                
-                origination_date = datetime.now() - timedelta(days=np.random.randint(365, 1825))
+                facility_id = f"F{obligor_id:05d}_{j+1:02d}"
+
+                origination_date = datetime.now() - timedelta(days=np.random.randint(30, 3650))
                 min_maturity_days = 730
-                max_maturity_days = 2190
+                max_maturity_days = 2555  # ~7 years
                 maturity_date = origination_date + timedelta(days=np.random.randint(min_maturity_days, max_maturity_days))
-                
-                quarterly_dates = self.generate_quarterly_dates(origination_date)
-                
+
+                monthly_dates = self.generate_monthly_dates(origination_date)
+
                 # Base metrics
                 base_balance = np.random.lognormal(mean=15, sigma=0.6)
                 base_free_cash_flow = np.random.uniform(0.5, 3.0)
@@ -221,19 +241,19 @@ class DatabaseRiskDataGenerator:
                 base_liquidity = np.random.uniform(1.0, 3.0)
                 base_profitability = np.random.uniform(0.05, 0.25)
                 base_growth = np.random.uniform(-0.1, 0.3)
-                
+
                 current_rating = self.generate_initial_rating()
                 is_defaulted = False
-                quarters_defaulted = 0
-                
-                for date in quarterly_dates:
-                    rating_result = self.simulate_rating_transition(current_rating, is_defaulted, quarters_defaulted)
-                    
+                months_defaulted = 0
+
+                for date in monthly_dates:
+                    rating_result = self.simulate_rating_transition(current_rating, is_defaulted, months_defaulted)
+
                     if rating_result[0] is None:
                         break
-                    
-                    current_rating, is_defaulted, quarters_defaulted = rating_result
-                    
+
+                    current_rating, is_defaulted, months_defaulted = rating_result
+
                     # Evolving metrics
                     balance = base_balance * (1 + np.random.normal(0, 0.1))
                     free_cash_flow = max(0.1, base_free_cash_flow + np.random.normal(0, 0.2))
@@ -242,9 +262,9 @@ class DatabaseRiskDataGenerator:
                     liquidity = max(0.1, base_liquidity + np.random.normal(0, 0.2))
                     profitability = max(-0.05, base_profitability + np.random.normal(0, 0.03))
                     growth = base_growth + np.random.normal(0, 0.05)
-                    
+
                     sir = self.calculate_sir(balance) if current_rating == 17 else None
-                    
+
                     all_facilities.append({
                         'facility_id': facility_id,
                         'obligor_name': obligor_name,
@@ -263,36 +283,42 @@ class DatabaseRiskDataGenerator:
                         'growth': round(growth, 3),
                         'sir': round(sir, 2) if sir is not None else None,
                         'cre_property_type': None,
-                        'msa': None,
+                        'msa': msa,
+                        'latitude': round(lat, 4),
+                        'longitude': round(lon, 4),
                         'noi': None,
                         'property_value': None,
                         'dscr': None,
                         'ltv': None
                     })
-            
+
             obligor_id += 1
-        
+
         # Generate CRE facilities
-        print("Generating CRE facilities...")
-        obligor_id = 101
-        
+        print(f"Generating {num_cre} CRE obligors...")
+        cre_start_id = num_corporate + 1
+
         for i in range(num_cre):
+            if (i + 1) % 500 == 0:
+                print(f"  CRE progress: {i + 1}/{num_cre}")
+
             obligor_name = self.generate_company_name()
             property_type = random.choice(self.cre_property_types)
             msa = random.choice(self.msa_cities)
-            
+            lat, lon = self._jitter_coords(*MSA_COORDS[msa])
+
             num_facilities = random.randint(1, 3)
-            
+
             for j in range(num_facilities):
-                facility_id = f"F{obligor_id:04d}_{j+1:02d}"
-                
-                origination_date = datetime.now() - timedelta(days=np.random.randint(365, 1825))
+                facility_id = f"F{cre_start_id + i:05d}_{j+1:02d}"
+
+                origination_date = datetime.now() - timedelta(days=np.random.randint(30, 3650))
                 min_maturity_days = 730
-                max_maturity_days = 2190
+                max_maturity_days = 2555  # ~7 years
                 maturity_date = origination_date + timedelta(days=np.random.randint(min_maturity_days, max_maturity_days))
-                
-                quarterly_dates = self.generate_quarterly_dates(origination_date)
-                
+
+                monthly_dates = self.generate_monthly_dates(origination_date)
+
                 # Base metrics
                 base_balance = np.random.lognormal(mean=16, sigma=0.7)
                 base_ltv_ratio = np.random.uniform(0.4, 0.75)
@@ -300,28 +326,28 @@ class DatabaseRiskDataGenerator:
                 base_cap_rate = np.random.uniform(0.06, 0.10)
                 base_noi = base_property_value * base_cap_rate
                 base_dscr = np.random.uniform(1.1, 2.5)
-                
+
                 current_rating = self.generate_initial_rating()
                 is_defaulted = False
-                quarters_defaulted = 0
-                
-                for date in quarterly_dates:
-                    rating_result = self.simulate_rating_transition(current_rating, is_defaulted, quarters_defaulted)
-                    
+                months_defaulted = 0
+
+                for date in monthly_dates:
+                    rating_result = self.simulate_rating_transition(current_rating, is_defaulted, months_defaulted)
+
                     if rating_result[0] is None:
                         break
-                    
-                    current_rating, is_defaulted, quarters_defaulted = rating_result
-                    
+
+                    current_rating, is_defaulted, months_defaulted = rating_result
+
                     # Evolving metrics
                     balance = base_balance * (1 + np.random.normal(0, 0.1))
                     property_value = base_property_value * (1 + np.random.normal(0, 0.05))
                     noi = base_noi * (1 + np.random.normal(0, 0.08))
                     dscr = max(0.5, base_dscr + np.random.normal(0, 0.2))
                     ltv = (balance / property_value) * 100
-                    
+
                     sir = self.calculate_sir(balance) if current_rating == 17 else None
-                    
+
                     all_facilities.append({
                         'facility_id': facility_id,
                         'obligor_name': obligor_name,
@@ -341,336 +367,55 @@ class DatabaseRiskDataGenerator:
                         'sir': round(sir, 2) if sir is not None else None,
                         'cre_property_type': property_type,
                         'msa': msa,
+                        'latitude': round(lat, 4),
+                        'longitude': round(lon, 4),
                         'noi': round(noi, 2),
                         'property_value': round(property_value, 2),
                         'dscr': round(dscr, 2),
                         'ltv': round(ltv, 2)
                     })
-            
-            obligor_id += 1
-        
+
+            # Note: obligor_id for CRE is cre_start_id + i, handled in facility_id above
+
         # Store in database
-        print("Storing data in database...")
+        print(f"Storing {len(all_facilities)} records in database...")
         df = pd.DataFrame(all_facilities)
-        df.to_sql('raw_facilities', self.engine, if_exists='replace', index=False)
-        
+        df.to_sql('raw_facilities', self.engine, if_exists='replace', index=False, chunksize=10000)
+
         # Store metadata
         with self.engine.connect() as conn:
             conn.execute(text("""
-                INSERT INTO generation_metadata 
+                INSERT INTO generation_metadata
                 (num_corporate_obligors, num_cre_obligors, total_facilities, data_version)
                 VALUES (:corp, :cre, :total, :version)
             """), {
                 'corp': num_corporate,
-                'cre': num_cre, 
+                'cre': num_cre,
                 'total': len(df),
-                'version': '1.0'
+                'version': '2.0'
             })
             conn.commit()
-        
+
         print(f"Stored {len(df)} facility records in database")
+        unique_facilities = df['facility_id'].nunique()
+        print(f"Unique facilities: {unique_facilities}")
         return len(df)
 
-def create_datatidy_config():
-    """Create comprehensive YAML configuration file for DataTidy transformations"""
-    config = {
-        'global_settings': {
-            'error_handling': 'strict',
-            'null_handling': 'keep',
-            'date_format': '%Y-%m-%d',
-            'decimal_places': 2,
-            'chunk_size': 10000,
-            'memory_limit': '1GB'
-        },
-        'input': {
-            'type': 'database',
-            'source': {
-                'connection_string': 'sqlite:///data/bank_risk.db',
-                'query': 'SELECT * FROM raw_facilities'
-            }
-        },
-        'filters': [
-            {
-                'column': 'obligor_rating',
-                'condition': '>=',
-                'value': 1
-            },
-            {
-                'column': 'obligor_rating', 
-                'condition': '<=',
-                'value': 17
-            },
-            {
-                'column': 'balance',
-                'condition': '>',
-                'value': 0
-            }
-        ],
-        'sort': [
-            {
-                'column': 'facility_id',
-                'order': 'asc'
-            },
-            {
-                'column': 'reporting_date',
-                'order': 'asc'
-            }
-        ],
-        'output': {
-            'columns': {
-                'facility_id': {
-                    'source': 'facility_id',
-                    'type': 'string',
-                    'transformation': 'facility_id.str.upper()',
-                    'validation': {
-                        'required': True,
-                        'pattern': '^F\\d{4}_\\d{2}$'
-                    }
-                },
-                'obligor_name': {
-                    'source': 'obligor_name',
-                    'type': 'string',
-                    'transformation': 'obligor_name.str.strip().str.title()',
-                    'validation': {
-                        'required': True,
-                        'min_length': 3,
-                        'max_length': 100
-                    }
-                },
-                'obligor_rating': {
-                    'source': 'obligor_rating',
-                    'type': 'int',
-                    'validation': {
-                        'required': True,
-                        'min': 1,
-                        'max': 17
-                    }
-                },
-                'balance': {
-                    'source': 'balance',
-                    'type': 'float',
-                    'transformation': 'round(balance, 2)',
-                    'validation': {
-                        'required': True,
-                        'min': 0
-                    }
-                },
-                'balance_millions': {
-                    'source': 'balance',
-                    'type': 'float',
-                    'transformation': 'round(balance / 1000000, 2)',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'risk_category': {
-                    'source': 'obligor_rating',
-                    'type': 'string',
-                    'transformation': '"Pass Rated" if obligor_rating <= 13 else ("Watch" if obligor_rating == 14 else ("Criticized" if obligor_rating <= 16 else "Defaulted"))'
-                },
-                'origination_date': {
-                    'source': 'origination_date',
-                    'type': 'string',
-                    'validation': {
-                        'required': True
-                    }
-                },
-                'maturity_date': {
-                    'source': 'maturity_date',
-                    'type': 'string',
-                    'validation': {
-                        'required': True
-                    }
-                },
-                'reporting_date': {
-                    'source': 'reporting_date',
-                    'type': 'string',
-                    'validation': {
-                        'required': True
-                    }
-                },
-                'lob': {
-                    'source': 'lob',
-                    'type': 'string',
-                    'validation': {
-                        'required': True,
-                        'allowed_values': ['Corporate Banking', 'CRE']
-                    }
-                },
-                'industry': {
-                    'source': 'industry',
-                    'type': 'string',
-                    'transformation': 'industry.str.strip() if industry is not None else None'
-                },
-                'free_cash_flow': {
-                    'source': 'free_cash_flow',
-                    'type': 'float',
-                    'transformation': 'round(free_cash_flow, 2) if free_cash_flow is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'fixed_charge_coverage': {
-                    'source': 'fixed_charge_coverage',
-                    'type': 'float',
-                    'transformation': 'round(fixed_charge_coverage, 2) if fixed_charge_coverage is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'cash_flow_leverage': {
-                    'source': 'cash_flow_leverage',
-                    'type': 'float',
-                    'transformation': 'round(cash_flow_leverage, 2) if cash_flow_leverage is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'liquidity': {
-                    'source': 'liquidity',
-                    'type': 'float',
-                    'transformation': 'round(liquidity, 2) if liquidity is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'profitability': {
-                    'source': 'profitability',
-                    'type': 'float',
-                    'transformation': 'round(profitability, 3) if profitability is not None else None'
-                },
-                'growth': {
-                    'source': 'growth',
-                    'type': 'float',
-                    'transformation': 'round(growth, 3) if growth is not None else None'
-                },
-                'sir': {
-                    'source': 'sir',
-                    'type': 'float',
-                    'transformation': 'round(sir, 2) if sir is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'cre_property_type': {
-                    'source': 'cre_property_type',
-                    'type': 'string',
-                    'transformation': 'cre_property_type.str.strip() if cre_property_type is not None else None',
-                    'validation': {
-                        'allowed_values': ['Office', 'Retail', 'Multifamily', 'Industrial', 'Hotel', 'Mixed Use', None]
-                    }
-                },
-                'msa': {
-                    'source': 'msa',
-                    'type': 'string',
-                    'transformation': 'msa.str.strip() if msa is not None else None'
-                },
-                'noi': {
-                    'source': 'noi',
-                    'type': 'float',
-                    'transformation': 'round(noi, 2) if noi is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'property_value': {
-                    'source': 'property_value',
-                    'type': 'float',
-                    'transformation': 'round(property_value, 2) if property_value is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'dscr': {
-                    'source': 'dscr',
-                    'type': 'float',
-                    'transformation': 'round(dscr, 2) if dscr is not None else None',
-                    'validation': {
-                        'min': 0
-                    }
-                },
-                'ltv': {
-                    'source': 'ltv',
-                    'type': 'float',
-                    'transformation': 'round(ltv, 2) if ltv is not None else None',
-                    'validation': {
-                        'min': 0,
-                        'max': 100
-                    }
-                }
-            }
-        },
-        'validation': {
-            'required_columns': ['facility_id', 'obligor_name', 'obligor_rating', 'balance', 'lob'],
-            'unique_constraints': ['facility_id', 'reporting_date'],
-            'rules': {
-                'obligor_rating': {
-                    'min': 1,
-                    'max': 17
-                },
-                'balance': {
-                    'min': 0
-                },
-                'ltv': {
-                    'max': 100
-                },
-                'dscr': {
-                    'min': 0
-                }
-            },
-            'business_rules': [
-                {
-                    'name': 'corporate_banking_fields',
-                    'condition': 'lob == "Corporate Banking"',
-                    'required_fields': ['industry'],
-                    'description': 'Corporate Banking facilities must have industry specified'
-                },
-                {
-                    'name': 'cre_fields',
-                    'condition': 'lob == "CRE"',
-                    'required_fields': ['cre_property_type', 'msa'],
-                    'description': 'CRE facilities must have property type and MSA specified'
-                },
-                {
-                    'name': 'defaulted_loans_have_sir',
-                    'condition': 'obligor_rating == 17',
-                    'required_fields': ['sir'],
-                    'description': 'Defaulted loans (rating 17) must have SIR value'
-                }
-            ]
-        }
-    }
-    
-    return config
 
 def generate_database_and_process():
-    """Main function to generate database data and process with DataTidy"""
-    # Create data directory
+    """Main function to generate database data."""
     os.makedirs('data', exist_ok=True)
-    
-    # Initialize generator and setup database
+
     generator = DatabaseRiskDataGenerator()
     generator.setup_database()
-    
-    # Generate and store raw data
-    total_records = generator.generate_and_store_data(100, 100)
-    
-    # Create DataTidy config
-    config = create_datatidy_config()
-    
-    # Save config to YAML file
-    import yaml
-    with open('data/datatidy_config.yaml', 'w') as f:
-        yaml.dump(config, f, default_flow_style=False)
-    
-    print("Created DataTidy configuration file: data/datatidy_config.yaml")
-    
-    print(f"Database setup and DataTidy configuration complete!")
+
+    total_records = generator.generate_and_store_data(3500, 1500)
+
+    print(f"Database generation complete!")
     print(f"Generated {total_records} facility records in database")
-    print(f"DataTidy config saved to: data/datatidy_config.yaml")
-    print(f"✓ Ready for data loading via DataTidy pipeline")
-    
+
     return total_records
+
 
 if __name__ == "__main__":
     generate_database_and_process()

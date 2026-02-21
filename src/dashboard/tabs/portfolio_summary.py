@@ -7,9 +7,11 @@ This is a fully-implemented tab that serves as a reference for building others.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta
+
 from dash import html, dcc, callback, Input, Output, State, no_update
 import plotly.graph_objs as go
-import pandas as pd
+import polars as pl
 from ..tabs.registry import BaseTab, TabContext, register_tab
 from ..components.toolbar import SliderControl, render_toolbar
 from .. import config
@@ -25,18 +27,18 @@ class PortfolioSummaryTab(BaseTab):
     # ── Layer 2: Toolbar ────────────────────────────────────────────────────
 
     def get_toolbar_controls(self, ctx: TabContext):
-        # Determine how many quarters are available
-        dates = sorted(ctx.facilities_df["reporting_date"].unique())
-        max_q = len(dates)
+        # Determine how many reporting periods are available
+        dates = ctx.facilities_df[ctx.facilities_df.columns[ctx.facilities_df.columns.index("reporting_date") if "reporting_date" in ctx.facilities_df.columns else 0]].unique().sort()
+        max_p = len(dates)
         return [
             SliderControl(
                 id="ps-time-window",
-                label="Time Window (Quarters)",
+                label="Lookback (months)",
                 min_val=1,
-                max_val=max_q,
+                max_val=min(max_p, 48),
                 step=1,
-                value=max_q,  # default: show all
-                marks={1: "1Q", max_q // 2: f"{max_q // 2}Q", max_q: f"{max_q}Q (All)"},
+                value=min(max_p, 48),  # default: show up to 48 months
+                marks={1: "1", 12: "12", 24: "24", min(max_p, 48): f"{min(max_p, 48)} (All)"},
                 order=10,
                 width="min-w-[320px] flex-1",
             ),
@@ -86,8 +88,6 @@ class PortfolioSummaryTab(BaseTab):
     # ── Callbacks ──────────────────────────────────────────────────────────
 
     def register_callbacks(self, app):
-        # Import the singleton here (not at module top-level) so circular
-        # imports are avoided during the tab auto-discovery phase.
         from ..app_state import app_state
 
         @callback(
@@ -96,11 +96,11 @@ class PortfolioSummaryTab(BaseTab):
              Input("ps-time-window", "value")],
             prevent_initial_call=True,
         )
-        def update_main_content(selected_portfolio, quarters):
+        def update_main_content(selected_portfolio, n_periods):
             if not selected_portfolio:
                 return no_update
 
-            filtered_fdf = _filter_by_quarters(app_state.facilities_df, quarters)
+            filtered_fdf = _filter_by_periods(app_state.facilities_df, n_periods)
             gfd = lambda p: app_state._apply_portfolio_filter(p, _get_latest(filtered_fdf))
             return _create_main_content(
                 selected_portfolio, gfd, filtered_fdf, app_state.portfolios
@@ -112,34 +112,34 @@ class PortfolioSummaryTab(BaseTab):
              Input("ps-time-window", "value")],
             prevent_initial_call=True,
         )
-        def update_positions_panel(selected_portfolio, quarters):
+        def update_positions_panel(selected_portfolio, n_periods):
             if not selected_portfolio:
                 return no_update
 
-            filtered_fdf = _filter_by_quarters(app_state.facilities_df, quarters)
+            filtered_fdf = _filter_by_periods(app_state.facilities_df, n_periods)
             gfd = lambda p: app_state._apply_portfolio_filter(p, _get_latest(filtered_fdf))
             return _create_positions_panel(
                 selected_portfolio, filtered_fdf, app_state.portfolios, gfd
             )
 
 
-def _filter_by_quarters(facilities_df, n_quarters):
-    """Return facilities from the most recent *n_quarters* quarters."""
-    if n_quarters is None:
+def _filter_by_periods(facilities_df: pl.DataFrame, n_periods):
+    """Return facilities from the most recent *n_periods* reporting periods."""
+    if n_periods is None:
         return facilities_df
-    dates = sorted(facilities_df["reporting_date"].unique())
-    if n_quarters >= len(dates):
+    dates = facilities_df["reporting_date"].unique().sort()
+    if n_periods >= len(dates):
         return facilities_df
-    cutoff_dates = dates[-n_quarters:]
-    return facilities_df[facilities_df["reporting_date"].isin(cutoff_dates)]
+    cutoff_dates = dates.tail(n_periods)
+    return facilities_df.filter(pl.col("reporting_date").is_in(cutoff_dates))
 
 
-def _get_latest(facilities_df):
+def _get_latest(facilities_df: pl.DataFrame) -> pl.DataFrame:
     """Return the latest-quarter snapshot from a (possibly filtered) DataFrame."""
-    if facilities_df.empty:
+    if facilities_df.is_empty():
         return facilities_df
     max_date = facilities_df["reporting_date"].max()
-    return facilities_df[facilities_df["reporting_date"] == max_date]
+    return facilities_df.filter(pl.col("reporting_date") == max_date)
 
 
 # Auto-register
@@ -151,31 +151,38 @@ register_tab(PortfolioSummaryTab())
 # =============================================================================
 
 
-def _create_charts(portfolio_data):
+def _create_charts(portfolio_data: pl.DataFrame):
     """Create charts for the selected portfolio with dark theme and purple styling"""
-    
+
     if len(portfolio_data) == 0:
         empty_bar = go.Figure()
         empty_bar.add_annotation(text="No data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         empty_bar.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', title="Top 10 Holdings by Borrower", height=300, font=dict(color='rgba(255,255,255,0.7)'))
-        
+
         empty_pie = go.Figure()
         empty_pie.add_annotation(text="No data available", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         empty_pie.update_layout(plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', title="Holdings by Industry", height=300, font=dict(color='rgba(255,255,255,0.7)'))
-        
+
         return empty_bar, empty_pie
-    
+
     # Top 10 holdings by borrower
-    borrower_totals = portfolio_data.groupby('obligor_name')['balance'].sum().sort_values(ascending=False).head(10)
-    
-    borrower_names = borrower_totals.index.tolist()
-    balances_m = [f"(${balance/1e6:.1f}M)" for balance in borrower_totals.values.tolist()]
+    borrower_totals = (
+        portfolio_data
+        .group_by("obligor_name")
+        .agg(pl.col("balance").sum())
+        .sort("balance", descending=True)
+        .head(10)
+    )
+
+    borrower_names = borrower_totals["obligor_name"].to_list()
+    balances = borrower_totals["balance"].to_list()
+    balances_m = [f"(${b/1e6:.1f}M)" for b in balances]
     labels = [f"{name}  {bal}" for name, bal in zip(borrower_names, balances_m)]
-    
+
     bar_fig = go.Figure(data=[
         go.Bar(
-            x=borrower_totals.values.tolist(),
-            y=list(range(len(borrower_totals))),
+            x=balances,
+            y=list(range(len(balances))),
             orientation='h',
             marker_color=['#a78bfa','#8b5cf6','#7c3aed','#6d28d9','#5b21b6','#4c1d95','#a78bfa','#8b5cf6','#7c3aed','#6d28d9'],
             text=labels,
@@ -185,7 +192,7 @@ def _create_charts(portfolio_data):
             textposition='inside',
         )
     ])
-    
+
     bar_fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
         plot_bgcolor='rgba(0,0,0,0)',
@@ -203,20 +210,29 @@ def _create_charts(portfolio_data):
             title="",
             showticklabels=False,
             color='rgba(255,255,255,0.5)',
-            range=[len(borrower_totals)-1, -1]
+            range=[len(balances)-1, -1]
         )
     )
-    
+
     # Holdings by industry/property type
-    if 'Corporate Banking' in portfolio_data['lob'].values:
-        industry_data = portfolio_data[portfolio_data['lob'] == 'Corporate Banking']['industry'].value_counts()
-        pie_labels = industry_data.index.tolist()
-        pie_values = industry_data.values.tolist()
+    lob_values = portfolio_data["lob"].to_list()
+    if 'Corporate Banking' in lob_values:
+        cat_data = (
+            portfolio_data.filter(pl.col("lob") == "Corporate Banking")["industry"]
+            .value_counts()
+            .sort("count", descending=True)
+        )
+        pie_labels = cat_data["industry"].to_list()
+        pie_values = cat_data["count"].to_list()
     else:
-        property_data = portfolio_data[portfolio_data['lob'] == 'CRE']['cre_property_type'].value_counts()
-        pie_labels = property_data.index.tolist()
-        pie_values = property_data.values.tolist()
-    
+        cat_data = (
+            portfolio_data.filter(pl.col("lob") == "CRE")["cre_property_type"]
+            .value_counts()
+            .sort("count", descending=True)
+        )
+        pie_labels = cat_data["cre_property_type"].to_list()
+        pie_values = cat_data["count"].to_list()
+
     pie_fig = go.Figure(data=[
         go.Pie(
             labels=pie_labels,
@@ -225,7 +241,7 @@ def _create_charts(portfolio_data):
             marker_colors=['#a78bfa', '#8b5cf6', '#7c3aed', '#6d28d9', '#5b21b6', '#4c1d95', '#2dd4bf', '#14b8a6']
         )
     ])
-    
+
     pie_fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
         showlegend=False,
@@ -234,43 +250,50 @@ def _create_charts(portfolio_data):
         paper_bgcolor='rgba(0,0,0,0)',
         height=300
     )
-    
+
     return bar_fig, pie_fig
 
 
-def _create_watchlist_table(portfolio_data, facilities_df):
+def _create_watchlist_table(portfolio_data: pl.DataFrame, facilities_df: pl.DataFrame):
     """Create risk table for the selected portfolio with modern styling"""
-    
+
     if len(portfolio_data) == 0:
         return html.Div("No data available for this portfolio.", className="p-4")
 
-    portfolio_data = portfolio_data.copy()
-    portfolio_data['reporting_date'] = pd.to_datetime(portfolio_data['reporting_date'])
-    facilities_df['reporting_date'] = pd.to_datetime(facilities_df['reporting_date'])
-    
+    # Ensure dates are comparable
+    if portfolio_data["reporting_date"].dtype != pl.Date and portfolio_data["reporting_date"].dtype != pl.Datetime:
+        portfolio_data = portfolio_data.with_columns(pl.col("reporting_date").cast(pl.Datetime))
+    if facilities_df["reporting_date"].dtype != pl.Date and facilities_df["reporting_date"].dtype != pl.Datetime:
+        facilities_df = facilities_df.with_columns(pl.col("reporting_date").cast(pl.Datetime))
+
     watchlist_rows = []
-    for _, row in portfolio_data.iterrows():
+    for row in portfolio_data.iter_rows(named=True):
         fac_id = row['facility_id']
         obligor = row['obligor_name']
         current_rating = row['obligor_rating']
         current_balance = row['balance']
         current_date = row['reporting_date']
-        
-        prev_facility_data = facilities_df[
-            (facilities_df['facility_id'] == fac_id) & 
-            (facilities_df['reporting_date'] < current_date)
-        ].sort_values('reporting_date').tail(1)
-        
-        if not prev_facility_data.empty:
-            prev_rating = prev_facility_data.iloc[0]['obligor_rating']
+
+        prev_facility_data = (
+            facilities_df
+            .filter(
+                (pl.col("facility_id") == fac_id)
+                & (pl.col("reporting_date") < current_date)
+            )
+            .sort("reporting_date")
+            .tail(1)
+        )
+
+        if not prev_facility_data.is_empty():
+            prev_rating = prev_facility_data["obligor_rating"][0]
             rating_movement = "↓" if prev_rating < current_rating else "↑" if prev_rating > current_rating else "→"
             rating_color = "text-red-600" if rating_movement == "↓" else "text-green-600" if rating_movement == "↑" else "text-gray-600"
         else:
             rating_movement = "New"
             rating_color = "text-blue-600"
-        
+
         is_watchlist = current_rating >= 6 or current_balance > 50000000
-        
+
         if is_watchlist:
             watchlist_rows.append({
                 'obligor': obligor,
@@ -280,13 +303,13 @@ def _create_watchlist_table(portfolio_data, facilities_df):
                 'movement_color': rating_color,
                 'risk_level': 'High' if current_rating >= 8 else 'Medium' if current_rating >= 6 else 'Watch'
             })
-    
+
     if not watchlist_rows:
         return html.Div("No high-risk facilities in this portfolio.", className="p-4 text-center text-ink-500")
-    
+
     watchlist_rows.sort(key=lambda x: (x['rating'], float(x['balance'].replace('$', '').replace('M', ''))), reverse=True)
     watchlist_rows = watchlist_rows[:10]
-    
+
     table_rows = []
     for item in watchlist_rows:
         risk_badge_class = {
@@ -294,7 +317,7 @@ def _create_watchlist_table(portfolio_data, facilities_df):
             'Medium': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
             'Watch': 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
         }.get(item['risk_level'], 'bg-gray-100 text-gray-800')
-        
+
         table_rows.append(
             html.Tr([
                 html.Td(item['obligor'], className="px-3 py-2 text-xs font-medium"),
@@ -308,7 +331,7 @@ def _create_watchlist_table(portfolio_data, facilities_df):
                 ], className="px-3 py-2 text-center")
             ], className="border-b border-slate-100 dark:border-ink-700")
         )
-    
+
     return html.Div([
         html.Table([
             html.Thead([
@@ -329,14 +352,15 @@ def _create_main_content(selected_portfolio, get_filtered_data, facilities_df, p
     """Create the main content area with dark theme and purple styling"""
     portfolio_data = get_filtered_data(selected_portfolio)
     bar_fig, pie_fig = _create_charts(portfolio_data)
-    
-    if len(portfolio_data) > 0 and 'Corporate Banking' in portfolio_data['lob'].values:
+
+    lob_values = portfolio_data["lob"].to_list() if len(portfolio_data) > 0 else []
+    if len(portfolio_data) > 0 and 'Corporate Banking' in lob_values:
         pie_chart_title = "Holdings by Industry"
         bar_chart_subtitle = "Asset Type = Corporate Banking"
     else:
         pie_chart_title = "Holdings by Property Type"
         bar_chart_subtitle = "Asset Type = CRE"
-    
+
     return html.Section([
         html.Div([
             html.Div([
@@ -345,7 +369,7 @@ def _create_main_content(selected_portfolio, get_filtered_data, facilities_df, p
                     html.Div(bar_chart_subtitle, className="text-xs text-ink-500 dark:text-slate-400")
                 ], className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-ink-700"),
                 dcc.Graph(
-                    figure=bar_fig, 
+                    figure=bar_fig,
                     config={'displayModeBar': False},
                     style={'height': '300px'}
                 )
@@ -356,7 +380,7 @@ def _create_main_content(selected_portfolio, get_filtered_data, facilities_df, p
                     html.Div("Portfolio Distribution", className="text-xs text-ink-500 dark:text-slate-400")
                 ], className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-ink-700"),
                 dcc.Graph(
-                    figure=pie_fig, 
+                    figure=pie_fig,
                     config={'displayModeBar': False},
                     style={'height': '300px'}
                 )
@@ -372,47 +396,63 @@ def _create_main_content(selected_portfolio, get_filtered_data, facilities_df, p
     ], className="flex flex-col min-h-[600px]")
 
 
-def _create_positions_panel(selected_portfolio, facilities_df, portfolios, get_filtered_data):
+def _create_positions_panel(selected_portfolio, facilities_df: pl.DataFrame, portfolios, get_filtered_data):
     """Create portfolio positions panel with modern Tailwind styling"""
     portfolio_data = get_filtered_data(selected_portfolio)
 
     if len(portfolio_data) == 0:
         return html.Div("No data available for this portfolio.", className="p-4 positions-panel")
-    
+
     all_portfolios_data = []
     for pname in portfolios.keys():
         pdata = get_filtered_data(pname)
         if len(pdata) > 0:
             all_portfolios_data.append(pdata)
-    
+
     if all_portfolios_data:
-        all_data = pd.concat(all_portfolios_data).drop_duplicates()
+        all_data = pl.concat(all_portfolios_data).unique()
     else:
-        all_data = pd.DataFrame()
+        all_data = pl.DataFrame()
 
     if len(portfolio_data) == 0:
         return html.Div("No data available for this portfolio.", className="p-4 positions-panel")
 
-    total_balance_all = all_data['balance'].sum() if len(all_data) > 0 and 'balance' in all_data.columns else 0
-    total_balance = portfolio_data['balance'].sum() if 'balance' in portfolio_data.columns else 0
+    total_balance_all = all_data["balance"].sum() if len(all_data) > 0 and "balance" in all_data.columns else 0
+    total_balance = portfolio_data["balance"].sum() if "balance" in portfolio_data.columns else 0
     pct_of_total = (total_balance / total_balance_all * 100) if total_balance_all > 0 else 0
 
-    avg_rating = portfolio_data['obligor_rating'].mean() if 'obligor_rating' in portfolio_data else None
-    today = pd.Timestamp.today()
-    portfolio_data['maturity_date'] = pd.to_datetime(portfolio_data['maturity_date'])
-    avg_maturity_yrs = (portfolio_data['maturity_date'] - today).dt.days.mean() / 365.25
+    avg_rating = portfolio_data["obligor_rating"].mean() if "obligor_rating" in portfolio_data.columns else None
 
-    maturity_years = (portfolio_data['maturity_date'] - today).dt.days / 365.25
-    buckets = [(1,3), (3,5), (5,100)]
-    maturity_percents = [((maturity_years >= b[0]) & (maturity_years < b[1])).sum() / len(portfolio_data) * 100 if len(portfolio_data) > 0 else 0 for b in buckets]
-    na_percent = 100 - sum(maturity_percents)
+    today = datetime.today()
+    # Handle maturity_date — cast to datetime if needed
+    mat_df = portfolio_data
+    if "maturity_date" in mat_df.columns:
+        if mat_df["maturity_date"].dtype == pl.Utf8:
+            mat_df = mat_df.with_columns(pl.col("maturity_date").str.to_datetime())
+        maturity_days = mat_df.with_columns(
+            ((pl.col("maturity_date") - pl.lit(today)).dt.total_days()).alias("days_to_mat")
+        )
+        avg_maturity_yrs = maturity_days["days_to_mat"].mean() / 365.25 if maturity_days["days_to_mat"].mean() is not None else 0
+
+        mat_years = maturity_days["days_to_mat"].to_list()
+        n = len(mat_years)
+        buckets = [(1, 3), (3, 5), (5, 100)]
+        maturity_percents = []
+        for lo, hi in buckets:
+            lo_days, hi_days = lo * 365.25, hi * 365.25
+            count = sum(1 for d in mat_years if d is not None and lo_days <= d < hi_days)
+            maturity_percents.append(count / n * 100 if n > 0 else 0)
+        na_percent = 100 - sum(maturity_percents)
+    else:
+        avg_maturity_yrs = 0
+        maturity_percents = [0, 0, 0]
+        na_percent = 100
 
     rating_rows = []
     for rating in range(1, 18):
-        mask = portfolio_data['obligor_rating'] == rating
-        rating_balance = portfolio_data.loc[mask, 'balance'].sum()
+        rating_balance = portfolio_data.filter(pl.col("obligor_rating") == rating)["balance"].sum()
         percent = (rating_balance / total_balance * 100) if total_balance > 0 else 0
-        
+
         if percent > 0:
             rating_rows.append(
                 html.Div([
@@ -478,5 +518,3 @@ def _create_positions_panel(selected_portfolio, facilities_df, portfolios, get_f
 # =============================================================================
 # Private helpers (merged from components/portfolio_management.py)
 # =============================================================================
-
-

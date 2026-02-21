@@ -27,11 +27,14 @@ Callback authoring pattern
 from __future__ import annotations
 
 import logging
-import pandas as pd
+
+import polars as pl
 
 from . import config
 from .auth import user_management
-from .data.loader import load_facilities_data
+from .data.loader import load_dataset, load_facilities_data
+from .data.dataset import Dataset
+from .data.registry import DatasetRegistry
 from .tabs.registry import TabContext
 
 logger = logging.getLogger(__name__)
@@ -50,10 +53,39 @@ class AppState:
     def __init__(self) -> None:
         self.portfolios: dict = {}
         self.custom_metrics: dict = {}
-        self.facilities_df: pd.DataFrame = pd.DataFrame()
-        self.latest_facilities: pd.DataFrame = pd.DataFrame()
+        self._dataset: Dataset | None = None
         self.default_portfolio: str = "Entire Commercial"
         self.available_portfolios: list[str] = []
+
+    # ── Properties delegating to Dataset ──────────────────────────────────
+
+    @property
+    def facilities_df(self) -> pl.DataFrame:
+        if self._dataset is not None:
+            return self._dataset.full_df
+        return pl.DataFrame()
+
+    @facilities_df.setter
+    def facilities_df(self, value: pl.DataFrame) -> None:
+        # Support direct assignment for fallback / tests
+        if self._dataset is not None:
+            self._dataset.full_df = value
+        else:
+            self._dataset = Dataset(
+                name="facilities", full_df=value,
+                latest_df=value,
+            )
+
+    @property
+    def latest_facilities(self) -> pl.DataFrame:
+        if self._dataset is not None:
+            return self._dataset.latest_df
+        return pl.DataFrame()
+
+    @latest_facilities.setter
+    def latest_facilities(self, value: pl.DataFrame) -> None:
+        if self._dataset is not None:
+            self._dataset.latest_df = value
 
     # ── Initialisation ───────────────────────────────────────────────────────
 
@@ -61,13 +93,7 @@ class AppState:
         """Load data from the database and set up default portfolios."""
         logger.info("=== IRIS-D - Loading Data ===")
         try:
-            self.facilities_df = load_facilities_data()
-            self.latest_facilities = (
-                self.facilities_df
-                .sort_values("reporting_date")
-                .groupby("facility_id")
-                .tail(1)
-            )
+            self._dataset = load_dataset("facilities")
             self.portfolios = config.DEFAULT_PORTFOLIOS.copy()
             self.available_portfolios = list(self.portfolios.keys())
             self.default_portfolio = (
@@ -84,17 +110,22 @@ class AppState:
 
     def _load_fallback_data(self) -> None:
         """Populate minimal stub data when the database is unavailable."""
-        self.facilities_df = pd.DataFrame({
+        fallback = pl.DataFrame({
             "facility_id": ["F001", "F002", "F003"],
             "obligor_name": ["Test Company 1", "Test Company 2", "Test Company 3"],
             "obligor_rating": [5, 8, 12],
-            "balance": [1_000_000, 2_000_000, 3_000_000],
+            "balance": [1_000_000.0, 2_000_000.0, 3_000_000.0],
             "lob": ["Corporate Banking", "CRE", "Corporate Banking"],
             "industry": ["Technology", None, "Healthcare"],
             "cre_property_type": [None, "Office", None],
             "reporting_date": ["2024-01-01", "2024-01-01", "2024-01-01"],
         })
-        self.latest_facilities = self.facilities_df.copy()
+        self._dataset = Dataset(
+            name="facilities",
+            full_df=fallback,
+            latest_df=fallback,
+        )
+        DatasetRegistry.register(self._dataset)
         self.portfolios = {
             "Entire Commercial": {"filters": []},
         }
@@ -116,17 +147,9 @@ class AppState:
 
     def get_segmentation_columns(self) -> list[str]:
         """Return categorical column names suitable for portfolio segmentation."""
-        if self.latest_facilities.empty:
+        if self._dataset is None:
             return []
-        cols = []
-        for col in self.latest_facilities.columns:
-            dtype = self.latest_facilities[col].dtype
-            if dtype == "object" or dtype.name == "category" or col == "risk_category":
-                # Exclude ID / date columns
-                if col not in ("facility_id", "reporting_date", "origination_date", "maturity_date"):
-                    if col not in cols:
-                        cols.append(col)
-        return cols
+        return self._dataset.get_segmentation_columns()
 
     @staticmethod
     def get_column_display_name(col: str) -> str:
@@ -135,112 +158,42 @@ class AppState:
             return AppState._COLUMN_DISPLAY_NAMES[col]
         return col.replace("_", " ").title()
 
-    def get_unique_values(self, column: str, df: pd.DataFrame | None = None) -> list[str]:
+    def get_unique_values(self, column: str, df: pl.DataFrame | None = None) -> list[str]:
         """Return sorted unique non-null values for a column."""
-        source = df if df is not None else self.latest_facilities
-        if column not in source.columns:
+        if self._dataset is None:
             return []
-        return sorted(source[column].dropna().unique().tolist())
+        return self._dataset.get_unique_values(column, df)
 
     # ── Core filtering ────────────────────────────────────────────────────────
 
     @staticmethod
     def _migrate_criteria(criteria: dict) -> dict:
         """Convert old flat-format criteria to new filter-list format."""
-        if "filters" in criteria:
-            return criteria
-        filters = []
-        if criteria.get("lob"):
-            filters.append({"column": "lob", "values": [criteria["lob"]]})
-        if criteria.get("industry"):
-            ind = criteria["industry"]
-            filters.append({"column": "industry", "values": ind if isinstance(ind, list) else [ind]})
-        if criteria.get("property_type"):
-            pt = criteria["property_type"]
-            filters.append({"column": "cre_property_type", "values": pt if isinstance(pt, list) else [pt]})
-        if criteria.get("obligors"):
-            ob = criteria["obligors"]
-            filters.append({"column": "obligor_name", "values": ob if isinstance(ob, list) else [ob]})
-        return {"filters": filters}
+        return Dataset._migrate_criteria(criteria)
 
-    def _apply_portfolio_filter(self, portfolio_name: str, df: pd.DataFrame) -> pd.DataFrame:
+    def _apply_portfolio_filter(self, portfolio_name: str, df: pl.DataFrame) -> pl.DataFrame:
         """Apply portfolio criteria to any arbitrary DataFrame.
 
         Supports both the new ``{"filters": [...]}`` format and the legacy
         flat format (auto-migrated on the fly).
-
-        Parameters
-        ----------
-        portfolio_name:
-            Key into ``self.portfolios``.
-        df:
-            Input DataFrame.
-
-        Returns
-        -------
-        pd.DataFrame
-            Filtered copy, or an empty DataFrame if the portfolio is unknown.
         """
-        if portfolio_name not in self.portfolios:
-            return pd.DataFrame()
+        if self._dataset is None:
+            return pl.DataFrame()
+        return self._dataset._apply_filter(portfolio_name, self.portfolios, df)
 
-        criteria = self._migrate_criteria(self.portfolios[portfolio_name])
-        filtered = df.copy()
-
-        for level in criteria.get("filters", []):
-            col = level.get("column")
-            vals = level.get("values", [])
-            if col and vals and col in filtered.columns:
-                filtered = filtered[filtered[col].astype(str).isin([str(v) for v in vals])]
-
-        return filtered
-
-    def get_filtered_data(self, portfolio_name: str) -> pd.DataFrame:
-        """Return ``latest_facilities`` filtered by the named portfolio's criteria.
-
-        This is the standard, single-snapshot filter.  Use it in callbacks and
-        in ``render()`` methods via ``ctx.get_filtered_data``.
-        """
-        return self._apply_portfolio_filter(portfolio_name, self.latest_facilities.copy())
+    def get_filtered_data(self, portfolio_name: str) -> pl.DataFrame:
+        """Return ``latest_facilities`` filtered by the named portfolio's criteria."""
+        if self._dataset is None:
+            return pl.DataFrame()
+        return self._dataset.get_filtered(portfolio_name, self.portfolios)
 
     def get_filtered_data_windowed(
-        self, portfolio_name: str, n_quarters: int | None = None
-    ) -> pd.DataFrame:
-        """Return portfolio-filtered data restricted to the most-recent N quarters.
-
-        Used by tabs with a time-window slider (e.g. Portfolio Summary).
-        When *n_quarters* is ``None`` or exceeds the available history, the
-        full history is returned — matching the behaviour of
-        :meth:`get_filtered_data`.
-
-        Parameters
-        ----------
-        portfolio_name:
-            Key into ``self.portfolios``.
-        n_quarters:
-            How many of the most-recent reporting periods to include.
-            ``None`` means all periods.
-
-        Returns
-        -------
-        pd.DataFrame
-            Portfolio-filtered snapshot using the last quarter visible in the
-            time window.
-        """
-        fdf = self.facilities_df
-        if n_quarters is not None:
-            dates = sorted(fdf["reporting_date"].unique())
-            if n_quarters < len(dates):
-                cutoff_dates = dates[-n_quarters:]
-                fdf = fdf[fdf["reporting_date"].isin(cutoff_dates)]
-
-        # Derive "latest" snapshot within the window
-        if fdf.empty:
-            return pd.DataFrame()
-        max_date = fdf["reporting_date"].max()
-        latest_in_window = fdf[fdf["reporting_date"] == max_date]
-
-        return self._apply_portfolio_filter(portfolio_name, latest_in_window)
+        self, portfolio_name: str, n_periods: int | None = None
+    ) -> pl.DataFrame:
+        """Return portfolio-filtered data restricted to the most-recent N periods."""
+        if self._dataset is None:
+            return pl.DataFrame()
+        return self._dataset.get_filtered_windowed(portfolio_name, self.portfolios, n_periods)
 
     # ── Tab context ──────────────────────────────────────────────────────────
 
@@ -270,11 +223,15 @@ class AppState:
             self.portfolios.update(user_portfolios)
         self.custom_metrics.update(user_data.get("custom_metrics", {}))
         self.available_portfolios = list(self.portfolios.keys())
+        # Invalidate caches when portfolios change
+        DatasetRegistry.invalidate_all_caches()
 
     def save_user_data(self, username: str) -> None:
         """Persist custom portfolios and metrics for the given user."""
         custom_p = {k: v for k, v in self.portfolios.items() if k not in config.DEFAULT_PORTFOLIOS}
         user_management.save_user_data(username, custom_p, self.custom_metrics)
+        # Invalidate caches after portfolio changes
+        DatasetRegistry.invalidate_all_caches()
 
 
 # Module-level singleton — imported by app.py and all callback modules.
