@@ -151,9 +151,13 @@ class ProfileAvatar(GlobalControl):
     order = 20
 
     def render(self, **kwargs) -> html.Button:
+        from ..auth import user_management
+        name = user_management.get_current_user()
+        words = name.split() if name else []
+        initials = (words[0][0] + words[-1][0]).upper() if len(words) >= 2 else (name[0].upper() if name else "?")
         return html.Button(
             id="profile-avatar-btn",
-            children="G",
+            children=initials,
             n_clicks=0,
             className=(
                 "ml-2 h-8 w-8 rounded-full bg-gradient-to-br "

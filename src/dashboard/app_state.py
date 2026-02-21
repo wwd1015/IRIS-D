@@ -226,18 +226,15 @@ class AppState:
         self.portfolios.clear()
         self.custom_metrics.clear()
         self.portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
-        if username != "Guest":
-            user_data = user_management.get_user_data(username)
-            user_portfolios = user_data.get("portfolios", {})
-            if user_portfolios:
-                self.portfolios.update(user_portfolios)
-            self.custom_metrics.update(user_data.get("custom_metrics", {}))
+        user_data = user_management.get_user_data(username)
+        user_portfolios = user_data.get("portfolios", {})
+        if user_portfolios:
+            self.portfolios.update(user_portfolios)
+        self.custom_metrics.update(user_data.get("custom_metrics", {}))
         self.available_portfolios = list(self.portfolios.keys())
 
     def save_user_data(self, username: str) -> None:
         """Persist custom portfolios and metrics for the given user."""
-        if username == "Guest":
-            return
         custom_p = {k: v for k, v in self.portfolios.items() if k not in config.DEFAULT_PORTFOLIOS}
         user_management.save_user_data(username, custom_p, self.custom_metrics)
 

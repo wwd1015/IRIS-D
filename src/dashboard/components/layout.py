@@ -72,10 +72,6 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                     *left_controls,
                 ], className="flex items-center gap-3"),
                 html.Div([
-                    # Login button (kept outside GlobalControl registry
-                    # because user callbacks in app.py still reference it)
-                    html.Button("Login/Register", id="login-btn", n_clicks=0,
-                                className="header-btn"),
                     *right_controls,
                 ], className="flex items-center gap-2 text-sm"),
             ], className="flex h-14 items-center justify-between gap-3"),
@@ -92,7 +88,6 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         ], className="mx-auto max-w-[1600px] px-5 py-4"),
 
         # ── Modals ──────────────────────────────────────────────────────────
-        _login_modal(),
         _profile_switch_modal(),
         _contact_modal(),
         _portfolio_modal(),
@@ -101,7 +96,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         # ── Hidden infrastructure ───────────────────────────────────────────
         dcc.Interval(id="auto-save-interval", interval=30_000, n_intervals=0),
         dcc.Interval(id="hide-notification-interval", interval=3_000, n_intervals=0, disabled=True),
-        dcc.Store(id="current-user-store", data="Guest"),
+        dcc.Store(id="current-user-store", data=user_management.get_current_user()),
         *signal_stores,
     ])
 
@@ -128,37 +123,6 @@ _MODAL_CENTER = {
     "transform": "translate(-50%, -50%)", "zIndex": "1001",
 }
 
-
-def _login_modal():
-    return html.Div([
-        html.Div([
-            html.H3("Login / Register", style={"marginBottom": "20px", "color": "rgba(255,255,255,0.92)", "textAlign": "center"}),
-            dcc.Input(id="username-input", type="text", placeholder="Enter username",
-                      className="form-input", style={"width": "100%", "marginBottom": "15px"}),
-            html.Div([
-                html.Label("Select Role:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "5px", "display": "block", "color": "rgba(255,255,255,0.6)"}),
-                dcc.Dropdown(
-                    id="role-dropdown",
-                    options=[{"label": r, "value": r} for r in ("Corp SCO", "CRE SCO", "SAG", "BA")],
-                    placeholder="Choose your role...",
-                    style={"marginBottom": "20px"}, className="form-select",
-                ),
-            ]),
-            html.Div([
-                html.Button("Login", id="login-submit", className="btn btn-primary btn-glow", style={"marginRight": "10px"}),
-                html.Button("Register", id="register-submit", className="btn btn-secondary", style={"marginRight": "10px"}),
-                html.Button("Cancel", id="login-cancel", className="btn btn-ghost"),
-            ], style={"textAlign": "center", "marginBottom": "30px", "display": "flex", "justifyContent": "center", "gap": "8px"}),
-            html.Hr(style={"margin": "20px 0", "border": "1px solid rgba(255,255,255,0.08)"}),
-            html.Div([
-                html.H4("Delete Profile", style={"marginBottom": "15px", "color": "#f87171", "textAlign": "center", "fontSize": "18px"}),
-                dcc.Dropdown(id="delete-profile-dropdown", placeholder="Select profile to delete...",
-                             style={"marginBottom": "15px"}, className="form-select"),
-                html.Div([html.Button("Delete Profile", id="delete-profile-btn", className="btn btn-danger")],
-                         style={"textAlign": "center"}),
-            ], style={"marginTop": "20px"}),
-        ], style={**_MODAL_BG, **_MODAL_CENTER, "padding": "40px", "width": "420px", "maxWidth": "90vw"}),
-    ], id="login-modal", style=_MODAL_OVERLAY)
 
 
 def _profile_switch_modal():

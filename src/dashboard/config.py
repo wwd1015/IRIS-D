@@ -35,6 +35,9 @@ class DatabaseSettings:
     profiles_file: str = field(
         default_factory=lambda: os.environ.get("PROFILES_FILE", "data/user_profiles.json")
     )
+    roster_file: str = field(
+        default_factory=lambda: os.environ.get("ROSTER_FILE", "data/user_roster.parquet")
+    )
 
     def __post_init__(self) -> None:
         import logging
@@ -54,7 +57,7 @@ class AppSettings:
     debug: bool = field(
         default_factory=lambda: os.environ.get("DEBUG", "False").lower() == "true"
     )
-    default_user: str = "Guest"
+    default_user: str = "John Smith"
 
     def __post_init__(self) -> None:
         if not (1 <= self.port <= 65535):
@@ -102,5 +105,6 @@ HOST: str = settings.app.host
 PORT: int = settings.app.port
 DEBUG_MODE: bool = settings.app.debug
 DEFAULT_USER: str = settings.app.default_user
+ROSTER_FILE: str = settings.db.roster_file
 
 ASSETS_FOLDER: str = settings.ui.assets_folder
