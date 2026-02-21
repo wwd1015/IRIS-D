@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import math
 
-import pandas as pd
+import polars as pl
 from dash import html, dcc, callback, Input, Output, State, no_update, ALL, callback_context
 
 from ..tabs.registry import BaseTab, TabContext, register_tab
@@ -35,34 +35,34 @@ class HoldingsTab(BaseTab):
         controls = []
 
         if len(portfolio_data) > 0:
-            obligor_opts = [{"label": o, "value": o} for o in sorted(portfolio_data["obligor_name"].unique())]
+            obligor_opts = [{"label": o, "value": o} for o in sorted(portfolio_data["obligor_name"].unique().to_list())]
             controls.append(DropdownControl(
                 id="holdings-obligor-filter", label="Obligor",
                 options=obligor_opts, multi=True, placeholder="All obligors…", order=10,
             ))
 
-            rating_opts = [{"label": str(r), "value": r} for r in sorted(portfolio_data["obligor_rating"].unique())]
+            rating_opts = [{"label": str(r), "value": r} for r in sorted(portfolio_data["obligor_rating"].unique().to_list())]
             controls.append(DropdownControl(
                 id="holdings-rating-filter", label="Rating",
                 options=rating_opts, multi=True, placeholder="All ratings…", order=20,
             ))
 
-            # LOB-specific filters — always render all three, hide when not applicable
-            industry_opts = [{"label": i, "value": i} for i in sorted(portfolio_data["industry"].dropna().unique())] if lob == "Corporate Banking" else []
+            # LOB-specific filters
+            industry_opts = [{"label": i, "value": i} for i in sorted(portfolio_data["industry"].drop_nulls().unique().to_list())] if lob == "Corporate Banking" else []
             controls.append(DropdownControl(
                 id="holdings-industry-filter", label="Industry",
                 options=industry_opts, multi=True, placeholder="All industries…",
                 order=30, visible=(lob == "Corporate Banking"),
             ))
 
-            prop_opts = [{"label": p, "value": p} for p in sorted(portfolio_data["cre_property_type"].dropna().unique())] if lob == "CRE" else []
+            prop_opts = [{"label": p, "value": p} for p in sorted(portfolio_data["cre_property_type"].drop_nulls().unique().to_list())] if lob == "CRE" else []
             controls.append(DropdownControl(
                 id="holdings-property-filter", label="Property Type",
                 options=prop_opts, multi=True, placeholder="All property types…",
                 order=40, visible=(lob == "CRE"),
             ))
 
-            msa_opts = [{"label": m, "value": m} for m in sorted(portfolio_data["msa"].dropna().unique())] if lob == "CRE" else []
+            msa_opts = [{"label": m, "value": m} for m in sorted(portfolio_data["msa"].drop_nulls().unique().to_list())] if lob == "CRE" else []
             controls.append(DropdownControl(
                 id="holdings-msa-filter", label="MSA",
                 options=msa_opts, multi=True, placeholder="All MSAs…",
@@ -70,7 +70,7 @@ class HoldingsTab(BaseTab):
             ))
 
             max_bal = portfolio_data["balance"].max()
-            max_m = math.ceil(max_bal / 1_000_000) if max_bal > 0 else 1
+            max_m = math.ceil(max_bal / 1_000_000) if max_bal and max_bal > 0 else 1
             controls.append(RangeSliderControl(
                 id="holdings-balance-filter", label="Balance Range ($M)",
                 min_val=0, max_val=max_m, value=[0, max_m], step=1,
@@ -84,7 +84,7 @@ class HoldingsTab(BaseTab):
 
     def render_content(self, ctx: TabContext):
         portfolio_data = ctx.get_filtered_data(ctx.selected_portfolio)
-        n_facilities = len(portfolio_data["facility_id"].unique()) if len(portfolio_data) else 0
+        n_facilities = portfolio_data["facility_id"].n_unique() if len(portfolio_data) else 0
 
         return card_wrapper([
             html.Div([
@@ -101,8 +101,6 @@ class HoldingsTab(BaseTab):
     # ── Callbacks ──────────────────────────────────────────────────────────
 
     def register_callbacks(self, app):
-        # Import the singleton here (not at module top-level) so circular
-        # imports are avoided during the tab auto-discovery phase.
         from ..app_state import app_state
 
         @callback(
@@ -159,12 +157,12 @@ class HoldingsTab(BaseTab):
 
                 facility_id = btn_id["index"]
                 if n % 2 == 1:
-                    fac_row = app_state.facilities_df[
-                        app_state.facilities_df["facility_id"] == facility_id
-                    ]
+                    fac_row = app_state.facilities_df.filter(
+                        pl.col("facility_id") == facility_id
+                    )
                     if len(fac_row) == 0:
                         continue
-                    latest = fac_row.sort_values("reporting_date").iloc[-1]
+                    latest = fac_row.sort("reporting_date").tail(1).row(0, named=True)
                     children_out[i] = _create_time_series_table(
                         latest, app_state.facilities_df, app_state.custom_metrics
                     )
@@ -185,7 +183,7 @@ register_tab(HoldingsTab())
 
 
 def _create_holdings_table(
-    portfolio_data,
+    portfolio_data: pl.DataFrame,
     rating_filter=None,
     obligor_filter=None,
     industry_filter=None,
@@ -199,31 +197,31 @@ def _create_holdings_table(
 
     # ── Apply filters ───────────────────────────────────────────────────────
     if rating_filter:
-        portfolio_data = portfolio_data[portfolio_data["obligor_rating"].isin(rating_filter)]
+        portfolio_data = portfolio_data.filter(pl.col("obligor_rating").is_in(rating_filter))
     if obligor_filter:
-        portfolio_data = portfolio_data[portfolio_data["obligor_name"].isin(obligor_filter)]
+        portfolio_data = portfolio_data.filter(pl.col("obligor_name").is_in(obligor_filter))
     if industry_filter:
-        portfolio_data = portfolio_data[portfolio_data["industry"].isin(industry_filter)]
+        portfolio_data = portfolio_data.filter(pl.col("industry").is_in(industry_filter))
     if property_filter:
-        portfolio_data = portfolio_data[portfolio_data["cre_property_type"].isin(property_filter)]
+        portfolio_data = portfolio_data.filter(pl.col("cre_property_type").is_in(property_filter))
     if msa_filter:
-        portfolio_data = portfolio_data[portfolio_data["msa"].isin(msa_filter)]
+        portfolio_data = portfolio_data.filter(pl.col("msa").is_in(msa_filter))
     if balance_filter:
         lo, hi = balance_filter[0] * 1_000_000, balance_filter[1] * 1_000_000
-        portfolio_data = portfolio_data[
-            (portfolio_data["balance"] >= lo) & (portfolio_data["balance"] <= hi)
-        ]
+        portfolio_data = portfolio_data.filter(
+            (pl.col("balance") >= lo) & (pl.col("balance") <= hi)
+        )
 
     if len(portfolio_data) == 0:
         return html.Div("No data matches the selected filters.", className="p-4")
 
     # ── Build table rows ────────────────────────────────────────────────────
-    facilities = portfolio_data["facility_id"].unique()
+    facilities = portfolio_data["facility_id"].unique().to_list()
     table_rows = []
 
     for fid in facilities:
-        fac = portfolio_data[portfolio_data["facility_id"] == fid]
-        latest = fac.sort_values("reporting_date").iloc[-1]
+        fac = portfolio_data.filter(pl.col("facility_id") == fid)
+        latest = fac.sort("reporting_date").tail(1).row(0, named=True)
 
         main_row = html.Tr([
             html.Td([html.Button(
@@ -236,8 +234,8 @@ def _create_holdings_table(
             html.Td(latest["obligor_name"]),
             html.Td(latest["obligor_rating"]),
             html.Td(f"${latest['balance']:,.0f}"),
-            html.Td(latest["origination_date"]),
-            html.Td(latest["maturity_date"]),
+            html.Td(str(latest["origination_date"])),
+            html.Td(str(latest["maturity_date"])),
         ], id={"type": "facility-row", "index": fid})
 
         expanded = html.Tr([html.Td(
@@ -266,18 +264,20 @@ def _create_holdings_table(
     ], className="table-container")
 
 
-def _create_time_series_table(facility_data, facilities_df, custom_metrics=None):
+def _create_time_series_table(facility_data: dict, facilities_df: pl.DataFrame, custom_metrics=None):
     """Build per-facility time-series table shown when a row is expanded."""
     facility_id = facility_data["facility_id"]
-    fac_history = facilities_df[
-        facilities_df["facility_id"] == facility_id
-    ].sort_values("reporting_date")
+    fac_history = (
+        facilities_df
+        .filter(pl.col("facility_id") == facility_id)
+        .sort("reporting_date")
+    )
 
     if len(fac_history) == 0:
         return html.Div("No historical data available.")
 
-    dates = fac_history["reporting_date"].unique()
-    formatted_dates = [pd.to_datetime(d).strftime("%Y-%m-%d") for d in dates]
+    dates = fac_history["reporting_date"].unique().sort().to_list()
+    formatted_dates = [str(d)[:10] for d in dates]
 
     # ── Metric pools by LOB ─────────────────────────────────────────────────
     lob = facility_data.get("lob", "Unknown")
@@ -301,7 +301,7 @@ def _create_time_series_table(facility_data, facilities_df, custom_metrics=None)
 
     metrics = [
         m for m in candidates
-        if m in fac_history.columns and fac_history[m].notna().sum() > 0
+        if m in fac_history.columns and fac_history[m].drop_nulls().len() > 0
     ]
 
     # ── Build rows ──────────────────────────────────────────────────────────
@@ -316,11 +316,11 @@ def _create_time_series_table(facility_data, facilities_df, custom_metrics=None)
     for metric in metrics:
         values = []
         for date in dates:
-            row = fac_history[fac_history["reporting_date"] == date]
+            row = fac_history.filter(pl.col("reporting_date") == date)
             if len(row) == 0:
                 values.append("N/A"); continue
-            val = row[metric].iloc[0]
-            if pd.isna(val):
+            val = row[metric][0]
+            if val is None:
                 values.append("N/A")
             elif metric == "balance":
                 values.append(f"${val:,.0f}")

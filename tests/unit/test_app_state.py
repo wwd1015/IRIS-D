@@ -1,7 +1,7 @@
 """Unit tests for src/dashboard/app_state.py"""
 
 import pytest
-import pandas as pd
+import polars as pl
 
 
 class TestAppStateInitialisation:
@@ -15,7 +15,7 @@ class TestAppStateInitialisation:
         assert app_state.default_portfolio == app_state.available_portfolios[0]
 
     def test_latest_facilities_subset(self, app_state):
-        assert app_state.latest_facilities["facility_id"].is_unique
+        assert app_state.latest_facilities["facility_id"].n_unique() == len(app_state.latest_facilities)
 
     def test_default_portfolios_use_filter_format(self, app_state):
         for name, criteria in app_state.portfolios.items():
@@ -26,12 +26,12 @@ class TestAppStateInitialisation:
 class TestGetFilteredData:
     def test_entire_commercial_returns_all(self, app_state):
         df = app_state.get_filtered_data("Entire Commercial")
-        assert not df.empty
+        assert not df.is_empty()
         assert len(df) == len(app_state.latest_facilities)
 
     def test_missing_portfolio_returns_empty(self, app_state):
         df = app_state.get_filtered_data("Nonexistent Portfolio")
-        assert df.empty
+        assert df.is_empty()
 
     def test_custom_portfolio_multi_level_filter(self, app_state):
         app_state.portfolios["CRE Office"] = {
@@ -40,9 +40,11 @@ class TestGetFilteredData:
                 {"column": "cre_property_type", "values": ["Office"]},
             ]
         }
+        from src.dashboard.data.registry import DatasetRegistry
+        DatasetRegistry.invalidate_all_caches()
         df = app_state.get_filtered_data("CRE Office")
-        assert all(df["lob"] == "CRE")
-        assert all(df["cre_property_type"] == "Office")
+        assert all(v == "CRE" for v in df["lob"].to_list())
+        assert all(v == "Office" for v in df["cre_property_type"].to_list())
 
     def test_custom_portfolio_single_level_filter(self, app_state):
         app_state.portfolios["Tech Only"] = {
@@ -51,8 +53,10 @@ class TestGetFilteredData:
                 {"column": "industry", "values": ["Technology"]},
             ]
         }
+        from src.dashboard.data.registry import DatasetRegistry
+        DatasetRegistry.invalidate_all_caches()
         df = app_state.get_filtered_data("Tech Only")
-        assert all(df["industry"] == "Technology")
+        assert all(v == "Technology" for v in df["industry"].to_list())
 
     def test_legacy_format_backward_compat(self, app_state):
         """Old flat-format portfolios should still work via migration shim."""
@@ -61,9 +65,11 @@ class TestGetFilteredData:
             "industry": "Technology",
             "property_type": None,
         }
+        from src.dashboard.data.registry import DatasetRegistry
+        DatasetRegistry.invalidate_all_caches()
         df = app_state.get_filtered_data("Legacy CB")
-        assert all(df["lob"] == "Corporate Banking")
-        assert all(df["industry"] == "Technology")
+        assert all(v == "Corporate Banking" for v in df["lob"].to_list())
+        assert all(v == "Technology" for v in df["industry"].to_list())
 
 
 class TestSegmentationColumns:
@@ -124,8 +130,8 @@ class TestMakeTabContext:
     def test_get_filtered_data_callable(self, app_state):
         ctx = app_state.make_tab_context()
         df = ctx.get_filtered_data("Entire Commercial")
-        assert isinstance(df, pd.DataFrame)
-        assert not df.empty
+        assert isinstance(df, pl.DataFrame)
+        assert not df.is_empty()
 
 
 class TestLoadUserPortfolios:

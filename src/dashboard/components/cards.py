@@ -29,6 +29,7 @@ from enum import Enum
 from typing import Any, Callable, Optional
 
 import pandas as pd
+import polars as pl
 import plotly.graph_objects as go
 from dash import dash_table, dcc, html
 
@@ -186,16 +187,22 @@ class TableCard(DisplayCard):
     filterable: bool = False
 
     @abstractmethod
-    def get_data(self, ctx: TabContext) -> pd.DataFrame:
+    def get_data(self, ctx: TabContext) -> pl.DataFrame | pd.DataFrame:
         """Return the DataFrame to display."""
         ...
 
     def render_body(self, ctx: TabContext) -> dash_table.DataTable:
         df = self.get_data(ctx)
+        if isinstance(df, pl.DataFrame):
+            records = df.head(self.max_rows).to_dicts()
+            cols = self.columns or [{"name": c, "id": c} for c in df.columns]
+        else:
+            records = df.head(self.max_rows).to_dict("records")
+            cols = self.columns or [{"name": c, "id": c} for c in df.columns]
         return dash_table.DataTable(
             id=f"{self.card_id}-table",
-            columns=self.columns or [{"name": c, "id": c} for c in df.columns],
-            data=df.head(self.max_rows).to_dict("records"),
+            columns=cols,
+            data=records,
             sort_action="native" if self.sortable else "none",
             filter_action="native" if self.filterable else "none",
             page_size=self.max_rows,

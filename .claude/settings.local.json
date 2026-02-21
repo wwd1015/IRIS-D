@@ -20,7 +20,10 @@
       "Bash(mkdir:*)",
       "Bash(touch:*)",
       "Bash(cp:*)",
-      "Bash(HOST=0.0.0.0 python3 main.py)"
+      "Bash(HOST=0.0.0.0 python3 main.py)",
+      "Bash(jobs:*)",
+      "Bash(pip3 install:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

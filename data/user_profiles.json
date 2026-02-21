@@ -2,7 +2,7 @@
   "John Smith": {
     "role": "SAG",
     "portfolios": {
-      "Test3": {
+      "Financial & Healthcare": {
         "filters": [
           {
             "column": "industry",
@@ -15,7 +15,7 @@
       }
     },
     "custom_metrics": {},
-    "last_active_portfolio": "Test3"
+    "last_active_portfolio": "Entire Commercial"
   },
   "Jane Doe": {
     "role": "Corp SCO",

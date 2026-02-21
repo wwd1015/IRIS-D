@@ -1,6 +1,7 @@
 """Unit tests for src/dashboard/data/sources.py"""
 
 import pandas as pd
+import polars as pl
 import pytest
 
 from src.dashboard.data.sources import (
@@ -19,13 +20,29 @@ def sample_df():
 
 
 class TestInMemoryDataSource:
-    def test_load_returns_copy(self, sample_df):
+    def test_load_returns_polars(self, sample_df):
         source = InMemoryDataSource(sample_df)
         result = source.load_facilities()
-        assert result.equals(sample_df)
-        # Mutating the result should not affect the original
-        result["balance"] = 0
-        assert source.load_facilities()["balance"].tolist() == [100.0, 200.0]
+        assert isinstance(result, pl.DataFrame)
+
+    def test_load_data_matches(self, sample_df):
+        source = InMemoryDataSource(sample_df)
+        result = source.load_facilities()
+        assert result["facility_id"].to_list() == ["A1", "A2"]
+        assert result["balance"].to_list() == [100.0, 200.0]
+
+    def test_polars_immutability(self, sample_df):
+        source = InMemoryDataSource(sample_df)
+        result = source.load_facilities()
+        # polars DataFrames are immutable — same object returned
+        result2 = source.load_facilities()
+        assert result.equals(result2)
+
+    def test_accepts_polars_input(self):
+        pldf = pl.DataFrame({"facility_id": ["X1"], "balance": [50.0], "lob": ["CRE"]})
+        source = InMemoryDataSource(pldf)
+        result = source.load_facilities()
+        assert result["facility_id"].to_list() == ["X1"]
 
     def test_implements_protocol(self, sample_df):
         source = InMemoryDataSource(sample_df)
@@ -34,7 +51,8 @@ class TestInMemoryDataSource:
     def test_clear_cache_no_op(self, sample_df):
         source = InMemoryDataSource(sample_df)
         source.clear_cache()  # should not raise
-        assert source.load_facilities().equals(sample_df)
+        result = source.load_facilities()
+        assert result["balance"].to_list() == [100.0, 200.0]
 
 
 class TestDefaultSource:
@@ -58,7 +76,7 @@ class TestSqliteDataSourceMissingFile:
 
     def test_clear_cache_resets_state(self, tmp_path):
         source = SqliteDataSource(db_path=str(tmp_path / "nonexistent.db"))
-        source._cache = pd.DataFrame({"x": [1]})
+        source._cache = pl.DataFrame({"x": [1]})
         source._cache_ts = 9_999_999_999.0
         source.clear_cache()
         assert source._cache is None

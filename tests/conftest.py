@@ -16,11 +16,13 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 import pandas as pd
+import polars as pl
 import pytest
 
 from src.dashboard import config
 from src.dashboard.app_state import AppState
 from src.dashboard.data.sources import InMemoryDataSource, set_default_source
+from src.dashboard.data.registry import DatasetRegistry
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +31,7 @@ from src.dashboard.data.sources import InMemoryDataSource, set_default_source
 
 @pytest.fixture(scope="session")
 def minimal_df() -> pd.DataFrame:
-    """Eight-row facilities DataFrame covering both LOBs."""
+    """Eight-row facilities DataFrame covering both LOBs (pandas for backward compat)."""
     return pd.DataFrame({
         "facility_id": ["F001", "F002", "F003", "F004", "F005", "F006", "F007", "F008"],
         "obligor_name": [
@@ -65,6 +67,7 @@ def minimal_df() -> pd.DataFrame:
 @pytest.fixture()
 def app_state(minimal_df) -> AppState:
     """Return an AppState initialised with in-memory test data."""
+    DatasetRegistry.clear()
     source = InMemoryDataSource(minimal_df)
     set_default_source(source)
 

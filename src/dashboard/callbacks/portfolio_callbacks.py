@@ -11,10 +11,12 @@ from __future__ import annotations
 import json
 import logging
 
+import polars as pl
 from dash import Input, Output, State, callback, callback_context, html, dcc, no_update, ALL
 
 from ..app_state import app_state, AppState
 from ..auth import user_management
+from ..data.registry import DatasetRegistry
 from .. import config
 
 logger = logging.getLogger(__name__)
@@ -43,11 +45,12 @@ def _render_filter_levels(state: list[dict]) -> list:
 
         val_options = []
         if level.get("column"):
-            df = app_state.latest_facilities.copy()
+            df = app_state.latest_facilities
             for j in range(i):
                 prev = state[j]
                 if prev.get("column") and prev.get("values") and prev["column"] in df.columns:
-                    df = df[df[prev["column"]].astype(str).isin([str(v) for v in prev["values"]])]
+                    str_vals = [str(v) for v in prev["values"]]
+                    df = df.filter(pl.col(prev["column"]).cast(pl.Utf8).is_in(str_vals))
             vals = app_state.get_unique_values(level["column"], df)
             val_options = [{"label": str(v), "value": str(v)} for v in vals]
 
@@ -182,10 +185,8 @@ def register(app) -> None:  # noqa: ARG001
             return (no_update,) * 8
 
         criteria = app_state.portfolios[selected]
-        # Migrate old format if needed
         criteria = AppState._migrate_criteria(criteria)
         existing_filters = criteria.get("filters", [])
-        # Ensure at least one level
         state = existing_filters if existing_filters else [{"column": None, "values": []}]
 
         return (_MODAL_HIDDEN, _MODAL_SHOWN,
@@ -218,7 +219,7 @@ def register(app) -> None:  # noqa: ARG001
         app_state.portfolios.pop(selected, None)
         app_state.available_portfolios = list(app_state.portfolios.keys())
         app_state.save_user_data(user)
-        # Reset last active to default
+        DatasetRegistry.invalidate_all_caches()
         default = app_state.default_portfolio
         user_management.set_last_active_portfolio(user, default)
         logger.info("Deleted portfolio '%s'. Remaining: %s", selected, list(app_state.portfolios.keys()))
@@ -316,7 +317,6 @@ def register(app) -> None:  # noqa: ARG001
         if not n_clicks:
             return (no_update,) * 8
 
-        n_out = 8
         valid_filters = [
             f for f in (filter_state or [])
             if f.get("column") and f.get("values")
@@ -325,29 +325,26 @@ def register(app) -> None:  # noqa: ARG001
             return (no_update,) * 4 + ("Please define at least one filter level.",) + (no_update,) * 3
 
         if edit_name:
-            # Update mode — allow rename
             if not name or not name.strip():
                 return (no_update,) * 4 + ("Please enter a portfolio name.",) + (no_update,) * 3
             name = name.strip()
             if name != edit_name and name in config.DEFAULT_PORTFOLIOS:
                 return (no_update,) * 4 + ("Cannot overwrite a default portfolio.",) + (no_update,) * 3
-            # Remove old entry if renamed
             if name != edit_name:
                 app_state.portfolios.pop(edit_name, None)
         else:
-            # Create mode — validate name
             if not name or not name.strip():
                 return (no_update,) * 4 + ("Please enter a portfolio name.",) + (no_update,) * 3
             name = name.strip()
             if name in config.DEFAULT_PORTFOLIOS:
                 return (no_update,) * 4 + ("Cannot overwrite a default portfolio.",) + (no_update,) * 3
 
-        # Save
         user = user_management.get_current_user()
         app_state.portfolios[name] = {"filters": valid_filters}
         app_state.available_portfolios = list(app_state.portfolios.keys())
         user_management.set_last_active_portfolio(user, name)
         app_state.save_user_data(user)
+        DatasetRegistry.invalidate_all_caches()
         action = "Updated" if edit_name else "Created"
         logger.info("%s portfolio '%s' with %d filters.", action, name, len(valid_filters))
 

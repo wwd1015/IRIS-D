@@ -10,6 +10,7 @@ from __future__ import annotations
 from dash import html, dcc
 import plotly.graph_objects as go
 import pandas as pd
+import polars as pl
 import sqlite3
 from ..tabs.registry import BaseTab, register_tab
 
@@ -167,15 +168,15 @@ def _create_location_map(selected_portfolio, portfolios):
         )
     
     hover_text = []
-    for _, row in df.iterrows():
+    for row in df.itertuples():
         hover_text.append(
-            f"<b>{row['obligor_name']}</b><br>"
-            f"Balance: ${row['balance']:,.0f}<br>"
-            f"MSA: {row['msa']}<br>"
-            f"Property Type: {row['cre_property_type']}<br>"
-            f"Property Value: ${row['property_value']:,.0f}<br>"
-            f"LTV: {row['ltv']:.1%}<br>"
-            f"DSCR: {row['dscr']:.2f}"
+            f"<b>{row.obligor_name}</b><br>"
+            f"Balance: ${row.balance:,.0f}<br>"
+            f"MSA: {row.msa}<br>"
+            f"Property Type: {row.cre_property_type}<br>"
+            f"Property Value: ${row.property_value:,.0f}<br>"
+            f"LTV: {row.ltv:.1%}<br>"
+            f"DSCR: {row.dscr:.2f}"
         )
     
     fig = go.Figure()

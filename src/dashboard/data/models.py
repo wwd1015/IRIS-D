@@ -2,14 +2,18 @@
 Pydantic models for bank risk data validation and transformation
 """
 
+from __future__ import annotations
+
+from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator, computed_field
 import pandas as pd
+import polars as pl
 
 
 class FacilityRecord(BaseModel):
     """Pydantic model for individual facility records with validation and transformations"""
-    
+
     # Core facility information
     facility_id: str = Field(..., description="Unique facility identifier")
     obligor_name: str = Field(..., description="Name of the obligor")
@@ -19,7 +23,7 @@ class FacilityRecord(BaseModel):
     maturity_date: str = Field(..., description="Loan maturity date")
     reporting_date: str = Field(..., description="Data reporting date")
     lob: str = Field(..., description="Line of business")
-    
+
     # Corporate Banking metrics (optional)
     industry: Optional[str] = Field(None, description="Industry classification")
     free_cash_flow: Optional[float] = Field(None, description="Free cash flow")
@@ -28,7 +32,7 @@ class FacilityRecord(BaseModel):
     liquidity: Optional[float] = Field(None, description="Liquidity ratio")
     profitability: Optional[float] = Field(None, description="Profitability ratio")
     growth: Optional[float] = Field(None, description="Growth rate")
-    
+
     # CRE metrics (optional)
     cre_property_type: Optional[str] = Field(None, description="CRE property type")
     msa: Optional[str] = Field(None, description="Metropolitan Statistical Area")
@@ -36,10 +40,10 @@ class FacilityRecord(BaseModel):
     property_value: Optional[float] = Field(None, description="Property value")
     dscr: Optional[float] = Field(None, description="Debt Service Coverage Ratio")
     ltv: Optional[float] = Field(None, description="Loan to Value ratio")
-    
+
     # Risk metrics
     sir: Optional[float] = Field(None, description="Special Interest Rate")
-    
+
     class Config:
         str_strip_whitespace = True
         validate_assignment = True
@@ -59,12 +63,14 @@ class FacilityRecord(BaseModel):
         """Validate date formats"""
         if not v:
             raise ValueError('Date cannot be empty')
-        
-        # Try to parse the date to ensure it's valid
         try:
-            pd.to_datetime(v)
-        except Exception:
-            raise ValueError(f'Invalid date format: {v}')
+            datetime.fromisoformat(str(v).replace('Z', '+00:00'))
+        except (ValueError, TypeError):
+            # Fallback: try pandas for more flexible parsing
+            try:
+                pd.to_datetime(v)
+            except Exception:
+                raise ValueError(f'Invalid date format: {v}')
         return v
 
     @computed_field
@@ -86,7 +92,6 @@ class FacilityRecord(BaseModel):
         elif self.obligor_rating == 17:
             return "Defaulted"
         else:
-            # Should not happen with validation, but safety net
             return "Defaulted"
 
     @computed_field
@@ -96,11 +101,8 @@ class FacilityRecord(BaseModel):
         try:
             orig_date = pd.to_datetime(self.origination_date)
             report_date = pd.to_datetime(self.reporting_date)
-            
-            # Calculate quarters between dates
-            orig_quarter = orig_date.to_period('Q')
-            report_quarter = report_date.to_period('Q')
-            
+            orig_quarter = orig_date.year * 4 + (orig_date.month - 1) // 3
+            report_quarter = report_date.year * 4 + (report_date.month - 1) // 3
             return report_quarter - orig_quarter
         except Exception:
             return None
@@ -108,9 +110,9 @@ class FacilityRecord(BaseModel):
 
 class FacilityDataset(BaseModel):
     """Model for the entire dataset with validation and transformation capabilities"""
-    
+
     facilities: List[FacilityRecord] = Field(..., description="List of facility records")
-    
+
     @field_validator('facilities')
     @classmethod
     def validate_non_empty(cls, v):
@@ -119,74 +121,70 @@ class FacilityDataset(BaseModel):
             raise ValueError('Dataset cannot be empty')
         return v
 
-    def to_dataframe(self) -> pd.DataFrame:
-        """Convert to pandas DataFrame with all computed fields"""
-        records = []
-        for facility in self.facilities:
-            # Get all fields including computed ones
-            record = facility.model_dump()
-            records.append(record)
-        
-        df = pd.DataFrame(records)
-        
+    def to_dataframe(self) -> pl.DataFrame:
+        """Convert to polars DataFrame with all computed fields"""
+        records = [facility.model_dump() for facility in self.facilities]
+        pdf = pd.DataFrame(records)
+
         # Ensure proper data types
-        df['reporting_date'] = pd.to_datetime(df['reporting_date'])
-        df['origination_date'] = pd.to_datetime(df['origination_date'])
-        df['maturity_date'] = pd.to_datetime(df['maturity_date'])
-        
-        return df
+        pdf['reporting_date'] = pd.to_datetime(pdf['reporting_date'])
+        pdf['origination_date'] = pd.to_datetime(pdf['origination_date'])
+        pdf['maturity_date'] = pd.to_datetime(pdf['maturity_date'])
+
+        return pl.from_pandas(pdf)
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame) -> 'FacilityDataset':
-        """Create from pandas DataFrame with validation"""
+    def from_dataframe(cls, df: pd.DataFrame | pl.DataFrame) -> 'FacilityDataset':
+        """Create from pandas or polars DataFrame with validation"""
+        # Convert polars to list of dicts
+        if isinstance(df, pl.DataFrame):
+            rows = df.to_dicts()
+        else:
+            rows = df.to_dict('records')
+
         records = []
         errors = []
-        
-        for idx, row in df.iterrows():
+
+        for idx, row_dict in enumerate(rows):
             try:
-                # Convert row to dict, handling NaN values
-                row_dict = row.to_dict()
-                
-                # Convert pandas NaN to None for Pydantic
+                # Convert NaN/None values
                 for key, value in row_dict.items():
-                    if pd.isna(value):
+                    if isinstance(value, float) and pd.isna(value):
                         row_dict[key] = None
-                
+                    elif value is None:
+                        pass  # already None
+
                 facility = FacilityRecord(**row_dict)
                 records.append(facility)
-                
+
             except Exception as e:
                 errors.append(f"Row {idx}: {str(e)}")
-        
+
         if errors:
-            # Log first few errors for debugging
-            for error in errors[:5]:  # Show first 5 errors
+            for error in errors[:5]:
                 print(f"Validation error: {error}")
-            
             if len(errors) > 5:
                 print(f"... and {len(errors) - 5} more validation errors")
-            
-            # For now, continue with valid records
-            print(f"Continuing with {len(records)} valid records out of {len(df)} total records")
-        
+            print(f"Continuing with {len(records)} valid records out of {len(rows)} total records")
+
         if not records:
             raise ValueError("No valid records found after validation")
-        
+
         return cls(facilities=records)
 
     def get_summary_stats(self) -> dict:
         """Get summary statistics for the dataset"""
         df = self.to_dataframe()
-        
+
         return {
             'total_facilities': len(df),
             'total_balance': df['balance'].sum(),
             'total_balance_millions': df['balance_millions'].sum(),
-            'unique_obligors': df['obligor_name'].nunique(),
+            'unique_obligors': df['obligor_name'].n_unique(),
             'lob_distribution': df['lob'].value_counts().to_dict(),
             'risk_category_distribution': df['risk_category'].value_counts().to_dict(),
             'date_range': {
-                'earliest_reporting_date': df['reporting_date'].min().isoformat(),
-                'latest_reporting_date': df['reporting_date'].max().isoformat()
+                'earliest_reporting_date': str(df['reporting_date'].min()),
+                'latest_reporting_date': str(df['reporting_date'].max()),
             }
         }

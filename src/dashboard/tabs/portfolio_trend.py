@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dash import html, dcc
 import plotly.graph_objs as go
-import pandas as pd
+import polars as pl
 
 from ..tabs.registry import BaseTab, TabContext, register_tab
 
@@ -113,14 +113,15 @@ def _create_custom_metric_panel():
     ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 mb-4")
 
 
-def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df):
+def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df: pl.DataFrame):
     """Get appropriate metrics based on available numeric columns in the data."""
     exclude_cols = {'facility_id', 'obligor_name', 'origination_date', 'maturity_date',
                     'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa', 'sir',
                     'risk_category'}
     numeric_cols = [
-        col for col in facilities_df.select_dtypes(include='number').columns
-        if col not in exclude_cols
+        col for col in facilities_df.columns
+        if facilities_df[col].dtype in (pl.Float32, pl.Float64, pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64)
+        and col not in exclude_cols
     ]
 
     metric_options = [
@@ -169,7 +170,7 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
                 ], style={"width": "25%", "marginRight": "10px"}),
                 html.Div([
                     html.Label("", className="form-label", style={"visibility": "hidden"}),
-                    html.Button("Download Data", id="download-btn-1", className="btn btn-outline", 
+                    html.Button("Download Data", id="download-btn-1", className="btn btn-outline",
                                style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
                 ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
             ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
@@ -178,7 +179,7 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
                 dcc.Graph(id='financial-trends-chart-1', config={'displayModeBar': False})
             ])
         ], className="chart-card", style={"marginBottom": "20px"}),
-        
+
         # Second Chart
         html.Div([
             html.Div([
@@ -205,7 +206,7 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
                 ], style={"width": "25%", "marginRight": "10px"}),
                 html.Div([
                     html.Label("", className="form-label", style={"visibility": "hidden"}),
-                    html.Button("Download Data", id="download-btn-2", className="btn btn-outline", 
+                    html.Button("Download Data", id="download-btn-2", className="btn btn-outline",
                                style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
                 ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
             ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
@@ -214,7 +215,7 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
                 dcc.Graph(id='financial-trends-chart-2', config={'displayModeBar': False})
             ])
         ], className="chart-card", style={"marginBottom": "20px"}),
-        
+
         # Third Chart
         html.Div([
             html.Div([
@@ -241,7 +242,7 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
                 ], style={"width": "25%", "marginRight": "10px"}),
                 html.Div([
                     html.Label("", className="form-label", style={"visibility": "hidden"}),
-                    html.Button("Download Data", id="download-btn-3", className="btn btn-outline", 
+                    html.Button("Download Data", id="download-btn-3", className="btn btn-outline",
                                style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
                 ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
             ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
@@ -253,45 +254,44 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
     ], className="main-content")
 
 
-def _apply_filters(df, criteria):
+def _apply_filters(df: pl.DataFrame, criteria):
     """Apply the new filter-list format to a DataFrame."""
-    from ..app_state import AppState
-    criteria = AppState._migrate_criteria(criteria)
+    from ..data.dataset import Dataset
+    criteria = Dataset._migrate_criteria(criteria)
     for level in criteria.get("filters", []):
         col, vals = level.get("column"), level.get("values", [])
         if col and vals and col in df.columns:
-            df = df[df[col].astype(str).isin([str(v) for v in vals])]
+            str_vals = [str(v) for v in vals]
+            df = df.filter(pl.col(col).cast(pl.Utf8).is_in(str_vals))
     return df
 
 
-def _get_timeseries(facilities_df, portfolios, portfolio_name, metric, agg_method='avg'):
+def _get_timeseries(facilities_df: pl.DataFrame, portfolios, portfolio_name, metric, agg_method='avg'):
     """Get time series for a portfolio and metric."""
     if portfolio_name not in portfolios or not metric:
-        return pd.Series()
+        return [], []
 
-    df = facilities_df.copy()
-    df = _apply_filters(df, portfolios[portfolio_name])
+    df = _apply_filters(facilities_df, portfolios[portfolio_name])
 
     if metric not in df.columns:
-        return pd.Series()
+        return [], []
 
     date_col = 'reporting_date'
     if date_col not in df.columns:
-        return pd.Series()
-
-    df[date_col] = pd.to_datetime(df[date_col])
-    group = df.groupby(date_col)
+        return [], []
 
     if agg_method == 'sum':
-        return group[metric].sum()
-    return group[metric].mean()
+        result = df.group_by(date_col).agg(pl.col(metric).sum()).sort(date_col)
+    else:
+        result = df.group_by(date_col).agg(pl.col(metric).mean()).sort(date_col)
+
+    if result.is_empty():
+        return [], []
+    return result[date_col].to_list(), result[metric].to_list()
 
 
 def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric, agg_method='avg'):
-    """Build chart for a portfolio trend metric.
-    
-    Note: Public because it's called from app.py callbacks.
-    """
+    """Build chart for a portfolio trend metric."""
     if not metric:
         fig = go.Figure()
         fig.update_layout(
@@ -304,32 +304,32 @@ def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, b
         )
         fig.add_annotation(text="Select a metric to view chart", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
         return fig
-        
-    ts_main = _get_timeseries(facilities_df, portfolios, selected_portfolio, metric, agg_method)
-    ts_bench = _get_timeseries(facilities_df, portfolios, benchmark_portfolio, metric, agg_method) if benchmark_portfolio else None
-    
+
+    dates_main, vals_main = _get_timeseries(facilities_df, portfolios, selected_portfolio, metric, agg_method)
+    dates_bench, vals_bench = _get_timeseries(facilities_df, portfolios, benchmark_portfolio, metric, agg_method) if benchmark_portfolio else ([], [])
+
     fig = go.Figure()
-    
-    if not ts_main.empty:
+
+    if dates_main:
         fig.add_trace(go.Scatter(
-            x=ts_main.index,
-            y=ts_main.values,
+            x=dates_main,
+            y=vals_main,
             mode='lines+markers',
             name='Selected Portfolio',
             line=dict(color='#a78bfa', width=3, dash='solid'),
             marker=dict(color='#a78bfa')
         ))
-    
-    if ts_bench is not None and not ts_bench.empty:
+
+    if dates_bench:
         fig.add_trace(go.Scatter(
-            x=ts_bench.index,
-            y=ts_bench.values,
+            x=dates_bench,
+            y=vals_bench,
             mode='lines+markers',
             name='Benchmark Portfolio',
             line=dict(color='#2dd4bf', width=3, dash='dash'),
             marker=dict(color='#2dd4bf')
         ))
-    
+
     fig.update_layout(
         plot_bgcolor='rgba(0,0,0,0)',
         paper_bgcolor='rgba(0,0,0,0)',
@@ -355,17 +355,14 @@ def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, b
             color='rgba(255,255,255,0.5)'
         )
     )
-    
+
     return fig
 
 
 def create_portfolio_trends_charts(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric1, metric2, metric3, agg1, agg2, agg3):
-    """Create all three portfolio trend charts.
-    
-    Note: Public because it's called from app.py callbacks.
-    """
+    """Create all three portfolio trend charts."""
     chart1 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric1, agg1)
     chart2 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric2, agg2)
     chart3 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric3, agg3)
-    
+
     return chart1, chart2, chart3

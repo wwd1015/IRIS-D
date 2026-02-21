@@ -8,7 +8,7 @@
 
 - **Framework**: Dash (Plotly) for interactive web-based dashboards
 - **Language**: Python 3.8+
-- **Data**: Pandas, NumPy, SQLAlchemy (SQLite backend at `data/bank_risk.db`)
+- **Data**: Polars (primary), Pandas (SQL boundary only), NumPy, SQLAlchemy (SQLite backend at `data/bank_risk.db`)
 - **Validation**: Pydantic
 - **Config**: PyYAML
 - **Styling**: Custom CSS (`assets/style.css`) — dark-themed glassmorphism design with Tailwind utility classes
@@ -52,8 +52,10 @@ IRIS-D/
 │       │   ├── signals.py             # Signal bus (PORTFOLIO, USER, THEME, DATE_RANGE, NOTIFICATION)
 │       │   └── layout.py              # Main app shell (header, content, modals)
 │       ├── data/              # Data loading & generation
+│       │   ├── dataset.py             # Dataset abstraction (filtering, caching, introspection)
+│       │   ├── registry.py            # DatasetRegistry — named dataset access
 │       │   ├── sources.py             # DataSource protocol + SqliteDataSource + InMemoryDataSource
-│       │   ├── loader.py              # Thin façade over DataSource
+│       │   ├── loader.py              # load_dataset() + load_facilities_data() façade
 │       │   ├── models.py              # Pydantic FacilityRecord + FacilityDataset
 │       │   └── db_data_generator.py
 │       └── utils/             # Utility functions
@@ -74,7 +76,8 @@ IRIS-D/
     │   ├── test_models.py
     │   ├── test_app_state.py
     │   ├── test_registry.py
-    │   └── test_data_sources.py
+    │   ├── test_data_sources.py
+    │   └── test_dataset.py
     └── integration/
         └── test_app.py
 ```
@@ -104,14 +107,82 @@ app_state.save_user_data(username)         # on portfolio CRUD / autosave
 
 ### Data Layer
 
-The data layer is pluggable via the `DataSource` protocol (`data/sources.py`):
+The data layer uses **Polars** for all DataFrames and is built around the **Dataset** abstraction:
 
 ```python
 from .data.sources import SqliteDataSource, InMemoryDataSource, set_default_source
+from .data.dataset import Dataset
+from .data.registry import DatasetRegistry
 
 # In tests — swap to in-memory, no DB required:
-set_default_source(InMemoryDataSource(my_df))
+set_default_source(InMemoryDataSource(my_df))  # accepts pandas or polars
+
+# Access a registered dataset:
+ds = DatasetRegistry.get("facilities")
+df = ds.get_filtered("Corporate Banking", portfolios)  # cached
+ds.invalidate_cache()  # after portfolio CRUD
 ```
+
+**Key types:**
+- `DataSource` protocol (`sources.py`) — pluggable source returning `pl.DataFrame`
+- `Dataset` (`dataset.py`) — named dataset with full/latest snapshots, portfolio filtering with cache
+- `DatasetRegistry` (`registry.py`) — global registry of named `Dataset` instances
+- `load_dataset()` (`loader.py`) — builds a Dataset from the active source and registers it
+
+### Adding a New Dataset
+
+The Dataset abstraction is generic — adding a new data type (e.g. loans, collateral) requires no filter code changes:
+
+1. **Add a loader** that returns a `pl.DataFrame` (or use the existing `DataSource`):
+
+```python
+# In loader.py or a new module
+def load_loans_data() -> pl.DataFrame:
+    engine = create_engine("sqlite:///data/bank_risk.db")
+    pdf = pd.read_sql("SELECT * FROM loans ORDER BY loan_id, report_date", engine)
+    return pl.from_pandas(pdf)
+```
+
+2. **Build and register** the Dataset in `AppState.initialize()`:
+
+```python
+# In app_state.py → initialize()
+loans_df = load_loans_data()
+loans_latest = loans_df.sort("report_date").group_by("loan_id").tail(1)
+loans_ds = Dataset(
+    name="loans",
+    full_df=loans_df,
+    latest_df=loans_latest,
+    id_column="loan_id",
+    date_column="report_date",
+)
+DatasetRegistry.register(loans_ds)
+```
+
+3. **Access from any tab** — portfolio filters apply identically:
+
+```python
+# In a tab's render or callback
+ds = DatasetRegistry.get("loans")
+filtered = ds.get_filtered(portfolio_name, app_state.portfolios)  # cached
+all_dates = ds.full_df["report_date"].unique().sort()
+categories = ds.get_segmentation_columns()
+```
+
+4. **Optionally expose via AppState** for convenience:
+
+```python
+# In app_state.py
+@property
+def loans_df(self) -> pl.DataFrame:
+    return DatasetRegistry.get("loans").full_df
+```
+
+The `Dataset` class handles:
+- **Portfolio filtering** via the same `{"filters": [...]}` criteria format
+- **Result caching** (keyed by portfolio name, auto-invalidated on portfolio CRUD)
+- **Column introspection** (`get_segmentation_columns()`, `get_unique_values()`)
+- **Legacy format migration** (old flat criteria auto-converted)
 
 ### Adding a New Tab
 
