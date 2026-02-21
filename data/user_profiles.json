@@ -2,36 +2,25 @@
   "John Smith": {
     "role": "SAG",
     "portfolios": {
-      "2": {
+      "Test3": {
         "filters": [
           {
             "column": "industry",
             "values": [
               "Financial Services",
-              "Manufacturing"
-            ]
-          }
-        ]
-      },
-      "3": {
-        "filters": [
-          {
-            "column": "industry",
-            "values": [
-              "Financial Services",
-              "Manufacturing"
+              "Healthcare"
             ]
           }
         ]
       }
     },
     "custom_metrics": {},
-    "last_active_portfolio": "2"
+    "last_active_portfolio": "Test3"
   },
   "Jane Doe": {
     "role": "Corp SCO",
     "portfolios": {
-      "test2": {
+      "Test": {
         "filters": [
           {
             "column": "industry",
@@ -43,7 +32,7 @@
       }
     },
     "custom_metrics": {},
-    "last_active_portfolio": "test2"
+    "last_active_portfolio": "Test"
   },
   "Bob Wilson": {
     "role": "CRE SCO",

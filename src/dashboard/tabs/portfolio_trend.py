@@ -44,6 +44,33 @@ class PortfolioTrendTab(BaseTab):
             ctx.portfolios, ctx.facilities_df, ctx.get_filtered_data,
         )
 
+    # ── Callbacks ────────────────────────────────────────────────────────────
+
+    def register_callbacks(self, app) -> None:
+        from dash import Input, Output, State, callback, no_update
+        from ..app_state import app_state
+
+        @callback(
+            [Output('financial-trends-chart-1', 'figure'),
+             Output('financial-trends-chart-2', 'figure'),
+             Output('financial-trends-chart-3', 'figure')],
+            [Input('financial-trends-metric-dropdown-1', 'value'),
+             Input('financial-trends-metric-dropdown-2', 'value'),
+             Input('financial-trends-metric-dropdown-3', 'value'),
+             Input('financial-trends-agg-dropdown-1', 'value'),
+             Input('financial-trends-agg-dropdown-2', 'value'),
+             Input('financial-trends-agg-dropdown-3', 'value'),
+             Input('financial-trends-benchmark-dropdown', 'value'),
+             Input('universal-portfolio-dropdown', 'value')],
+            prevent_initial_call=False,
+        )
+        def update_trend_charts(m1, m2, m3, a1, a2, a3, benchmark, portfolio):
+            sel = portfolio or app_state.default_portfolio
+            return create_portfolio_trends_charts(
+                app_state.facilities_df, app_state.portfolios,
+                sel, benchmark, m1, m2, m3, a1, a2, a3,
+            )
+
 
 register_tab(PortfolioTrendTab())
 
@@ -87,43 +114,23 @@ def _create_custom_metric_panel():
 
 
 def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df):
-    """Get appropriate metrics based on portfolio type and available data columns"""
-    
-    common_metrics = ['balance', 'obligor_rating']
-    corporate_banking_metrics = ['free_cash_flow', 'fixed_charge_coverage', 'cash_flow_leverage', 'liquidity', 'profitability', 'growth']
-    cre_metrics = ['noi', 'property_value', 'dscr', 'ltv']
-    
-    exclude_cols = ['facility_id', 'obligor_name', 'origination_date', 'maturity_date', 'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa', 'sir']
-    all_numeric_cols = [col for col in facilities_df.columns if col not in exclude_cols]
-    
-    available_cols = common_metrics.copy()
-    
-    if selected_portfolio and selected_portfolio in portfolios:
-        portfolio_criteria = portfolios[selected_portfolio]
-        lob = portfolio_criteria.get('lob')
-        
-        if lob == 'Corporate Banking':
-            for metric in corporate_banking_metrics:
-                if metric in all_numeric_cols:
-                    available_cols.append(metric)
-        elif lob == 'CRE':
-            for metric in cre_metrics:
-                if metric in all_numeric_cols:
-                    available_cols.append(metric)
-        else:
-            available_cols.extend([col for col in corporate_banking_metrics + cre_metrics if col in all_numeric_cols])
-    else:
-        available_cols = all_numeric_cols
-    
-    metric_options = []
-    for col in available_cols:
-        if col in facilities_df.columns:
-            label = col.replace('_', ' ').title()
-            metric_options.append({'label': label, 'value': col})
-    
-    for metric_name, formula in custom_metrics.items():
+    """Get appropriate metrics based on available numeric columns in the data."""
+    exclude_cols = {'facility_id', 'obligor_name', 'origination_date', 'maturity_date',
+                    'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa', 'sir',
+                    'risk_category'}
+    numeric_cols = [
+        col for col in facilities_df.select_dtypes(include='number').columns
+        if col not in exclude_cols
+    ]
+
+    metric_options = [
+        {'label': col.replace('_', ' ').title(), 'value': col}
+        for col in numeric_cols
+    ]
+
+    for metric_name in custom_metrics:
         metric_options.append({'label': f"{metric_name} (Custom)", 'value': metric_name})
-    
+
     return metric_options
 
 
@@ -133,28 +140,7 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
     default_metric_1 = metrics_options[0]['value'] if metrics_options else 'balance'
     default_metric_2 = metrics_options[1]['value'] if len(metrics_options) > 1 else 'balance'
     default_metric_3 = metrics_options[2]['value'] if len(metrics_options) > 2 else 'balance'
-    
-    # Get available date range for time slider
-    if selected_portfolio and selected_portfolio in portfolios:
-        portfolio_data = get_filtered_data(selected_portfolio)
-        if len(portfolio_data) > 0:
-            portfolio_criteria = portfolios[selected_portfolio]
-            all_facility_data = facilities_df.copy()
-            if portfolio_criteria['lob']:
-                all_facility_data = all_facility_data[all_facility_data['lob'] == portfolio_criteria['lob']]
-            if portfolio_criteria['lob'] == 'Corporate Banking' and portfolio_criteria['industry']:
-                if isinstance(portfolio_criteria['industry'], list):
-                    all_facility_data = all_facility_data[all_facility_data['industry'].astype(str).isin([str(i) for i in portfolio_criteria['industry']])]
-                else:
-                    all_facility_data = all_facility_data[all_facility_data['industry'] == portfolio_criteria['industry']]
-            if portfolio_criteria['lob'] == 'CRE' and portfolio_criteria['property_type']:
-                if isinstance(portfolio_criteria['property_type'], list):
-                    all_facility_data = all_facility_data[all_facility_data['cre_property_type'].astype(str).isin([str(i) for i in portfolio_criteria['property_type']])]
-                else:
-                    all_facility_data = all_facility_data[all_facility_data['cre_property_type'] == portfolio_criteria['property_type']]
-            
-            unique_dates = sorted(all_facility_data['reporting_date'].unique())
-    
+
     return html.Div([
         _create_custom_metric_panel(),
         # First Chart
@@ -267,50 +253,38 @@ def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfoli
     ], className="main-content")
 
 
+def _apply_filters(df, criteria):
+    """Apply the new filter-list format to a DataFrame."""
+    from ..app_state import AppState
+    criteria = AppState._migrate_criteria(criteria)
+    for level in criteria.get("filters", []):
+        col, vals = level.get("column"), level.get("values", [])
+        if col and vals and col in df.columns:
+            df = df[df[col].astype(str).isin([str(v) for v in vals])]
+    return df
+
+
 def _get_timeseries(facilities_df, portfolios, portfolio_name, metric, agg_method='avg'):
-    """Get time series for a portfolio and metric"""
-    df = facilities_df.copy()
-    
+    """Get time series for a portfolio and metric."""
     if portfolio_name not in portfolios or not metric:
         return pd.Series()
-    
-    criteria = portfolios[portfolio_name]
-    if 'lob' in df.columns and criteria.get('lob'):
-        df = df[df['lob'] == criteria['lob']]
-    if 'industry' in df.columns and criteria.get('lob') == 'Corporate Banking' and criteria.get('industry'):
-        if isinstance(criteria['industry'], list):
-            df = df[df['industry'].astype(str).isin([str(i) for i in criteria['industry']])]
-        else:
-            df = df[df['industry'] == criteria['industry']]
-    if 'cre_property_type' in df.columns and criteria.get('lob') == 'CRE' and criteria.get('property_type'):
-        if isinstance(criteria['property_type'], list):
-            df = df[df['cre_property_type'].astype(str).isin([str(i) for i in criteria['property_type']])]
-        else:
-            df = df[df['cre_property_type'] == criteria['property_type']]
-    
-    if 'obligor_name' in df.columns and criteria.get('obligors'):
-        if isinstance(criteria['obligors'], list):
-            df = df[df['obligor_name'].astype(str).isin([str(i) for i in criteria['obligors']])]
-        else:
-            df = df[df['obligor_name'] == criteria['obligors']]
-    
+
+    df = facilities_df.copy()
+    df = _apply_filters(df, portfolios[portfolio_name])
+
     if metric not in df.columns:
         return pd.Series()
-    
+
     date_col = 'reporting_date'
     if date_col not in df.columns:
         return pd.Series()
-    
+
     df[date_col] = pd.to_datetime(df[date_col])
-    
     group = df.groupby(date_col)
-    
+
     if agg_method == 'sum':
-        ts = group[metric].sum()
-    else:
-        ts = group[metric].mean()
-    
-    return ts
+        return group[metric].sum()
+    return group[metric].mean()
 
 
 def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric, agg_method='avg'):

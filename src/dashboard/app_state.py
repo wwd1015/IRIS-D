@@ -74,6 +74,10 @@ class AppState:
                 self.available_portfolios[0] if self.available_portfolios else "Entire Commercial"
             )
             logger.info("Loaded %d facility records", len(self.facilities_df))
+            # Load current user's saved portfolios
+            current_user = user_management.get_current_user()
+            if current_user:
+                self.load_user_portfolios(current_user)
         except Exception as exc:
             logger.error("Data loading failed: %s", exc)
             self._load_fallback_data()

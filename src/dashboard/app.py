@@ -115,9 +115,14 @@ from .callbacks import CallbackRegistry
 _cb_registry = CallbackRegistry(app)
 _cb_registry.register_all()
 
-# Set layout
+# Set layout — restore last-active portfolio if available
+from .auth import user_management as _um
+_startup_portfolio = _um.get_last_active_portfolio(_um.get_current_user())
+if not _startup_portfolio or _startup_portfolio not in app_state.portfolios:
+    _startup_portfolio = app_state.default_portfolio
+
 app.layout = create_layout(
-    app_state.default_portfolio,
+    _startup_portfolio,
     app.index_string,
     app_state.available_portfolios,
 )

@@ -214,13 +214,14 @@ def register(app) -> None:  # noqa: ARG001
         if selected == _CREATE_NEW:
             return (no_update,) * 6
 
+        user = user_management.get_current_user()
         app_state.portfolios.pop(selected, None)
         app_state.available_portfolios = list(app_state.portfolios.keys())
-        app_state.save_user_data(user_management.get_current_user())
-        logger.info("Deleted portfolio '%s'. Remaining: %s", selected, list(app_state.portfolios.keys()))
-
-        # Switch to default portfolio
+        app_state.save_user_data(user)
+        # Reset last active to default
         default = app_state.default_portfolio
+        user_management.set_last_active_portfolio(user, default)
+        logger.info("Deleted portfolio '%s'. Remaining: %s", selected, list(app_state.portfolios.keys()))
         return (_build_modal_opts(), None, "",
                 _build_portfolio_opts(), default, default)
 
