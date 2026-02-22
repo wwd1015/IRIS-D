@@ -66,8 +66,9 @@ class PortfolioTrendTab(BaseTab):
         )
         def update_trend_charts(m1, m2, m3, a1, a2, a3, benchmark, portfolio):
             sel = portfolio or app_state.default_portfolio
+            df = app_state._apply_time_window(app_state.facilities_df)
             return create_portfolio_trends_charts(
-                app_state.facilities_df, app_state.portfolios,
+                df, app_state.portfolios,
                 sel, benchmark, m1, m2, m3, a1, a2, a3,
             )
 

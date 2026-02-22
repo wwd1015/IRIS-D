@@ -13,7 +13,6 @@ from dash import html, dcc, callback, Input, Output, State, no_update
 import plotly.graph_objs as go
 import polars as pl
 from ..tabs.registry import BaseTab, TabContext, register_tab
-from ..components.toolbar import SliderControl, render_toolbar
 from .. import config
 from ..auth import user_management
 
@@ -23,26 +22,6 @@ class PortfolioSummaryTab(BaseTab):
     label = "Portfolio Summary"
     order = 10
     grid_class = "grid grid-cols-1 lg:grid-cols-[280px_minmax(0,1fr)_340px] gap-4 items-stretch"
-
-    # ── Layer 2: Toolbar ────────────────────────────────────────────────────
-
-    def get_toolbar_controls(self, ctx: TabContext):
-        # Determine how many reporting periods are available
-        dates = ctx.facilities_df[ctx.facilities_df.columns[ctx.facilities_df.columns.index("reporting_date") if "reporting_date" in ctx.facilities_df.columns else 0]].unique().sort()
-        max_p = len(dates)
-        return [
-            SliderControl(
-                id="ps-time-window",
-                label="Lookback (months)",
-                min_val=1,
-                max_val=min(max_p, 48),
-                step=1,
-                value=min(max_p, 48),  # default: show up to 48 months
-                marks={1: "1", 12: "12", 24: "24", min(max_p, 48): f"{min(max_p, 48)} (All)"},
-                order=10,
-                width="min-w-[320px] flex-1",
-            ),
-        ]
 
     # ── Layer 3: Content ────────────────────────────────────────────────────
 
@@ -70,20 +49,12 @@ class PortfolioSummaryTab(BaseTab):
         ])
 
     def render(self, ctx: TabContext):
-        """Custom 2-column layout (main + positions) with Layer 2 toolbar above."""
-        # Layer 2: toolbar
-        toolbar_controls = self.get_toolbar_controls(ctx)
-        toolbar = render_toolbar(toolbar_controls, ctx) if toolbar_controls else None
-
-        # Layer 3: main content + positions panel (two-column grid)
+        """Custom 2-column layout (main + positions)."""
         content = self.render_content(ctx)
-        grid = html.Div(
+        return html.Div(
             content.children,
             className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_340px] gap-4 items-stretch",
         )
-
-        parts = [p for p in [toolbar, grid] if p is not None]
-        return html.Div(parts) if len(parts) > 1 else parts[0]
 
     # ── Callbacks ──────────────────────────────────────────────────────────
 
@@ -93,53 +64,34 @@ class PortfolioSummaryTab(BaseTab):
         @callback(
             Output("main-content-container", "children"),
             [Input("universal-portfolio-dropdown", "value"),
-             Input("ps-time-window", "value")],
+             Input("time-window-store", "data")],
             prevent_initial_call=True,
         )
-        def update_main_content(selected_portfolio, n_periods):
+        def update_main_content(selected_portfolio, _tw):
             if not selected_portfolio:
                 return no_update
 
-            filtered_fdf = _filter_by_periods(app_state.facilities_df, n_periods)
-            gfd = lambda p: app_state._apply_portfolio_filter(p, _get_latest(filtered_fdf))
+            windowed_df = app_state._apply_time_window(app_state.facilities_df)
             return _create_main_content(
-                selected_portfolio, gfd, filtered_fdf, app_state.portfolios
+                selected_portfolio, app_state.get_filtered_data,
+                windowed_df, app_state.portfolios
             )
 
         @callback(
             Output("positions-panel-container", "children"),
             [Input("universal-portfolio-dropdown", "value"),
-             Input("ps-time-window", "value")],
+             Input("time-window-store", "data")],
             prevent_initial_call=True,
         )
-        def update_positions_panel(selected_portfolio, n_periods):
+        def update_positions_panel(selected_portfolio, _tw):
             if not selected_portfolio:
                 return no_update
 
-            filtered_fdf = _filter_by_periods(app_state.facilities_df, n_periods)
-            gfd = lambda p: app_state._apply_portfolio_filter(p, _get_latest(filtered_fdf))
+            windowed_df = app_state._apply_time_window(app_state.facilities_df)
             return _create_positions_panel(
-                selected_portfolio, filtered_fdf, app_state.portfolios, gfd
+                selected_portfolio, windowed_df,
+                app_state.portfolios, app_state.get_filtered_data
             )
-
-
-def _filter_by_periods(facilities_df: pl.DataFrame, n_periods):
-    """Return facilities from the most recent *n_periods* reporting periods."""
-    if n_periods is None:
-        return facilities_df
-    dates = facilities_df["reporting_date"].unique().sort()
-    if n_periods >= len(dates):
-        return facilities_df
-    cutoff_dates = dates.tail(n_periods)
-    return facilities_df.filter(pl.col("reporting_date").is_in(cutoff_dates))
-
-
-def _get_latest(facilities_df: pl.DataFrame) -> pl.DataFrame:
-    """Return the latest-quarter snapshot from a (possibly filtered) DataFrame."""
-    if facilities_df.is_empty():
-        return facilities_df
-    max_date = facilities_df["reporting_date"].max()
-    return facilities_df.filter(pl.col("reporting_date") == max_date)
 
 
 # Auto-register
@@ -260,11 +212,12 @@ def _create_watchlist_table(portfolio_data: pl.DataFrame, facilities_df: pl.Data
     if len(portfolio_data) == 0:
         return html.Div("No data available for this portfolio.", className="p-4")
 
-    # Ensure dates are comparable
-    if portfolio_data["reporting_date"].dtype != pl.Date and portfolio_data["reporting_date"].dtype != pl.Datetime:
-        portfolio_data = portfolio_data.with_columns(pl.col("reporting_date").cast(pl.Datetime))
-    if facilities_df["reporting_date"].dtype != pl.Date and facilities_df["reporting_date"].dtype != pl.Datetime:
-        facilities_df = facilities_df.with_columns(pl.col("reporting_date").cast(pl.Datetime))
+    # Ensure dates are comparable — column is stored as Utf8 (ISO strings)
+    # so sort/compare works correctly without casting
+    if portfolio_data["reporting_date"].dtype == pl.Utf8:
+        portfolio_data = portfolio_data.with_columns(pl.col("reporting_date").str.to_date())
+    if facilities_df["reporting_date"].dtype == pl.Utf8:
+        facilities_df = facilities_df.with_columns(pl.col("reporting_date").str.to_date())
 
     watchlist_rows = []
     for row in portfolio_data.iter_rows(named=True):

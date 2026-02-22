@@ -84,7 +84,13 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
 
         # ── Main content ────────────────────────────────────────────────────
         html.Main([
-            html.Div(id="tab-content-container")
+            html.Div([
+                html.Div(id="tab-content-container"),
+                html.Div([
+                    html.Div(className="tab-loading-spinner"),
+                    html.Div("Refreshing", className="tab-loading-text"),
+                ], id="tab-loading-overlay"),
+            ], id="tab-content-wrapper", className="tab-content-wrapper"),
         ], className="mx-auto max-w-[1600px] px-5 py-4"),
 
         # ── Modals ──────────────────────────────────────────────────────────
@@ -92,9 +98,12 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         _contact_modal(),
         _portfolio_modal(),
         _portfolio_create_modal(),
+        _time_window_modal(),
 
         # ── Hidden infrastructure ───────────────────────────────────────────
+        dcc.Store(id="active-tab-store", data=None),
         dcc.Store(id="current-user-store", data=user_management.get_current_user()),
+        dcc.Store(id="time-window-store", data=_initial_time_window()),
         *signal_stores,
     ])
 
@@ -222,6 +231,80 @@ def _portfolio_create_modal():
         # Store for edit mode: portfolio name being edited (None = create mode)
         dcc.Store(id="portfolio-edit-name", data=None),
     ], id="portfolio-create-modal", style=_MODAL_OVERLAY)
+
+
+def _initial_time_window() -> dict | None:
+    """Return the initial time-window store value from AppState."""
+    from ..app_state import app_state
+    start, end = app_state.get_time_window()
+    if start and end:
+        return {"start": start, "end": end}
+    return None
+
+
+def _time_window_modal():
+    """Modal with two dropdowns for selecting the global time window."""
+    from ..app_state import app_state
+    from datetime import datetime as _dt
+
+    start, end = app_state.get_time_window()
+
+    # Build dropdown options from unique reporting dates
+    import polars as pl
+    all_dates = (
+        app_state.facilities_df["reporting_date"]
+        .unique()
+        .sort()
+        .cast(pl.Utf8)
+        .to_list()
+    ) if not app_state.facilities_df.is_empty() else []
+
+    options = [
+        {"label": _dt.fromisoformat(d[:10]).strftime("%b %Y"), "value": d[:10]}
+        for d in all_dates
+    ]
+
+    start_val = start[:10] if start else (all_dates[0][:10] if all_dates else None)
+    end_val = end[:10] if end else (all_dates[-1][:10] if all_dates else None)
+
+    return html.Div([
+        html.Div([
+            html.H3("Time Window", style={"marginBottom": "16px", "color": "rgba(255,255,255,0.92)", "textAlign": "center"}),
+            html.Div([
+                html.Div([
+                    html.Label("From", className="block text-xs font-medium mb-1",
+                               style={"color": "rgba(255,255,255,0.6)"}),
+                    dcc.Dropdown(
+                        id="time-window-start-dropdown",
+                        options=options,
+                        value=start_val,
+                        clearable=False,
+                        className="text-sm",
+                        style={"fontSize": "13px"},
+                    ),
+                ], style={"flex": "1"}),
+                html.Div([
+                    html.Label("To", className="block text-xs font-medium mb-1",
+                               style={"color": "rgba(255,255,255,0.6)"}),
+                    dcc.Dropdown(
+                        id="time-window-end-dropdown",
+                        options=options,
+                        value=end_val,
+                        clearable=False,
+                        className="text-sm",
+                        style={"fontSize": "13px"},
+                    ),
+                ], style={"flex": "1"}),
+            ], style={"display": "flex", "gap": "16px", "marginBottom": "24px"}),
+            # Keep the store for backward compat (callbacks reference it)
+            dcc.Store(id="time-window-dates", data=all_dates),
+            html.Div([
+                html.Button("Apply", id="time-window-apply", className="btn btn-primary", style={"marginRight": "10px"}),
+                html.Button("Show All", id="time-window-reset", className="btn btn-outline", style={"marginRight": "10px"}),
+                html.Button("Cancel", id="time-window-cancel", className="btn btn-outline"),
+            ], style={"textAlign": "center", "display": "flex", "justifyContent": "center", "gap": "8px"}),
+        ], style={**_MODAL_BG, **_MODAL_CENTER, "padding": "30px", "width": "440px", "maxWidth": "90vw"}),
+    ], id="time-window-modal", style=_MODAL_OVERLAY)
 
 
 def get_app_index_string():

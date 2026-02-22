@@ -1,7 +1,7 @@
 """
 Database-backed Bank Risk Data Generator
 
-Generates ~10K facilities with monthly reporting over 10 years of history.
+Generates ~6K facilities with monthly reporting over 10 years of history.
 70/30 Corporate Banking / CRE split.
 """
 
@@ -204,7 +204,7 @@ class DatabaseRiskDataGenerator:
             lon + np.random.uniform(-0.15, 0.15),
         )
 
-    def generate_and_store_data(self, num_corporate=3500, num_cre=1500):
+    def generate_and_store_data(self, num_corporate=2100, num_cre=900):
         """Generate data and store in database"""
         all_facilities = []
 
@@ -409,7 +409,7 @@ def generate_database_and_process():
     generator = DatabaseRiskDataGenerator()
     generator.setup_database()
 
-    total_records = generator.generate_and_store_data(3500, 1500)
+    total_records = generator.generate_and_store_data(2100, 900)
 
     print(f"Database generation complete!")
     print(f"Generated {total_records} facility records in database")

@@ -56,6 +56,8 @@ class AppState:
         self._dataset: Dataset | None = None
         self.default_portfolio: str = "Entire Commercial"
         self.available_portfolios: list[str] = []
+        self._date_start: str | None = None
+        self._date_end: str | None = None
 
     # ── Properties delegating to Dataset ──────────────────────────────────
 
@@ -100,6 +102,15 @@ class AppState:
                 self.available_portfolios[0] if self.available_portfolios else "Entire Commercial"
             )
             logger.info("Loaded %d facility records", len(self.facilities_df))
+            # Set default time window to last 12 months
+            _, max_date = self.get_available_date_range()
+            if max_date:
+                from datetime import datetime, timedelta
+                end_dt = datetime.fromisoformat(max_date[:10])
+                start_dt = end_dt - timedelta(days=365)
+                self._date_start = start_dt.strftime("%Y-%m-%d")
+                self._date_end = max_date[:10]
+                logger.info("Default time window: %s to %s", self._date_start, self._date_end)
             # Load current user's saved portfolios
             current_user = user_management.get_current_user()
             if current_user:
@@ -131,6 +142,39 @@ class AppState:
         }
         self.available_portfolios = list(self.portfolios.keys())
         self.default_portfolio = "Entire Commercial"
+
+    # ── Time window ─────────────────────────────────────────────────────────
+
+    def set_time_window(self, start: str | None, end: str | None) -> None:
+        """Set the global time window and invalidate all caches."""
+        self._date_start = start
+        self._date_end = end
+        DatasetRegistry.invalidate_all_caches()
+
+    def get_time_window(self) -> tuple[str | None, str | None]:
+        """Return (start, end) ISO date strings for the current time window."""
+        return self._date_start, self._date_end
+
+    def get_available_date_range(self) -> tuple[str | None, str | None]:
+        """Return (min, max) reporting_date from the full dataset."""
+        if self._dataset is None or self.facilities_df.is_empty():
+            return None, None
+        dates = self.facilities_df["reporting_date"]
+        return str(dates.min()), str(dates.max())
+
+    def _apply_time_window(self, df: pl.DataFrame) -> pl.DataFrame:
+        """Filter a DataFrame by the current global time window."""
+        if self._date_start is None and self._date_end is None:
+            return df
+        if "reporting_date" not in df.columns or df.is_empty():
+            return df
+        filtered = df
+        date_col = pl.col("reporting_date").cast(pl.Utf8)
+        if self._date_start is not None:
+            filtered = filtered.filter(date_col >= pl.lit(self._date_start))
+        if self._date_end is not None:
+            filtered = filtered.filter(date_col <= pl.lit(self._date_end))
+        return filtered
 
     # ── Core filtering ────────────────────────────────────────────────────────
 
@@ -182,10 +226,26 @@ class AppState:
         return self._dataset._apply_filter(portfolio_name, self.portfolios, df)
 
     def get_filtered_data(self, portfolio_name: str) -> pl.DataFrame:
-        """Return ``latest_facilities`` filtered by the named portfolio's criteria."""
+        """Return latest snapshot within the time window, filtered by portfolio.
+
+        When a time window is set, "latest" means the most recent date
+        within that window rather than the global latest.
+        """
         if self._dataset is None:
             return pl.DataFrame()
-        return self._dataset.get_filtered(portfolio_name, self.portfolios)
+
+        # If no time window, use the standard cached path
+        if self._date_start is None and self._date_end is None:
+            return self._dataset.get_filtered(portfolio_name, self.portfolios)
+
+        # With a time window: filter full_df by window, take latest, apply portfolio
+        windowed = self._apply_time_window(self._dataset.full_df)
+        if windowed.is_empty():
+            return windowed.clear()
+        date_col = self._dataset.date_column
+        max_date = windowed[date_col].cast(pl.Utf8).max()
+        latest_in_window = windowed.filter(pl.col(date_col).cast(pl.Utf8) == max_date)
+        return self._dataset._apply_filter(portfolio_name, self.portfolios, latest_in_window)
 
     def get_filtered_data_windowed(
         self, portfolio_name: str, n_periods: int | None = None
@@ -198,13 +258,18 @@ class AppState:
     # ── Tab context ──────────────────────────────────────────────────────────
 
     def make_tab_context(self, selected_portfolio: str | None = None) -> TabContext:
-        """Build a :class:`TabContext` reflecting the current state."""
+        """Build a :class:`TabContext` reflecting the current state.
+
+        ``facilities_df`` in the context is scoped to the active time window
+        so that tabs rendering time-series charts only show the windowed data.
+        """
         sel = selected_portfolio or self.default_portfolio
+        windowed_df = self._apply_time_window(self.facilities_df)
         return TabContext(
             selected_portfolio=sel,
             available_portfolios=list(self.portfolios.keys()),
             portfolios=self.portfolios,
-            facilities_df=self.facilities_df,
+            facilities_df=windowed_df,
             latest_facilities=self.latest_facilities,
             custom_metrics=self.custom_metrics,
             get_filtered_data=self.get_filtered_data,

@@ -16,7 +16,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 import dash
-from dash import Input, Output, callback, callback_context, html
+from dash import Input, Output, State, callback, callback_context, html
 
 from . import config
 from .app_state import app_state
@@ -52,23 +52,34 @@ def _build_tab_navigation_callback() -> None:
 
     Adding a new tab no longer requires touching this function — the registry
     is queried at startup.
+
+    Instant tab switching is handled by ``assets/tab_switch.js`` which:
+    - Highlights the clicked tab button immediately (no server round-trip)
+    - Clears content and shows a "Refreshing" overlay
+    - Auto-hides the overlay when new content arrives (MutationObserver)
     """
     from .tabs.registry import get_all_tabs, get_tab
 
     all_tabs = get_all_tabs()
     tab_ids = [t.id for t in all_tabs]
 
-    outputs = [Output("tab-content-container", "children")]
+    outputs = [Output("tab-content-container", "children"),
+               Output("active-tab-store", "data")]
     outputs += [Output(f"tab-{tid}", "className") for tid in tab_ids]
 
     inputs = [Input(f"tab-{tid}", "n_clicks") for tid in tab_ids]
     inputs.append(Input("universal-portfolio-dropdown", "value"))
+    inputs.append(Input("time-window-store", "data"))
 
-    @callback(outputs, inputs, prevent_initial_call=False)
+    @callback(outputs, inputs,
+              State("active-tab-store", "data"),
+              prevent_initial_call=False)
     def route_tabs(*args):
         from .auth import user_management
 
         ctx = callback_context
+        # Last arg is the State (active-tab-store), before that: time-window, portfolio
+        stored_tab = args[-1]
         active_tab_id = tab_ids[0]
 
         if ctx.triggered:
@@ -76,15 +87,18 @@ def _build_tab_navigation_callback() -> None:
             candidate = button_id.replace("tab-", "")
             if candidate in tab_ids:
                 active_tab_id = candidate
+            elif stored_tab and stored_tab in tab_ids:
+                # Portfolio or time-window change — stay on current tab
+                active_tab_id = stored_tab
 
-        universal_portfolio = args[-1]
+        # Args: [n_clicks...], portfolio, time-window, stored_tab(State)
+        universal_portfolio = args[-3]
         sel_portfolio = universal_portfolio or app_state.default_portfolio
 
         # Server-side role gating: fall back to first accessible tab
         user_role = user_management.get_current_user_role()
         active_tab = get_tab(active_tab_id)
         if active_tab and active_tab.required_roles and user_role not in active_tab.required_roles:
-            # Find first tab the user can access
             accessible = [t for t in all_tabs if not t.required_roles or user_role in t.required_roles]
             active_tab_id = accessible[0].id if accessible else tab_ids[0]
 
@@ -97,7 +111,7 @@ def _build_tab_navigation_callback() -> None:
         inactive_class = "px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"
         classes = [active_class if tid == active_tab_id else inactive_class for tid in tab_ids]
 
-        return [content] + classes
+        return [content, active_tab_id] + classes
 
 
 # =============================================================================
@@ -106,9 +120,10 @@ def _build_tab_navigation_callback() -> None:
 
 _build_tab_navigation_callback()
 
-from .callbacks import user_callbacks, portfolio_callbacks
+from .callbacks import user_callbacks, portfolio_callbacks, time_window_callbacks
 user_callbacks.register(app)
 portfolio_callbacks.register(app)
+time_window_callbacks.register(app)
 
 # Auto-wire callbacks from all 3 layers (GlobalControl, ToolbarControl, DisplayCard)
 from .callbacks import CallbackRegistry

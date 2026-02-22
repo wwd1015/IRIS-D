@@ -1268,6 +1268,53 @@ button[id^="tab-"].bg-ink-900 {
   animation: spin 1s linear infinite;
 }
 
+/* Tab content wrapper — provides positioning context for overlay */
+.tab-content-wrapper {
+  position: relative;
+  min-height: 70vh;
+}
+
+/* Overlay is hidden by default */
+#tab-loading-overlay {
+  display: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  background: color-mix(in srgb, var(--bg-deep) 92%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 50;
+}
+
+/* When wrapper has .is-loading: hide content, show overlay */
+.tab-content-wrapper.is-loading #tab-content-container {
+  visibility: hidden;
+}
+
+.tab-content-wrapper.is-loading #tab-loading-overlay {
+  display: flex;
+}
+
+.tab-loading-spinner {
+  width: 43px;
+  height: 43px;
+  border: 3px solid var(--border-default);
+  border-top: 3px solid var(--primary-500);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.tab-loading-text {
+  font-family: var(--font);
+  font-size: 2.7rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  letter-spacing: 0.06em;
+}
+
 @keyframes spin {
   0% {
     transform: rotate(0deg);

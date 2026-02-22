@@ -260,6 +260,39 @@ class AccentColorPicker(GlobalControl):
         )]
 
 
+class TimeWindowButton(GlobalControl):
+    """Button showing the active time window; opens a modal to adjust it."""
+
+    id = "time-window"
+    label = "Time Window"
+    position = ControlPosition.LEFT
+    order = 15  # right after portfolio selector
+
+    def render(self, **kwargs) -> html.Div:
+        from ..app_state import app_state
+        start, end = app_state.get_time_window()
+        label = _format_time_label(start, end)
+        return html.Div([
+            html.Button(
+                label,
+                id="time-window-btn",
+                n_clicks=0,
+                className="header-btn",
+                title="Change time window",
+            ),
+        ])
+
+
+def _format_time_label(start: str | None, end: str | None) -> str:
+    """Format ISO dates as 'Jan 2025 – Jan 2026'."""
+    from datetime import datetime
+    if start and end:
+        s = datetime.fromisoformat(start[:10])
+        e = datetime.fromisoformat(end[:10])
+        return f"{s.strftime('%b %Y')} – {e.strftime('%b %Y')}"
+    return "All Time"
+
+
 class ContactButton(GlobalControl):
     """Button that opens the contact/support modal."""
 
@@ -282,6 +315,7 @@ class ContactButton(GlobalControl):
 # =============================================================================
 
 register_global_control(PortfolioSelector())
+register_global_control(TimeWindowButton())
 register_global_control(ProfileAvatar())
 register_global_control(ThemeToggle())
 register_global_control(AccentColorPicker())
