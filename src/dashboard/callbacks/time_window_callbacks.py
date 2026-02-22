@@ -13,12 +13,13 @@ def register(app):
         Output("time-window-modal", "style"),
         [Input("time-window-btn", "n_clicks"),
          Input("time-window-cancel", "n_clicks"),
+         Input("time-window-cancel-x", "n_clicks"),
          Input("time-window-apply", "n_clicks"),
          Input("time-window-reset", "n_clicks")],
         State("time-window-modal", "style"),
         prevent_initial_call=True,
     )
-    def toggle_modal(open_clicks, cancel_clicks, apply_clicks, reset_clicks, current_style):
+    def toggle_modal(open_clicks, cancel_clicks, cancel_x_clicks, apply_clicks, reset_clicks, current_style):
         ctx = callback_context
         if not ctx.triggered:
             return no_update

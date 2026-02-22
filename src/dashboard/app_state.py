@@ -107,7 +107,7 @@ class AppState:
             if max_date:
                 from datetime import datetime, timedelta
                 end_dt = datetime.fromisoformat(max_date[:10])
-                start_dt = end_dt - timedelta(days=365)
+                start_dt = end_dt - timedelta(days=730)
                 self._date_start = start_dt.strftime("%Y-%m-%d")
                 self._date_end = max_date[:10]
                 logger.info("Default time window: %s to %s", self._date_start, self._date_end)

@@ -333,27 +333,32 @@ html.dark .portfolio-selector-btn {
 
 /* ── Dashboard title badge ── */
 .dashboard-title {
-  background: linear-gradient(135deg, var(--primary-500), var(--primary-700)) !important;
-  color: var(--text-inverse) !important;
-  font-size: var(--fs-sm) !important;
+  font-family: 'Playfair Display', Georgia, serif !important;
+  font-size: 1.25rem !important;
   font-weight: 700 !important;
-  padding: 0.3rem 1rem !important;
-  border-radius: var(--r-full) !important;
-  letter-spacing: 0.08em !important;
-  box-shadow: 0 2px 12px var(--primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15) !important;
-  text-transform: uppercase !important;
-  animation: badge-glow 3s ease-in-out infinite alternate;
+  font-style: italic !important;
+  letter-spacing: 0.02em !important;
+  background: linear-gradient(135deg, var(--primary-400), var(--primary-600)) !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  background-clip: text !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  line-height: 1.2 !important;
 }
 
-@keyframes badge-glow {
-  0% {
-    box-shadow: 0 2px 12px var(--primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  }
-
-  100% {
-    box-shadow: 0 2px 20px var(--primary-glow), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  }
+.control-label {
+  display: block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+  line-height: 1;
 }
+
 
 /* ── NAVIGATION TABS ── */
 .nav-tabs {
@@ -585,6 +590,28 @@ button[id^="tab-"].bg-ink-900 {
   box-shadow:
     0 6px 24px var(--primary-glow),
     inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* ── DANGER ── red destructive action */
+.btn-danger {
+  background: #dc2626;
+  color: #ffffff;
+  border: 1px solid #dc2626;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+}
+
+.btn-danger:disabled {
+  background: rgba(220, 38, 38, 0.4);
+  border-color: rgba(220, 38, 38, 0.4);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
 }
 
 /* ── SECONDARY ── frosted glass */
@@ -1541,7 +1568,8 @@ button[id^="tab-"].bg-ink-900 {
 #login-modal>div,
 #profile-switch-modal>div,
 #contact-modal>div,
-#portfolio-modal>div>div {
+#portfolio-modal>div>div,
+#time-window-modal>div>div {
   background-color: var(--bg-raised) !important;
   border: 1px solid var(--glass-border) !important;
   color: var(--text-primary) !important;
@@ -1572,7 +1600,9 @@ button[id^="tab-"].bg-ink-900 {
 #login-modal,
 #profile-switch-modal,
 #contact-modal,
-#portfolio-modal {
+#portfolio-modal,
+#time-window-modal,
+#portfolio-delete-confirm-modal {
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
 }

@@ -97,6 +97,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         _profile_switch_modal(),
         _contact_modal(),
         _portfolio_modal(),
+        _portfolio_delete_confirm_modal(),
         _portfolio_create_modal(),
         _time_window_modal(),
 
@@ -116,7 +117,7 @@ _MODAL_BG = {
     "WebkitBackdropFilter": "blur(20px)",
     "borderRadius": "16px",
     "border": "1px solid var(--glass-border)",
-    "boxShadow": "0 20px 60px rgba(0, 0, 0, 0.3), 0 0 40px var(--primary-glow)",
+    "boxShadow": "0 20px 60px rgba(0, 0, 0, 0.4)",
 }
 
 _MODAL_OVERLAY = {
@@ -185,13 +186,36 @@ def _portfolio_modal():
                 html.Div([
                     html.Button("Select", id="portfolio-select-confirm", className="btn btn-primary", style={"fontSize": "13px", "flex": "1"}),
                     html.Button("Update", id="portfolio-update-btn", className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}, disabled=True),
-                    html.Button("Delete", id="portfolio-delete-btn", className="btn btn-outline", style={"fontSize": "13px", "flex": "1", "color": "#ef4444", "borderColor": "#ef4444"}, disabled=True),
+                    html.Button("Delete", id="portfolio-delete-btn", className="btn btn-danger", style={"fontSize": "13px", "flex": "1"}, disabled=True),
                 ], className="flex gap-2"),
                 html.Div(id="portfolio-delete-error", className="text-red-500 text-xs mt-2", style={"textAlign": "center"}),
             ], className="p-4"),
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw", "overflow": "visible"}),
     ], id="portfolio-modal", style=_MODAL_OVERLAY)
+
+
+def _portfolio_delete_confirm_modal():
+    """Confirmation dialog before deleting a portfolio."""
+    return html.Div([
+        html.Div([
+            html.Header([
+                html.Div([
+                    html.H2("Confirm Deletion", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                ], className="flex items-center justify-between"),
+            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            html.Div([
+                html.P(id="delete-confirm-message",
+                       children="Are you sure you want to delete this portfolio? This action cannot be undone.",
+                       className="text-sm text-ink-600 dark:text-slate-300 mb-4"),
+                html.Div([
+                    html.Button("Delete", id="portfolio-delete-confirm", className="btn btn-danger", style={"fontSize": "13px", "flex": "1"}),
+                    html.Button("Cancel", id="portfolio-delete-cancel", className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}),
+                ], className="flex gap-2"),
+            ], className="p-4"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
+    ], id="portfolio-delete-confirm-modal", style=_MODAL_OVERLAY)
 
 
 def _portfolio_create_modal():
@@ -207,6 +231,16 @@ def _portfolio_create_modal():
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
+                # Reference portfolio dropdown
+                html.Div([
+                    html.Label("Reference Portfolio", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    dcc.Dropdown(id="reference-portfolio-dropdown",
+                                 placeholder="Start from scratch...",
+                                 className="text-sm",
+                                 style={"fontSize": "13px"}),
+                    html.P("Select an existing portfolio to pre-populate filters, or leave blank to start fresh.",
+                           className="text-xs text-ink-500 dark:text-slate-400 mt-1 mb-3"),
+                ]),
                 # Dynamic filter levels container — populated by callback
                 html.Div(id="filter-levels-container", children=[]),
                 # Add Level button
@@ -269,41 +303,49 @@ def _time_window_modal():
 
     return html.Div([
         html.Div([
-            html.H3("Time Window", style={"marginBottom": "16px", "color": "rgba(255,255,255,0.92)", "textAlign": "center"}),
-            html.Div([
+            html.Header([
                 html.Div([
-                    html.Label("From", className="block text-xs font-medium mb-1",
-                               style={"color": "rgba(255,255,255,0.6)"}),
-                    dcc.Dropdown(
-                        id="time-window-start-dropdown",
-                        options=options,
-                        value=start_val,
-                        clearable=False,
-                        className="text-sm",
-                        style={"fontSize": "13px"},
-                    ),
-                ], style={"flex": "1"}),
-                html.Div([
-                    html.Label("To", className="block text-xs font-medium mb-1",
-                               style={"color": "rgba(255,255,255,0.6)"}),
-                    dcc.Dropdown(
-                        id="time-window-end-dropdown",
-                        options=options,
-                        value=end_val,
-                        clearable=False,
-                        className="text-sm",
-                        style={"fontSize": "13px"},
-                    ),
-                ], style={"flex": "1"}),
-            ], style={"display": "flex", "gap": "16px", "marginBottom": "24px"}),
-            # Keep the store for backward compat (callbacks reference it)
-            dcc.Store(id="time-window-dates", data=all_dates),
+                    html.H2("Time Window", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.Button("✕", id="time-window-cancel-x", className="btn btn-ghost text-xl cursor-pointer",
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                ], className="flex items-center justify-between"),
+            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
-                html.Button("Apply", id="time-window-apply", className="btn btn-primary", style={"marginRight": "10px"}),
-                html.Button("Show All", id="time-window-reset", className="btn btn-outline", style={"marginRight": "10px"}),
-                html.Button("Cancel", id="time-window-cancel", className="btn btn-outline"),
-            ], style={"textAlign": "center", "display": "flex", "justifyContent": "center", "gap": "8px"}),
-        ], style={**_MODAL_BG, **_MODAL_CENTER, "padding": "30px", "width": "440px", "maxWidth": "90vw"}),
+                html.Label("Select the reporting period range:", className="block text-sm font-medium mb-3 text-ink-600 dark:text-slate-300"),
+                html.Div([
+                    html.Div([
+                        html.Label("Start Month", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-400"),
+                        dcc.Dropdown(
+                            id="time-window-start-dropdown",
+                            options=options,
+                            value=start_val,
+                            clearable=False,
+                            className="text-sm",
+                            style={"fontSize": "13px"},
+                        ),
+                    ], style={"flex": "1"}),
+                    html.Div([
+                        html.Label("End Month", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-400"),
+                        dcc.Dropdown(
+                            id="time-window-end-dropdown",
+                            options=options,
+                            value=end_val,
+                            clearable=False,
+                            className="text-sm",
+                            style={"fontSize": "13px"},
+                        ),
+                    ], style={"flex": "1"}),
+                ], className="flex gap-4 mb-4"),
+                dcc.Store(id="time-window-dates", data=all_dates),
+                html.Div([
+                    html.Button("Apply", id="time-window-apply", className="btn btn-primary", style={"fontSize": "13px", "flex": "1"}),
+                    html.Button("Show All", id="time-window-reset", className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}),
+                ], className="flex gap-2"),
+                # Hidden placeholder so the callback Input still resolves
+                html.Div(id="time-window-cancel", style={"display": "none"}),
+            ], className="p-4"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw", "overflow": "visible"}),
     ], id="time-window-modal", style=_MODAL_OVERLAY)
 
 
@@ -361,7 +403,7 @@ def get_app_index_string():
         --primary-glow: rgba({glow_rgb}, 0.25);
       }}
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     {{%metas%}}
     {{%favicon%}}
     {{%css%}}

@@ -141,27 +141,32 @@ def register(app) -> None:  # noqa: ARG001
          Output("portfolio-edit-name", "data"),
          Output("portfolio-wizard-title", "children"),
          Output("create-portfolio-name-input", "value"),
-         Output("create-portfolio-name-input", "disabled")],
+         Output("create-portfolio-name-input", "disabled"),
+         Output("reference-portfolio-dropdown", "options"),
+         Output("reference-portfolio-dropdown", "value")],
         Input("portfolio-select-confirm", "n_clicks"),
         State("portfolio-modal-dropdown", "value"),
         prevent_initial_call=True,
     )
     def confirm_portfolio_selection(confirm_clicks, selected):
-        n_out = 11
+        n_out = 13
         if not confirm_clicks or not selected:
             return (no_update,) * n_out
         if selected == _CREATE_NEW:
             initial_state = [{"column": None, "values": []}]
+            ref_opts = [{"label": p, "value": p} for p in app_state.available_portfolios]
             return (no_update, no_update, no_update, _MODAL_HIDDEN, _MODAL_SHOWN,
                     initial_state, _render_filter_levels(initial_state),
-                    None, "Create New Portfolio", "", False)
+                    None, "Create New Portfolio", "", False,
+                    ref_opts, None)
         # Normal portfolio selection — record as last active
         user_management.set_last_active_portfolio(
             user_management.get_current_user(), selected,
         )
         return (selected, selected, _build_portfolio_opts(), _MODAL_HIDDEN,
                 no_update, no_update, no_update,
-                no_update, no_update, no_update, no_update)
+                no_update, no_update, no_update, no_update,
+                no_update, no_update)
 
     # ── Update button ─────────────────────────────────────────────────────
 
@@ -196,35 +201,77 @@ def register(app) -> None:  # noqa: ARG001
 
     # ── Delete button ─────────────────────────────────────────────────────
 
+    # ── Delete: show confirmation modal ──────────────────────────────────
+
+    @callback(
+        [Output("portfolio-delete-confirm-modal", "style"),
+         Output("delete-confirm-message", "children"),
+         Output("portfolio-delete-error", "children", allow_duplicate=True)],
+        Input("portfolio-delete-btn", "n_clicks"),
+        State("portfolio-modal-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def show_delete_confirm(n_clicks, selected):
+        if not n_clicks or not selected:
+            return no_update, no_update, no_update
+        if selected in config.DEFAULT_PORTFOLIOS:
+            return no_update, no_update, "Cannot delete default portfolios."
+        if selected == _CREATE_NEW:
+            return no_update, no_update, no_update
+        return (
+            {"display": "block", "position": "fixed", "inset": "0", "zIndex": "10000",
+             "display": "flex", "alignItems": "center", "justifyContent": "center",
+             "background": "rgba(0,0,0,0.5)"},
+            f'Are you sure you want to delete "{selected}"? This action cannot be undone.',
+            "",
+        )
+
+    @callback(
+        Output("portfolio-delete-confirm-modal", "style", allow_duplicate=True),
+        Input("portfolio-delete-cancel", "n_clicks"),
+        prevent_initial_call=True,
+    )
+    def hide_delete_confirm(n_clicks):
+        if not n_clicks:
+            return no_update
+        return {"display": "none"}
+
     @callback(
         [Output("portfolio-modal-dropdown", "options", allow_duplicate=True),
          Output("portfolio-modal-dropdown", "value", allow_duplicate=True),
          Output("portfolio-delete-error", "children", allow_duplicate=True),
          Output("universal-portfolio-dropdown", "options", allow_duplicate=True),
          Output("portfolio-selector-btn", "children", allow_duplicate=True),
-         Output("universal-portfolio-dropdown", "value", allow_duplicate=True)],
-        Input("portfolio-delete-btn", "n_clicks"),
+         Output("universal-portfolio-dropdown", "value", allow_duplicate=True),
+         Output("portfolio-delete-confirm-modal", "style", allow_duplicate=True)],
+        Input("portfolio-delete-confirm", "n_clicks"),
         State("portfolio-modal-dropdown", "value"),
         prevent_initial_call=True,
     )
     def delete_portfolio(n_clicks, selected):
         if not n_clicks or not selected:
-            return (no_update,) * 6
+            return (no_update,) * 7
         if selected in config.DEFAULT_PORTFOLIOS:
-            return no_update, no_update, "Cannot delete default portfolios.", no_update, no_update, no_update
+            return no_update, no_update, "Cannot delete default portfolios.", no_update, no_update, no_update, {"display": "none"}
         if selected == _CREATE_NEW:
-            return (no_update,) * 6
+            return (no_update,) * 7
 
         user = user_management.get_current_user()
         app_state.portfolios.pop(selected, None)
         app_state.available_portfolios = list(app_state.portfolios.keys())
         app_state.save_user_data(user)
         DatasetRegistry.invalidate_all_caches()
-        default = app_state.default_portfolio
-        user_management.set_last_active_portfolio(user, default)
-        logger.info("Deleted portfolio '%s'. Remaining: %s", selected, list(app_state.portfolios.keys()))
+
+        # Pick the last user-defined portfolio; fall back to Entire Commercial
+        user_portfolios = [
+            p for p in app_state.available_portfolios
+            if p not in config.DEFAULT_PORTFOLIOS
+        ]
+        next_portfolio = user_portfolios[-1] if user_portfolios else app_state.default_portfolio
+        user_management.set_last_active_portfolio(user, next_portfolio)
+        logger.info("Deleted portfolio '%s'. Switched to '%s'", selected, next_portfolio)
         return (_build_modal_opts(), None, "",
-                _build_portfolio_opts(), default, default)
+                _build_portfolio_opts(), next_portfolio, next_portfolio, {"display": "none"})
 
     # ── Modal 2: Creation/Edit Wizard ─────────────────────────────────────
 
@@ -237,6 +284,24 @@ def register(app) -> None:  # noqa: ARG001
         if n_clicks:
             return _MODAL_HIDDEN
         return no_update
+
+    @callback(
+        [Output("portfolio-filter-state", "data", allow_duplicate=True),
+         Output("filter-levels-container", "children", allow_duplicate=True)],
+        Input("reference-portfolio-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def load_reference_portfolio(ref_portfolio):
+        if not ref_portfolio:
+            state = [{"column": None, "values": []}]
+            return state, _render_filter_levels(state)
+        if ref_portfolio not in app_state.portfolios:
+            return no_update, no_update
+        criteria = app_state.portfolios[ref_portfolio]
+        criteria = AppState._migrate_criteria(criteria)
+        existing_filters = criteria.get("filters", [])
+        state = existing_filters if existing_filters else [{"column": None, "values": []}]
+        return state, _render_filter_levels(state)
 
     @callback(
         [Output("portfolio-filter-state", "data", allow_duplicate=True),

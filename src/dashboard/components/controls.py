@@ -120,6 +120,7 @@ class PortfolioSelector(GlobalControl):
         selected = kwargs.get("selected_portfolio", self._selected)
         options = kwargs.get("available_portfolios", self._options)
         return html.Div([
+            html.Span("Portfolio", className="control-label"),
             html.Button(
                 id="portfolio-selector-btn",
                 children=selected or "Select Portfolio",
@@ -273,11 +274,12 @@ class TimeWindowButton(GlobalControl):
         start, end = app_state.get_time_window()
         label = _format_time_label(start, end)
         return html.Div([
+            html.Span("Time Window", className="control-label"),
             html.Button(
                 label,
                 id="time-window-btn",
                 n_clicks=0,
-                className="header-btn",
+                className="header-btn portfolio-selector-btn",
                 title="Change time window",
             ),
         ])
