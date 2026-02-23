@@ -33,7 +33,8 @@ IRIS-D/
 │       ├── callbacks/         # Callback modules grouped by concern
 │       │   ├── __init__.py            # CallbackRegistry — auto-wires all 3 layers
 │       │   ├── user_callbacks.py      # Login, register, delete-profile, profile-switch
-│       │   ├── portfolio_callbacks.py # Portfolio CRUD (create, select, delete)
+│       │   ├── portfolio_callbacks.py # Portfolio CRUD (create, select, update, delete)
+│       │   ├── time_window_callbacks.py # Time window modal, apply, reset, perf warning
 │       │   └── autosave_callbacks.py  # Auto-save timer + notification banner
 │       ├── tabs/              # Tab implementations (self-contained per tab)
 │       │   ├── registry.py            # BaseTab, TabContext, register_tab()
@@ -62,11 +63,12 @@ IRIS-D/
 │           ├── helpers.py
 │           └── logging.py             # configure_logging() — structured console output
 ├── data/
-│   ├── bank_risk.db           # SQLite database (facility data)
+│   ├── bank_risk.db           # SQLite database (generated locally, not in repo)
 │   ├── datatidy_config.yaml   # Data processing rules
 │   └── user_profiles.json     # User preferences (auto-created)
 ├── assets/
-│   └── style.css              # CSS styling (glassmorphism dark theme)
+│   ├── style.css              # CSS styling (glassmorphism dark theme)
+│   └── tab_switch_v2.js       # Instant tab switching (JS mousedown + fetch interceptor)
 ├── docs/
 │   └── DEVELOPER_GUIDE.md     # Framework developer reference
 └── tests/
@@ -88,7 +90,7 @@ The dashboard uses a **3-layer modular framework**:
 
 | Layer | Purpose | Key File |
 |---|---|---|
-| **Layer 1 — Global Controls** | Sticky header (portfolio selector, theme toggle, profile) | `components/controls.py` |
+| **Layer 1 — Global Controls** | Sticky header (portfolio selector, time window, theme, profile) | `components/controls.py` |
 | **Layer 2 — Toolbar** | Per-tab controls (dropdowns, sliders, toggles) | `components/toolbar.py` |
 | **Layer 3 — Content** | Sidebar + main content grid (cards, charts, tables) | `components/cards.py` |
 
@@ -101,9 +103,12 @@ from .app_state import app_state
 
 ctx = app_state.make_tab_context("Corporate Banking")
 df  = app_state.get_filtered_data("CRE")
+app_state.set_time_window("2024-01-31", "2026-01-31")  # global time window
 app_state.load_user_portfolios(username)   # on login/switch
 app_state.save_user_data(username)         # on portfolio CRUD / autosave
 ```
+
+**Time window:** `make_tab_context()` passes time-windowed `facilities_df` to tabs. `get_filtered_data()` returns the latest snapshot within the window. Default: last 2 years.
 
 ### Data Layer
 
@@ -212,6 +217,9 @@ Tabs can register custom signals: `SignalRegistry.register("my-signal-id")`
 ```bash
 # Install (editable mode)
 pip install -e .
+
+# Generate test database (required after first clone)
+python -m src.dashboard.data.db_data_generator
 
 # Run locally
 python main.py

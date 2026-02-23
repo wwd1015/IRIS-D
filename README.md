@@ -50,22 +50,43 @@ The `components/` directory contains **only shared framework abstractions** (not
 
 ### Data Structure
 
-- **Database**: SQLite database (`data/bank_risk.db`) with facility data
+- **Database**: SQLite database (`data/bank_risk.db`) — generated locally via `db_data_generator.py`
 - **Data Processing**: Pydantic validation + DataTidy integration
 - **Configuration**: YAML configuration (`data/datatidy_config.yaml`) for data processing rules
 - **User Profiles**: JSON storage (`data/user_profiles.json`) for user preferences (auto-created)
 
-## Installation
+## Getting Started
+
+### 1. Install dependencies
 
 ```bash
-# Install dependencies
 pip install -e .
 
-# Or install in development mode with dev dependencies
+# Or with dev dependencies
 pip install -e ".[dev]"
+```
 
-# Run the application
+### 2. Generate the test database
+
+The SQLite database (`data/bank_risk.db`) is **not** included in the repository due to its size. You must generate it locally after cloning:
+
+```bash
+python -m src.dashboard.data.db_data_generator
+```
+
+This creates `data/bank_risk.db` with ~6,000 synthetic facilities (2,100 Corporate + 900 CRE) and ~10 years of monthly reporting history (~200K+ records). Generation takes about 1–2 minutes.
+
+### 3. Run the application
+
+```bash
 python main.py
+# → http://127.0.0.1:8050
+```
+
+### 4. Run tests
+
+```bash
+python -m pytest tests/unit/ -v   # Unit tests (no DB required)
 ```
 
 ## Deployment to Posit Connect
@@ -78,7 +99,7 @@ python main.py
 
 1. **Test the application**:
    ```bash
-   python test_app.py
+   python -m pytest tests/unit/ -v
    ```
 
 2. **Deploy via command line**:
@@ -144,40 +165,43 @@ IRIS-D/
 │       │   ├── toolbar.py               # ToolbarControl presets
 │       │   ├── signals.py               # Signal store IDs
 │       │   └── layout.py               # App shell & navigation
-│       ├── data/                    # Data processing
-│       │   ├── loader.py
-│       │   └── db_data_generator.py
+│       ├── callbacks/              # Callback modules
+│       │   ├── __init__.py            # CallbackRegistry (auto-wiring)
+│       │   ├── user_callbacks.py      # Login, register, profile-switch
+│       │   ├── portfolio_callbacks.py # Portfolio CRUD
+│       │   └── time_window_callbacks.py # Time window modal
+│       ├── data/                    # Data loading & abstraction
+│       │   ├── dataset.py             # Dataset (filtering, caching)
+│       │   ├── registry.py            # DatasetRegistry
+│       │   ├── sources.py             # DataSource protocol
+│       │   ├── loader.py              # load_dataset() facade
+│       │   └── db_data_generator.py   # Synthetic data generator
 │       └── utils/                   # Shared utilities
-│           └── helpers.py
+│           ├── helpers.py
+│           └── logging.py
 ├── data/                            # Data files
-│   ├── bank_risk.db                 # SQLite database
+│   ├── bank_risk.db                 # SQLite database (generated locally)
 │   ├── datatidy_config.yaml         # Data processing config
 │   └── user_profiles.json           # User profiles (auto-created)
 ├── assets/                          # Static assets
-│   └── style.css                    # CSS styling (glassmorphism dark theme)
+│   ├── style.css                    # CSS styling (glassmorphism dark theme)
+│   └── tab_switch_v2.js             # Instant tab switching
 ├── docs/                            # Documentation
 │   └── DEVELOPER_GUIDE.md           # Framework developer reference
 └── tests/                           # Test files
-    ├── test_prototype.py
+    ├── conftest.py                  # Shared fixtures
+    ├── unit/                        # Unit tests (no DB needed)
     └── integration/
         └── test_app.py
 ```
 
 ## Testing
 
-Run the test suite to validate functionality:
-
 ```bash
-python test_app.py
+python -m pytest tests/unit/ -v
 ```
 
-Tests include:
-- Dependency verification
-- Data file validation
-- Portfolio functionality
-- Custom metrics system
-- User profile management
-- Application import
+Unit tests use an in-memory data source — no SQLite database required.
 
 ## Support
 
