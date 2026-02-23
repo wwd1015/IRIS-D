@@ -2,20 +2,26 @@
   "John Smith": {
     "role": "SAG",
     "portfolios": {
-      "Financial & Healthcare": {
+      "financial_sub": {
         "filters": [
           {
             "column": "industry",
             "values": [
               "Financial Services",
-              "Healthcare"
+              "Real Estate"
+            ]
+          },
+          {
+            "column": "risk_category",
+            "values": [
+              "Criticized"
             ]
           }
         ]
       }
     },
     "custom_metrics": {},
-    "last_active_portfolio": "Entire Commercial"
+    "last_active_portfolio": "financial_sub"
   },
   "Jane Doe": {
     "role": "Corp SCO",

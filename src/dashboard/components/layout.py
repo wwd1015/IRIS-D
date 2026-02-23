@@ -100,6 +100,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         _portfolio_delete_confirm_modal(),
         _portfolio_create_modal(),
         _time_window_modal(),
+        _performance_warning_modal(),
 
         # ── Hidden infrastructure ───────────────────────────────────────────
         dcc.Store(id="active-tab-store", data=None),
@@ -347,6 +348,33 @@ def _time_window_modal():
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw", "overflow": "visible"}),
     ], id="time-window-modal", style=_MODAL_OVERLAY)
+
+
+def _performance_warning_modal():
+    """Warning when user selects Show All on the full portfolio."""
+    return html.Div([
+        html.Div([
+            html.Header([
+                html.Div([
+                    html.H2("Performance Warning", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                ], className="flex items-center justify-between"),
+            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            html.Div([
+                html.P(
+                    "Loading the full portfolio over all time periods may cause "
+                    "the app to slow down significantly.",
+                    className="text-sm text-ink-600 dark:text-slate-300 mb-4",
+                ),
+                html.Div([
+                    html.Button("Continue Anyway", id="perf-warning-confirm",
+                                className="btn btn-danger", style={"fontSize": "13px", "flex": "1"}),
+                    html.Button("Cancel", id="perf-warning-cancel",
+                                className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}),
+                ], className="flex gap-2"),
+            ], className="p-4"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
+    ], id="perf-warning-modal", style=_MODAL_OVERLAY)
 
 
 def get_app_index_string():
