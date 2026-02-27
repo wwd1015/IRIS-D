@@ -120,10 +120,11 @@ def _build_tab_navigation_callback() -> None:
 
 _build_tab_navigation_callback()
 
-from .callbacks import user_callbacks, portfolio_callbacks, time_window_callbacks
+from .callbacks import user_callbacks, portfolio_callbacks, time_window_callbacks, custom_metric_callbacks
 user_callbacks.register(app)
 portfolio_callbacks.register(app)
 time_window_callbacks.register(app)
+custom_metric_callbacks.register(app)
 
 # Auto-wire callbacks from all 3 layers (GlobalControl, ToolbarControl, DisplayCard)
 from .callbacks import CallbackRegistry

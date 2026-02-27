@@ -101,8 +101,10 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         _portfolio_create_modal(),
         _time_window_modal(),
         _performance_warning_modal(),
+        _custom_metric_modal(),
 
         # ── Hidden infrastructure ───────────────────────────────────────────
+        dcc.Store(id="custom-metric-token-store", data=[]),
         dcc.Store(id="active-tab-store", data=None),
         dcc.Store(id="current-user-store", data=user_management.get_current_user()),
         dcc.Store(id="time-window-store", data=_initial_time_window()),
@@ -375,6 +377,147 @@ def _performance_warning_modal():
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
     ], id="perf-warning-modal", style=_MODAL_OVERLAY)
+
+
+def _custom_metric_modal():
+    """Modal for building custom metrics with click-to-build formula builder."""
+    from ..data.registry import DatasetRegistry
+
+    dataset_options = []
+    if DatasetRegistry.has("facilities"):
+        dataset_options.append({"label": "Facilities", "value": "facilities"})
+
+    _BTN = {
+        "fontSize": "13px", "padding": "4px 10px", "minWidth": "34px",
+        "minHeight": "30px", "fontFamily": "monospace", "fontWeight": "600",
+    }
+    _BTN_LOGIC = {
+        "fontSize": "11px", "padding": "4px 8px", "minWidth": "auto",
+        "minHeight": "30px", "fontWeight": "600",
+    }
+
+    return html.Div([
+        html.Div([
+            html.Header([
+                html.Div([
+                    html.H2("Custom Metrics", className="text-lg font-semibold",
+                            style={"color": "var(--text-primary)"}),
+                    html.Button("✕", id="custom-metric-close-x", className="btn btn-ghost text-xl cursor-pointer",
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto",
+                                       "color": "var(--text-secondary)"}),
+                ], className="flex items-center justify-between"),
+            ], style={"padding": "12px 16px", "borderBottom": "1px solid var(--border-default)"}),
+            html.Div([
+                # Dataset selector
+                html.Div([
+                    html.Label("Dataset", className="block text-xs font-medium mb-1",
+                               style={"color": "var(--text-secondary)"}),
+                    dcc.Dropdown(id="custom-metric-dataset-dropdown", options=dataset_options,
+                                 value="facilities" if dataset_options else None,
+                                 clearable=False, className="text-sm", style={"fontSize": "13px"}),
+                ], className="mb-3"),
+
+                # Build Formula section
+                html.Div([
+                    html.H4("Build Formula", className="text-sm font-semibold mb-2",
+                            style={"color": "var(--text-primary)"}),
+                    # Column dropdown + add button
+                    html.Div([
+                        html.Div([
+                            html.Label("Column", className="block text-xs font-medium mb-1",
+                                       style={"color": "var(--text-secondary)"}),
+                            dcc.Dropdown(id="custom-metric-column-dropdown", placeholder="Select column...",
+                                         className="text-sm", style={"fontSize": "13px"}),
+                        ], style={"flex": "1"}),
+                        html.Div([
+                            html.Label("", className="block text-xs mb-1", style={"visibility": "hidden"}),
+                            html.Button("+ Col", id="custom-metric-add-col-btn", className="btn btn-outline",
+                                        style={"fontSize": "12px", "padding": "6px 10px"}),
+                        ]),
+                    ], className="flex gap-2 items-end mb-2"),
+
+                    # Arithmetic operator buttons
+                    html.Div([
+                        html.Button("+", id="custom-metric-op-add", className="btn btn-outline", style=_BTN),
+                        html.Button("−", id="custom-metric-op-sub", className="btn btn-outline", style=_BTN),
+                        html.Button("×", id="custom-metric-op-mul", className="btn btn-outline", style=_BTN),
+                        html.Button("÷", id="custom-metric-op-div", className="btn btn-outline", style=_BTN),
+                        html.Button("(", id="custom-metric-op-lparen", className="btn btn-outline", style=_BTN),
+                        html.Button(")", id="custom-metric-op-rparen", className="btn btn-outline", style=_BTN),
+                    ], className="flex gap-1 mb-2"),
+
+                    # Logic / comparison buttons
+                    html.Div([
+                        html.Button(">=", id="custom-metric-op-gte", className="btn btn-outline", style=_BTN_LOGIC),
+                        html.Button("<=", id="custom-metric-op-lte", className="btn btn-outline", style=_BTN_LOGIC),
+                        html.Button(">", id="custom-metric-op-gt", className="btn btn-outline", style=_BTN_LOGIC),
+                        html.Button("<", id="custom-metric-op-lt", className="btn btn-outline", style=_BTN_LOGIC),
+                        html.Button("==", id="custom-metric-op-eq", className="btn btn-outline", style=_BTN_LOGIC),
+                        html.Button("IF", id="custom-metric-op-if", className="btn btn-outline",
+                                    style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
+                        html.Button("THEN", id="custom-metric-op-then", className="btn btn-outline",
+                                    style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
+                        html.Button("ELSE", id="custom-metric-op-else", className="btn btn-outline",
+                                    style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
+                    ], className="flex flex-wrap gap-1 mb-2"),
+
+                    # Constant input + undo
+                    html.Div([
+                        dcc.Input(id="custom-metric-constant-input", type="text", placeholder="Constant",
+                                  className="px-2 py-1 text-xs rounded-md",
+                                  style={"width": "80px", "border": "1px solid var(--border-default)",
+                                         "background": "var(--bg-base)", "color": "var(--text-primary)"}),
+                        html.Button("Add", id="custom-metric-add-const-btn", className="btn btn-outline",
+                                    style={"fontSize": "12px", "padding": "4px 10px"}),
+                        html.Div(style={"flex": "1"}),
+                        html.Button("⌫ Undo", id="custom-metric-undo-btn", className="btn btn-ghost",
+                                    style={"fontSize": "12px", "padding": "4px 10px",
+                                           "color": "var(--text-muted)"}),
+                    ], className="flex gap-2 items-center mb-3"),
+
+                    # Formula display
+                    html.Div([
+                        html.Label("Formula", className="block text-xs font-medium mb-1",
+                                   style={"color": "var(--text-secondary)"}),
+                        html.Div(
+                            id="custom-metric-formula-display",
+                            className="px-3 py-2 rounded-md min-h-[40px] flex items-center flex-wrap gap-1",
+                            style={
+                                "background": "var(--bg-base)",
+                                "border": "1px solid var(--border-default)",
+                            },
+                        ),
+                    ]),
+                ], className="p-3 rounded-lg mb-3",
+                   style={"background": "var(--bg-surface)", "border": "1px solid var(--border-default)"}),
+
+                # Metric name (below formula)
+                html.Div([
+                    html.Label("Metric Name", className="block text-xs font-medium mb-1",
+                               style={"color": "var(--text-secondary)"}),
+                    dcc.Input(id="custom-metric-name-input", type="text", placeholder="e.g. Leverage Ratio",
+                              className="w-full px-3 py-2 text-xs rounded-md focus:ring-2 focus:ring-brand-500",
+                              style={"border": "1px solid var(--border-default)",
+                                     "background": "var(--bg-base)", "color": "var(--text-primary)"}),
+                ], className="mb-3"),
+
+                # Save button + status
+                html.Button("Save Metric", id="custom-metric-save-btn",
+                            className="btn btn-primary btn-glow w-full", style={"fontSize": "13px"}),
+                html.Div(id="custom-metric-save-status", className="mt-2 text-center"),
+
+                # Saved metrics list
+                html.Div([
+                    html.H4("Saved Metrics", className="text-sm font-semibold mb-2",
+                            style={"color": "var(--text-primary)"}),
+                    html.Div(id="custom-metric-saved-list"),
+                ], className="mt-4 pt-3", style={"borderTop": "1px solid var(--border-default)"}),
+            ], className="p-4 flex-1 overflow-auto"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "500px", "maxWidth": "90vw", "maxHeight": "85vh", "overflow": "auto"}),
+        # Store for editing mode (metric name being edited, None = new)
+        dcc.Store(id="custom-metric-edit-name", data=None),
+    ], id="custom-metric-modal", style=_MODAL_OVERLAY)
 
 
 def get_app_index_string():

@@ -40,7 +40,7 @@ class PortfolioTrendTab(BaseTab):
 
     def render_content(self, ctx: TabContext):
         return _create_portfolio_trend_content(
-            ctx.selected_portfolio, ctx.custom_metrics,
+            ctx.selected_portfolio,
             ctx.portfolios, ctx.facilities_df, ctx.get_filtered_data,
         )
 
@@ -82,39 +82,7 @@ register_tab(PortfolioTrendTab())
 
 
 
-def _create_custom_metric_panel():
-    """Collapsible custom metric creation panel rendered at the top of the content area."""
-    return html.Details([
-        html.Summary("Create Custom Metric",
-                     className="text-sm font-semibold text-brand-500 cursor-pointer select-none px-4 py-3"),
-        html.Div([
-            html.Div([
-                html.Label("Formula:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                html.P(
-                    "Supports conditions & backticks, e.g. (`Obligor Rating` == 15) * Balance",
-                    className="text-xs text-ink-500 dark:text-slate-400 mb-2",
-                ),
-                dcc.Input(
-                    id="custom-metric-formula", type="text",
-                    placeholder="e.g., (`Obligor Rating` == 15 or `Obligor Rating` == 16) * Balance",
-                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500",
-                ),
-            ], className="mb-3"),
-            html.Div([
-                html.Label("Metric Name:", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
-                dcc.Input(
-                    id="custom-metric-name", type="text", placeholder="Enter metric name…",
-                    className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500",
-                ),
-            ], className="mb-3"),
-            html.Button("Create Metric", id="create-metric-btn",
-                        className="px-3 py-2 text-xs bg-brand-500 text-white rounded-md hover:bg-brand-400 transition-colors"),
-            html.Div(id="metric-creation-alert", className="mt-3"),
-        ], className="px-4 pb-4"),
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 mb-4")
-
-
-def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df: pl.DataFrame):
+def _get_portfolio_metrics(facilities_df: pl.DataFrame):
     """Get appropriate metrics based on available numeric columns in the data."""
     exclude_cols = {'facility_id', 'obligor_name', 'origination_date', 'maturity_date',
                     'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa', 'sir',
@@ -130,21 +98,17 @@ def _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facil
         for col in numeric_cols
     ]
 
-    for metric_name in custom_metrics:
-        metric_options.append({'label': f"{metric_name} (Custom)", 'value': metric_name})
-
     return metric_options
 
 
-def _create_portfolio_trend_content(selected_portfolio, custom_metrics, portfolios, facilities_df, get_filtered_data):
-    """Create the Portfolio Trend tab content (custom metric panel + three charts)."""
-    metrics_options = _get_portfolio_metrics(selected_portfolio, custom_metrics, portfolios, facilities_df)
+def _create_portfolio_trend_content(selected_portfolio, portfolios, facilities_df, get_filtered_data):
+    """Create the Portfolio Trend tab content (three configurable metric charts)."""
+    metrics_options = _get_portfolio_metrics(facilities_df)
     default_metric_1 = metrics_options[0]['value'] if metrics_options else 'balance'
     default_metric_2 = metrics_options[1]['value'] if len(metrics_options) > 1 else 'balance'
     default_metric_3 = metrics_options[2]['value'] if len(metrics_options) > 2 else 'balance'
 
     return html.Div([
-        _create_custom_metric_panel(),
         # First Chart
         html.Div([
             html.Div([

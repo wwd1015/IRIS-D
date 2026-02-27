@@ -295,6 +295,28 @@ def _format_time_label(start: str | None, end: str | None) -> str:
     return "All Time"
 
 
+class CustomMetricButton(GlobalControl):
+    """Button that opens the custom metric formula builder modal."""
+
+    id = "custom-metric"
+    label = "Custom Metrics"
+    position = ControlPosition.LEFT
+    order = 20  # after time window
+
+    def render(self, **kwargs) -> html.Div:
+        return html.Div([
+            html.Span("Metrics", className="control-label"),
+            html.Button(
+                "fx",
+                id="custom-metric-btn",
+                n_clicks=0,
+                className="header-btn portfolio-selector-btn",
+                title="Custom Metrics",
+                style={"fontStyle": "italic"},
+            ),
+        ])
+
+
 class ContactButton(GlobalControl):
     """Button that opens the contact/support modal."""
 
@@ -321,4 +343,5 @@ register_global_control(TimeWindowButton())
 register_global_control(ProfileAvatar())
 register_global_control(ThemeToggle())
 register_global_control(AccentColorPicker())
+register_global_control(CustomMetricButton())
 register_global_control(ContactButton())

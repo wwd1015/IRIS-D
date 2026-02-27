@@ -279,6 +279,11 @@ class AppState:
 
     def load_user_portfolios(self, username: str) -> None:
         """Reload portfolios and custom_metrics for the given user."""
+        # Remove old custom metric columns before loading new profile
+        from .callbacks.custom_metric_callbacks import remove_custom_metric_columns, apply_custom_metrics
+        if self.custom_metrics:
+            remove_custom_metric_columns(self)
+
         self.portfolios.clear()
         self.custom_metrics.clear()
         self.portfolios.update(config.DEFAULT_PORTFOLIOS.copy())
@@ -290,6 +295,9 @@ class AppState:
         self.available_portfolios = list(self.portfolios.keys())
         # Invalidate caches when portfolios change
         DatasetRegistry.invalidate_all_caches()
+        # Apply custom metrics to datasets
+        if self.custom_metrics:
+            apply_custom_metrics(self)
 
     def save_user_data(self, username: str) -> None:
         """Persist custom portfolios and metrics for the given user."""
