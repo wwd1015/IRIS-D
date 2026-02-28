@@ -1,306 +1,345 @@
 """
 Role-gated tabs – SIR Analysis, Location Analysis, Financial Projection, Model Backtesting.
 
-These are role-specific tabs that only appear for certain user roles.
-Location Analysis has full CRE map implementation; others are placeholders.
+Each tab has basic visualizations derived from facility data.
 """
 
 from __future__ import annotations
 
-from dash import html, dcc
-import plotly.graph_objects as go
-import pandas as pd
+import plotly.graph_objs as go
 import polars as pl
-import sqlite3
-from ..tabs.registry import BaseTab, register_tab
+from dash import callback, dcc, html, Input, Output, no_update
+
+from .registry import BaseTab, ContentLayout, TabContext, register_tab
+from ..components.toolbar import DropdownControl
+
+_THEME = dict(
+    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+    font=dict(size=12, color="rgba(255,255,255,0.7)"),
+    margin=dict(l=40, r=20, t=20, b=40), showlegend=False,
+)
 
 
-def _placeholder_content(icon: str, title: str, description: str):
-    """Shared helper for placeholder tab content."""
-    return html.Div([
-        html.Div([
-            html.H3(title, className="text-sm font-semibold text-ink-700 dark:text-slate-300"),
-            html.Div(description, className="text-xs text-ink-500 dark:text-slate-400")
-        ], className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-ink-700"),
-        html.Div([
-            html.Div([
-                html.Div(icon, style={"fontSize": "48px", "marginBottom": "16px"}),
-                html.H4("Ready for Implementation", className="text-lg font-medium text-ink-600 dark:text-slate-300 mb-2"),
-                html.P(description, className="text-ink-500 dark:text-slate-400 text-sm max-w-md"),
-                html.P("Subclass BaseTab in src/dashboard/tabs/ to implement.",
-                      className="text-ink-400 dark:text-slate-500 text-xs mt-2 font-mono")
-            ], className="text-center py-20")
-        ], className="p-6")
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")
+def _apply_filters(df, criteria):
+    from ..data.dataset import Dataset
+    criteria = Dataset._migrate_criteria(criteria)
+    for level in criteria.get("filters", []):
+        col, vals = level.get("column"), level.get("values", [])
+        if col and vals and col in df.columns:
+            df = df.filter(pl.col(col).cast(pl.Utf8).is_in([str(v) for v in vals]))
+    return df
 
 
-
-# ── SIR Analysis ───────────────────────────────────────────────────────────────
+# ── SIR Analysis (FULL) ─────────────────────────────────────────────────────
 
 class SIRAnalysisTab(BaseTab):
     id = "sir-analysis"
     label = "SIR Analysis"
     order = 60
     required_roles = ["SAG"]
+    tier = "bronze"
+    tier_tooltip = "Bronze tier — set tier='bronze' in your BaseTab subclass"
+    content_layout = ContentLayout.FULL
 
-    def render_content(self, ctx):
-        return _placeholder_content("📐", "SIR Analysis", "Special Interest Rate Analysis")
+    def render_content(self, ctx: TabContext):
+        fig = _build_rating_distribution(ctx.get_filtered_data(ctx.selected_portfolio))
+        return html.Div([
+            html.Div([
+                html.H3("Rating Distribution", className="text-sm font-semibold pb-2 border-b border-ink-700"),
+                dcc.Graph(id="sir-chart", figure=fig, config={"displayModeBar": False},
+                          style={"height": "400px"}),
+            ], className="glass-card p-4"),
+        ])
+
+    def register_callbacks(self, app):
+        from ..app_state import app_state
+
+        @callback(
+            Output("sir-chart", "figure"),
+            [Input("universal-portfolio-dropdown", "value"),
+             Input("time-window-store", "data")],
+            prevent_initial_call=True,
+        )
+        def update(portfolio, _tw):
+            if not portfolio:
+                return no_update
+            return _build_rating_distribution(app_state.get_filtered_data(portfolio))
 
 
-# ── Location Analysis (fully implemented) ─────────────────────────────────────
+def _build_rating_distribution(df: pl.DataFrame):
+    fig = go.Figure()
+    if len(df) == 0:
+        fig.update_layout(**_THEME, height=400)
+        return fig
+    counts = df["obligor_rating"].value_counts().sort("obligor_rating")
+    ratings = counts["obligor_rating"].to_list()
+    vals = counts["count"].to_list()
+    colors = ["#22c55e" if r <= 13 else "#f59e0b" if r <= 15 else "#ef4444" for r in ratings]
+    fig.add_trace(go.Bar(x=[str(r) for r in ratings], y=vals, marker_color=colors))
+    fig.update_layout(**_THEME, height=400,
+                      xaxis=dict(title="Rating", color="rgba(255,255,255,0.5)"),
+                      yaxis=dict(title="Count", showgrid=True, gridcolor="rgba(255,255,255,0.06)",
+                                 color="rgba(255,255,255,0.5)"))
+    return fig
+
+
+# ── Location Analysis (FOUR_COL) ────────────────────────────────────────────
 
 class LocationAnalysisTab(BaseTab):
     id = "location-analysis"
     label = "Location Analysis"
     order = 70
     required_roles = ["CRE SCO"]
+    tier = "bronze"
+    tier_tooltip = "Bronze tier — set tier='bronze' in your BaseTab subclass"
+    content_layout = ContentLayout.FOUR_COL
 
-    def get_toolbar_controls(self, ctx):
-        from ..components.toolbar import DropdownControl
-        cre_portfolios = {k: v for k, v in ctx.portfolios.items()
-                         if k == "CRE" or (v and v.get("lob") == "CRE")}
-        opts = [{"label": p, "value": p} for p in cre_portfolios]
-        default = ctx.selected_portfolio if ctx.selected_portfolio in cre_portfolios else (opts[0]["value"] if opts else None)
-        return [
-            DropdownControl(
-                id="location-portfolio-dropdown", label="CRE Portfolio",
-                options=opts, value=default, order=10, width="min-w-[200px]",
-            ),
-        ]
+    def render_content(self, ctx: TabContext):
+        df = ctx.get_filtered_data(ctx.selected_portfolio)
+        cards = _build_location_metric_cards(df)
+        return html.Div(cards)
 
-    def render_content(self, ctx):
-        return _create_location_analysis_content(ctx.selected_portfolio, ctx.portfolios)
+    def register_callbacks(self, app):
+        from ..app_state import app_state
+
+        @callback(
+            Output("la-metrics-container", "children"),
+            [Input("universal-portfolio-dropdown", "value"),
+             Input("time-window-store", "data")],
+            prevent_initial_call=True,
+        )
+        def update(portfolio, _tw):
+            if not portfolio:
+                return no_update
+            return _build_location_metric_cards(app_state.get_filtered_data(portfolio))
 
 
-# ── Financial Projection ──────────────────────────────────────────────────────
+def _build_location_metric_cards(df: pl.DataFrame):
+    if len(df) == 0:
+        return [html.Div("No data", className="glass-card p-4")] * 4
+
+    total_bal = df["balance"].sum()
+    n_loans = df["facility_id"].n_unique()
+    n_markets = df["msa"].n_unique() if "msa" in df.columns else 0
+    avg_bal = total_bal / n_loans if n_loans > 0 else 0
+
+    metrics = [
+        ("Total Balance", f"${total_bal:,.0f}"),
+        ("Total Loans", str(n_loans)),
+        ("Markets (MSAs)", str(n_markets)),
+        ("Avg Loan Size", f"${avg_bal:,.0f}"),
+    ]
+    cards = []
+    for label, value in metrics:
+        cards.append(html.Div([
+            html.Div(value, className="text-lg font-bold"),
+            html.Div(label, className="text-xs text-slate-400 mt-1"),
+        ], className="glass-card p-4 text-center"))
+    return html.Div(cards, id="la-metrics-container")
+
+
+# ── Financial Projection (TWO_COL) ──────────────────────────────────────────
 
 class FinancialProjectionTab(BaseTab):
     id = "financial-projection"
     label = "Financial Projection"
     order = 80
     required_roles = ["Corp SCO"]
+    tier = "bronze"
+    tier_tooltip = "Bronze tier — set tier='bronze' in your BaseTab subclass"
+    content_layout = ContentLayout.TWO_COL
 
-    def render_content(self, ctx):
-        return _placeholder_content("🔮", "Financial Projection", "Financial forecasting and projection analysis")
+    def get_toolbar_controls(self, ctx: TabContext):
+        return [
+            DropdownControl(
+                id="fp-metric", label="Metric",
+                options=[
+                    {"label": "Balance", "value": "balance"},
+                    {"label": "Free Cash Flow", "value": "free_cash_flow"},
+                    {"label": "Profitability", "value": "profitability"},
+                ],
+                value="balance", order=10,
+            ),
+        ]
+
+    def render_content(self, ctx: TabContext):
+        df = ctx.get_filtered_data(ctx.selected_portfolio)
+        hist_fig = _build_hist_chart(ctx.facilities_df, ctx.portfolios,
+                                     ctx.selected_portfolio, "balance")
+        dist_fig = _build_distribution(df, "balance")
+        return html.Div([
+            html.Div([
+                html.H3("Historical Trend", className="text-sm font-semibold pb-2 border-b border-ink-700"),
+                dcc.Graph(id="fp-hist-chart", figure=hist_fig,
+                          config={"displayModeBar": False}, style={"height": "350px"}),
+            ], className="glass-card p-4"),
+            html.Div([
+                html.H3("Current Distribution", className="text-sm font-semibold pb-2 border-b border-ink-700"),
+                dcc.Graph(id="fp-dist-chart", figure=dist_fig,
+                          config={"displayModeBar": False}, style={"height": "350px"}),
+            ], className="glass-card p-4"),
+        ])
+
+    def register_callbacks(self, app):
+        from ..app_state import app_state
+
+        @callback(
+            [Output("fp-hist-chart", "figure"),
+             Output("fp-dist-chart", "figure")],
+            [Input("universal-portfolio-dropdown", "value"),
+             Input("time-window-store", "data"),
+             Input("fp-metric", "value")],
+            prevent_initial_call=True,
+        )
+        def update(portfolio, _tw, metric):
+            if not portfolio:
+                return no_update, no_update
+            metric = metric or "balance"
+            windowed = app_state._apply_time_window(app_state.facilities_df)
+            hist = _build_hist_chart(windowed, app_state.portfolios, portfolio, metric)
+            dist = _build_distribution(app_state.get_filtered_data(portfolio), metric)
+            return hist, dist
 
 
-# ── Model Backtesting ─────────────────────────────────────────────────────────
+def _build_hist_chart(df, portfolios, portfolio, metric):
+    fig = go.Figure()
+    if portfolio not in portfolios:
+        fig.update_layout(**_THEME, height=350)
+        return fig
+    filtered = _apply_filters(df, portfolios[portfolio])
+    if metric not in filtered.columns or len(filtered) == 0:
+        fig.update_layout(**_THEME, height=350)
+        return fig
+    ts = filtered.group_by("reporting_date").agg(pl.col(metric).mean()).sort("reporting_date")
+    fig.add_trace(go.Scatter(
+        x=ts["reporting_date"].to_list(), y=ts[metric].to_list(),
+        mode="lines+markers", line=dict(color="#a78bfa", width=2),
+    ))
+    fig.update_layout(**_THEME, height=350,
+                      xaxis=dict(showgrid=False, color="rgba(255,255,255,0.5)"),
+                      yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.06)",
+                                 color="rgba(255,255,255,0.5)"))
+    return fig
+
+
+def _build_distribution(df: pl.DataFrame, metric):
+    fig = go.Figure()
+    if len(df) == 0 or metric not in df.columns:
+        fig.update_layout(**_THEME, height=350)
+        return fig
+    vals = df[metric].drop_nulls().to_list()
+    fig.add_trace(go.Histogram(x=vals, nbinsx=30, marker_color="#8b5cf6"))
+    fig.update_layout(**_THEME, height=350,
+                      xaxis=dict(title=metric.replace("_", " ").title(),
+                                 color="rgba(255,255,255,0.5)"),
+                      yaxis=dict(title="Count", showgrid=True,
+                                 gridcolor="rgba(255,255,255,0.06)",
+                                 color="rgba(255,255,255,0.5)"))
+    return fig
+
+
+# ── Model Backtesting (WIDE_LEFT) ───────────────────────────────────────────
 
 class ModelBacktestingTab(BaseTab):
     id = "model-backtesting"
     label = "Model Backtesting"
     order = 90
     required_roles = ["BA"]
+    tier = "bronze"
+    tier_tooltip = "Bronze tier — set tier='bronze' in your BaseTab subclass"
+    content_layout = ContentLayout.WIDE_LEFT
 
-    def render_content(self, ctx):
-        return _placeholder_content("🧪", "Model Backtesting", "Model validation and backtesting analysis")
+    def render_content(self, ctx: TabContext):
+        df = ctx.get_filtered_data(ctx.selected_portfolio)
+        fig = _build_rating_migration(df)
+        summary = _build_backtest_summary(df)
+        return html.Div([
+            html.Div([
+                html.H3("Rating Migration", className="text-sm font-semibold pb-2 border-b border-ink-700"),
+                dcc.Graph(id="mb-chart", figure=fig, config={"displayModeBar": False},
+                          style={"height": "400px"}),
+            ], className="glass-card p-4"),
+            html.Div(id="mb-summary", children=summary, className="glass-card p-4"),
+        ])
+
+    def register_callbacks(self, app):
+        from ..app_state import app_state
+
+        @callback(
+            [Output("mb-chart", "figure"),
+             Output("mb-summary", "children")],
+            [Input("universal-portfolio-dropdown", "value"),
+             Input("time-window-store", "data")],
+            prevent_initial_call=True,
+        )
+        def update(portfolio, _tw):
+            if not portfolio:
+                return no_update, no_update
+            df = app_state.get_filtered_data(portfolio)
+            return _build_rating_migration(df), _build_backtest_summary(df)
 
 
-# Auto-register all
+def _build_rating_migration(df: pl.DataFrame):
+    fig = go.Figure()
+    if len(df) == 0:
+        fig.update_layout(**_THEME, height=400)
+        return fig
+    # Rating bucket counts
+    buckets = {"Pass (1-13)": 0, "Watch (14)": 0, "Criticized (15-16)": 0, "Default (17)": 0}
+    for row in df.iter_rows(named=True):
+        r = row.get("obligor_rating")
+        if r is None:
+            continue
+        if r <= 13:
+            buckets["Pass (1-13)"] += 1
+        elif r == 14:
+            buckets["Watch (14)"] += 1
+        elif r <= 16:
+            buckets["Criticized (15-16)"] += 1
+        else:
+            buckets["Default (17)"] += 1
+    colors = ["#22c55e", "#f59e0b", "#f97316", "#ef4444"]
+    fig.add_trace(go.Bar(
+        x=list(buckets.keys()), y=list(buckets.values()),
+        marker_color=colors,
+    ))
+    fig.update_layout(**_THEME, height=400,
+                      xaxis=dict(color="rgba(255,255,255,0.5)"),
+                      yaxis=dict(title="Facilities", showgrid=True,
+                                 gridcolor="rgba(255,255,255,0.06)",
+                                 color="rgba(255,255,255,0.5)"))
+    return fig
+
+
+def _build_backtest_summary(df: pl.DataFrame):
+    if len(df) == 0:
+        return html.Div("No data", className="text-slate-400")
+    n = len(df)
+    n_default = len(df.filter(pl.col("obligor_rating") == 17))
+    default_rate = n_default / n * 100 if n > 0 else 0
+    avg_rating = df["obligor_rating"].mean()
+
+    def _row(label, value):
+        return html.Div([
+            html.Span(label, className="text-xs text-slate-400"),
+            html.Span(value, className="text-xs font-semibold"),
+        ], className="flex justify-between")
+
+    return html.Div([
+        html.H3("Summary", className="text-sm font-semibold mb-3"),
+        html.Hr(className="border-slate-700 mb-3"),
+        html.Div([
+            _row("Total Facilities", str(n)),
+            _row("Defaults", str(n_default)),
+            _row("Default Rate", f"{default_rate:.2f}%"),
+            _row("Avg Rating", f"{avg_rating:.1f}" if avg_rating else "N/A"),
+        ], className="space-y-2"),
+    ])
+
+
+# ── Register all ─────────────────────────────────────────────────────────────
+
 register_tab(SIRAnalysisTab())
 register_tab(LocationAnalysisTab())
 register_tab(FinancialProjectionTab())
 register_tab(ModelBacktestingTab())
-
-
-# =============================================================================
-# Location Analysis – private rendering helpers
-# (merged from components/location_analysis.py)
-# =============================================================================
-
-
-
-def _get_cre_location_data(selected_portfolio, portfolios):
-    """Get CRE loan data with coordinates for mapping"""
-    print(f"DEBUG: Loading location data for portfolio: {selected_portfolio}")
-    print(f"DEBUG: Available portfolios: {list(portfolios.keys())}")
-    
-    conn = sqlite3.connect('data/bank_risk.db')
-    
-    try:
-        query = """
-            SELECT facility_id, obligor_name, balance, msa, latitude, longitude, 
-                   cre_property_type, dscr, ltv, property_value
-            FROM raw_facilities 
-            WHERE lob = 'CRE' 
-            AND latitude IS NOT NULL 
-            AND longitude IS NOT NULL
-        """
-        
-        params = []
-        
-        if selected_portfolio != 'CRE' and selected_portfolio in portfolios:
-            portfolio_config = portfolios[selected_portfolio]
-            print(f"DEBUG: Portfolio config for {selected_portfolio}: {portfolio_config}")
-            if portfolio_config.get('property_type'):
-                query += " AND cre_property_type IN ({})".format(','.join(['?' for _ in portfolio_config['property_type']]))
-                params.extend(portfolio_config['property_type'])
-            if portfolio_config.get('obligors'):
-                query += " AND obligor_name IN ({})".format(','.join(['?' for _ in portfolio_config['obligors']]))
-                params.extend(portfolio_config['obligors'])
-        
-        print(f"DEBUG: Executing query: {query}")
-        print(f"DEBUG: Query params: {params}")
-        
-        df = pd.read_sql_query(query, conn, params=params)
-        print(f"DEBUG: Loaded {len(df)} CRE loans with coordinates")
-        return df
-        
-    except Exception as e:
-        print(f"ERROR: Error loading CRE location data: {e}")
-        import traceback
-        traceback.print_exc()
-        return pd.DataFrame()
-    finally:
-        conn.close()
-
-
-def _create_location_map(selected_portfolio, portfolios):
-    """Create interactive map with CRE loan locations"""
-    df = _get_cre_location_data(selected_portfolio, portfolios)
-    
-    if df.empty:
-        return go.Figure().add_annotation(
-            text="No CRE loan data available",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5, xanchor='center', yanchor='middle',
-            showarrow=False, font_size=16
-        )
-    
-    hover_text = []
-    for row in df.itertuples():
-        hover_text.append(
-            f"<b>{row.obligor_name}</b><br>"
-            f"Balance: ${row.balance:,.0f}<br>"
-            f"MSA: {row.msa}<br>"
-            f"Property Type: {row.cre_property_type}<br>"
-            f"Property Value: ${row.property_value:,.0f}<br>"
-            f"LTV: {row.ltv:.1%}<br>"
-            f"DSCR: {row.dscr:.2f}"
-        )
-    
-    fig = go.Figure()
-    
-    balance_normalized = ((df['balance'] - df['balance'].min()) / 
-                         (df['balance'].max() - df['balance'].min()) * 45 + 5)
-    
-    fig.add_trace(go.Scattermapbox(
-        lat=df['latitude'],
-        lon=df['longitude'],
-        mode='markers',
-        marker=dict(
-            size=balance_normalized,
-            color=df['balance'],
-            colorscale='Viridis',
-            showscale=True,
-            colorbar=dict(
-                title=dict(text="Loan Balance ($)", font=dict(size=10)),
-                tickfont=dict(size=9),
-                tickformat='$,.0f',
-                len=0.3,
-                thickness=10,
-                x=0.5,
-                xanchor='center',
-                y=0.02,
-                yanchor='bottom',
-                orientation='h'
-            ),
-            opacity=0.7,
-            sizemode='diameter'
-        ),
-        text=hover_text,
-        hovertemplate='%{text}<extra></extra>',
-        name='CRE Loans'
-    ))
-    
-    fig.update_layout(
-        mapbox=dict(
-            style='open-street-map',
-            center=dict(lat=39.5, lon=-98.35),
-            zoom=3
-        ),
-        height=600,
-        margin=dict(r=0, t=0, l=0, b=0),
-        showlegend=False
-    )
-    
-    return fig
-
-
-def _create_location_analysis_content(selected_portfolio, portfolios=None):
-    """Create Location Analysis content with interactive map"""
-    if portfolios is None:
-        portfolios = {}
-        
-    df = _get_cre_location_data(selected_portfolio, portfolios)
-    
-    return html.Div([
-        
-        # Statistics - Value Box Style
-        html.Div([
-            html.Div([
-                # Total Balance
-                html.Div([
-                    html.Div([
-                        html.Div([
-                            html.Span("💰", className="text-2xl"),
-                            html.Div([
-                                html.H3(f"${df['balance'].sum():,.0f}", className="text-xl font-bold text-white mb-0"),
-                                html.P("Total Balance", className="text-sm text-purple-100 mb-0")
-                            ], className="ml-3")
-                        ], className="flex items-center")
-                    ], className="p-4")
-                ], className="bg-purple-500 rounded-lg shadow-md"),
-                
-                # Total Loans
-                html.Div([
-                    html.Div([
-                        html.Div([
-                            html.Span("🏢", className="text-2xl"),
-                            html.Div([
-                                html.H3(f"{len(df)}", className="text-xl font-bold text-white mb-0"),
-                                html.P("Total Loans", className="text-sm text-purple-100 mb-0")
-                            ], className="ml-3")
-                        ], className="flex items-center")
-                    ], className="p-4")
-                ], className="bg-purple-500 rounded-lg shadow-md"),
-                
-                # Markets
-                html.Div([
-                    html.Div([
-                        html.Div([
-                            html.Span("🌎", className="text-2xl"),
-                            html.Div([
-                                html.H3(f"{df['msa'].nunique()}" if not df.empty else "0", className="text-xl font-bold text-white mb-0"),
-                                html.P("Markets (MSAs)", className="text-sm text-purple-100 mb-0")
-                            ], className="ml-3")
-                        ], className="flex items-center")
-                    ], className="p-4")
-                ], className="bg-purple-500 rounded-lg shadow-md"),
-                
-                # Average Loan Size
-                html.Div([
-                    html.Div([
-                        html.Div([
-                            html.Span("📊", className="text-2xl"),
-                            html.Div([
-                                html.H3(f"${df['balance'].mean():,.0f}" if not df.empty else "$0", className="text-xl font-bold text-white mb-0"),
-                                html.P("Avg Loan Size", className="text-sm text-purple-100 mb-0")
-                            ], className="ml-3")
-                        ], className="flex items-center")
-                    ], className="p-4")
-                ], className="bg-purple-500 rounded-lg shadow-md")
-                
-            ], className="grid grid-cols-4 gap-4 mb-2")
-        ], className="p-4 pb-2"),
-        
-        # Interactive Map
-        html.Div([
-            dcc.Graph(
-                id='location-map',
-                figure=_create_location_map(selected_portfolio, portfolios),
-                config={'displayModeBar': True, 'scrollZoom': True}
-            )
-        ], className="px-4 pb-4")
-        
-    ], className="bg-white dark:bg-ink-800 rounded-xl shadow-soft border border-slate-200 dark:border-ink-700 overflow-hidden main-content")

@@ -116,11 +116,33 @@ class DisplayCard(ABC):
         """Return the inner content of this card (no wrapper)."""
         ...
 
+    def get_controls(self, ctx: TabContext) -> list:
+        """Return card-level controls rendered above the body.
+
+        Each item should be a ``(label, widget)`` tuple or a Dash component.
+        Override in subclasses to add per-card controls.
+        """
+        return []
+
     def render(self, ctx: TabContext) -> html.Div:
         """Return the fully wrapped card component."""
         header = card_header(self.title, self.subtitle) if self.title else None
+        controls = self.get_controls(ctx)
+        controls_row = None
+        if controls:
+            items = []
+            for ctrl in controls:
+                if isinstance(ctrl, tuple) and len(ctrl) == 2:
+                    label, widget = ctrl
+                    items.append(html.Div([
+                        html.Span(label, className="control-label"),
+                        widget,
+                    ], className="flex flex-col gap-1"))
+                else:
+                    items.append(ctrl)
+            controls_row = html.Div(items, className="flex flex-wrap items-end gap-4 p-4 pb-0")
         body = self.render_body(ctx)
-        children = [header, body] if header else [body]
+        children = [x for x in [header, controls_row, body] if x is not None]
         return card_wrapper(
             children=children,
             card_id=self.card_id,

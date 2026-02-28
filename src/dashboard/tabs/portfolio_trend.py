@@ -1,333 +1,305 @@
 """
-Portfolio Trend tab – time-series charts comparing portfolio metrics.
+Portfolio Trend tab – time-series metric chart with benchmark comparison.
 
-Shows up to three configurable metric charts with benchmark comparison,
-custom metric creation, and aggregation options.
+Layout: WIDE_LEFT (2fr chart | 1fr metric summary stats).
 """
 
 from __future__ import annotations
 
-from dash import html, dcc
+import io
+import csv
+
 import plotly.graph_objs as go
 import polars as pl
+from dash import callback, dcc, html, Input, Output, State, no_update
 
-from ..tabs.registry import BaseTab, TabContext, register_tab
+from .registry import BaseTab, ContentLayout, TabContext, register_tab
+from ..components.toolbar import DropdownControl
+from ..utils.helpers import plotly_theme
 
 
 class PortfolioTrendTab(BaseTab):
     id = "portfolio-trend"
     label = "Portfolio Trend"
     order = 30
-
-    # ── Layer 2: Toolbar ────────────────────────────────────────────────────
+    tier = "silver"
+    tier_tooltip = "Silver tier — set tier='silver' in your BaseTab subclass"
+    content_layout = ContentLayout.WIDE_LEFT
 
     def get_toolbar_controls(self, ctx: TabContext):
-        from ..components.toolbar import DropdownControl
+        metric_opts = _get_metric_options(ctx.facilities_df)
         portfolio_opts = [{"label": p, "value": p} for p in ctx.available_portfolios]
         return [
             DropdownControl(
-                id="financial-trends-benchmark-dropdown",
-                label="Benchmark Portfolio",
-                options=portfolio_opts,
-                value=None,
-                placeholder="Select benchmark…",
+                id="pt-metric", label="Metric",
+                options=metric_opts,
+                value=metric_opts[0]["value"] if metric_opts else "balance",
                 order=10,
-                width="min-w-[220px]",
+            ),
+            DropdownControl(
+                id="pt-agg", label="Aggregation",
+                options=[{"label": "Average", "value": "avg"}, {"label": "Sum", "value": "sum"}],
+                value="avg", order=20,
+            ),
+            DropdownControl(
+                id="pt-benchmark", label="Benchmark",
+                options=portfolio_opts, value=None,
+                placeholder="Select benchmark…", order=30,
             ),
         ]
 
-    # ── Content ─────────────────────────────────────────────────────────────
-
     def render_content(self, ctx: TabContext):
-        return _create_portfolio_trend_content(
-            ctx.selected_portfolio,
-            ctx.portfolios, ctx.facilities_df, ctx.get_filtered_data,
-        )
+        metric = "balance"
+        agg = "avg"
+        fig = _build_trend_chart(ctx.facilities_df, ctx.portfolios,
+                                 ctx.selected_portfolio, None, metric, agg)
+        stats = _build_stats_panel(ctx.facilities_df, ctx.portfolios,
+                                   ctx.selected_portfolio, None, metric, agg)
+        return html.Div([
+            html.Div([
+                html.Div([
+                    html.Div(style={"flex": "1"}),
+                    html.Button("Download CSV", id="pt-download-btn",
+                                className="btn btn-outline btn-sm"),
+                ], className="flex items-center mb-2"),
+                dcc.Download(id="pt-download"),
+                dcc.Graph(id="pt-chart", figure=fig, config={"displayModeBar": False},
+                          style={"height": "400px"}),
+            ], className="glass-card p-4"),
+            html.Div(id="pt-stats", children=stats, className="glass-card p-4"),
+        ])
 
-    # ── Callbacks ────────────────────────────────────────────────────────────
-
-    def register_callbacks(self, app) -> None:
-        from dash import Input, Output, State, callback, no_update
+    def register_callbacks(self, app):
         from ..app_state import app_state
 
         @callback(
-            [Output('financial-trends-chart-1', 'figure'),
-             Output('financial-trends-chart-2', 'figure'),
-             Output('financial-trends-chart-3', 'figure')],
-            [Input('financial-trends-metric-dropdown-1', 'value'),
-             Input('financial-trends-metric-dropdown-2', 'value'),
-             Input('financial-trends-metric-dropdown-3', 'value'),
-             Input('financial-trends-agg-dropdown-1', 'value'),
-             Input('financial-trends-agg-dropdown-2', 'value'),
-             Input('financial-trends-agg-dropdown-3', 'value'),
-             Input('financial-trends-benchmark-dropdown', 'value'),
-             Input('universal-portfolio-dropdown', 'value')],
-            prevent_initial_call=False,
+            [Output("pt-chart", "figure"),
+             Output("pt-stats", "children")],
+            [Input("universal-portfolio-dropdown", "value"),
+             Input("time-window-store", "data"),
+             Input("pt-metric", "value"),
+             Input("pt-agg", "value"),
+             Input("pt-benchmark", "value")],
+            prevent_initial_call=True,
         )
-        def update_trend_charts(m1, m2, m3, a1, a2, a3, benchmark, portfolio):
-            sel = portfolio or app_state.default_portfolio
-            df = app_state._apply_time_window(app_state.facilities_df)
-            return create_portfolio_trends_charts(
-                df, app_state.portfolios,
-                sel, benchmark, m1, m2, m3, a1, a2, a3,
-            )
+        def update_chart(portfolio, _tw, metric, agg, benchmark):
+            if not portfolio:
+                return no_update, no_update
+            metric = metric or "balance"
+            agg = agg or "avg"
+            windowed = app_state._apply_time_window(app_state.facilities_df)
+            fig = _build_trend_chart(windowed, app_state.portfolios,
+                                     portfolio, benchmark, metric, agg)
+            stats = _build_stats_panel(windowed, app_state.portfolios,
+                                       portfolio, benchmark, metric, agg)
+            return fig, stats
+
+        @callback(
+            Output("pt-download", "data"),
+            Input("pt-download-btn", "n_clicks"),
+            [State("universal-portfolio-dropdown", "value"),
+             State("pt-metric", "value"),
+             State("pt-agg", "value"),
+             State("pt-benchmark", "value")],
+            prevent_initial_call=True,
+        )
+        def download_csv(n_clicks, portfolio, metric, agg, benchmark):
+            if not n_clicks or not portfolio:
+                return no_update
+            metric = metric or "balance"
+            agg = agg or "avg"
+            windowed = app_state._apply_time_window(app_state.facilities_df)
+            dates, vals = _get_timeseries(windowed, app_state.portfolios,
+                                          portfolio, metric, agg)
+            buf = io.StringIO()
+            writer = csv.writer(buf)
+            if benchmark:
+                bd, bv = _get_timeseries(windowed, app_state.portfolios,
+                                         benchmark, metric, agg)
+                writer.writerow(["Date", f"{portfolio} ({metric})", f"{benchmark} ({metric})"])
+                bench_map = dict(zip([str(d) for d in bd], bv)) if bd else {}
+                for d, v in zip(dates, vals):
+                    writer.writerow([str(d), v, bench_map.get(str(d), "")])
+            else:
+                writer.writerow(["Date", f"{portfolio} ({metric})"])
+                for d, v in zip(dates, vals):
+                    writer.writerow([str(d), v])
+            return dcc.send_string(buf.getvalue(),
+                                   filename=f"portfolio_trend_{metric}.csv")
 
 
 register_tab(PortfolioTrendTab())
 
 
-# =============================================================================
-# Private rendering helpers
-# =============================================================================
+# ── Helpers ──────────────────────────────────────────────────────────────────
 
 
-
-def _get_portfolio_metrics(facilities_df: pl.DataFrame):
-    """Get appropriate metrics based on available numeric columns in the data."""
-    exclude_cols = {'facility_id', 'obligor_name', 'origination_date', 'maturity_date',
-                    'reporting_date', 'lob', 'industry', 'cre_property_type', 'msa', 'sir',
-                    'risk_category'}
-    numeric_cols = [
-        col for col in facilities_df.columns
-        if facilities_df[col].dtype in (pl.Float32, pl.Float64, pl.Int8, pl.Int16, pl.Int32, pl.Int64, pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64)
-        and col not in exclude_cols
-    ]
-
-    metric_options = [
-        {'label': col.replace('_', ' ').title(), 'value': col}
-        for col in numeric_cols
-    ]
-
-    return metric_options
-
-
-def _create_portfolio_trend_content(selected_portfolio, portfolios, facilities_df, get_filtered_data):
-    """Create the Portfolio Trend tab content (three configurable metric charts)."""
-    metrics_options = _get_portfolio_metrics(facilities_df)
-    default_metric_1 = metrics_options[0]['value'] if metrics_options else 'balance'
-    default_metric_2 = metrics_options[1]['value'] if len(metrics_options) > 1 else 'balance'
-    default_metric_3 = metrics_options[2]['value'] if len(metrics_options) > 2 else 'balance'
-
-    return html.Div([
-        # First Chart
-        html.Div([
-            html.Div([
-                html.Div([
-                    html.Label("Metric 1:", className="form-label"),
-                    dcc.Dropdown(
-                        id='financial-trends-metric-dropdown-1',
-                        options=metrics_options,
-                        value=default_metric_1,
-                        className="form-select"
-                    )
-                ], style={"width": "40%", "marginRight": "10px"}),
-                html.Div([
-                    html.Label("Aggregation:", className="form-label"),
-                    dcc.Dropdown(
-                        id='financial-trends-agg-dropdown-1',
-                        options=[
-                            {'label': 'Average', 'value': 'avg'},
-                            {'label': 'Sum', 'value': 'sum'}
-                        ],
-                        value='avg',
-                        className="form-select"
-                    )
-                ], style={"width": "25%", "marginRight": "10px"}),
-                html.Div([
-                    html.Label("", className="form-label", style={"visibility": "hidden"}),
-                    html.Button("Download Data", id="download-btn-1", className="btn btn-outline",
-                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
-                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
-            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
-            html.Div([
-                dcc.Download(id="download-data-1"),
-                dcc.Graph(id='financial-trends-chart-1', config={'displayModeBar': False})
-            ])
-        ], className="chart-card", style={"marginBottom": "20px"}),
-
-        # Second Chart
-        html.Div([
-            html.Div([
-                html.Div([
-                    html.Label("Metric 2:", className="form-label"),
-                    dcc.Dropdown(
-                        id='financial-trends-metric-dropdown-2',
-                        options=metrics_options,
-                        value=default_metric_2,
-                        className="form-select"
-                    )
-                ], style={"width": "40%", "marginRight": "10px"}),
-                html.Div([
-                    html.Label("Aggregation:", className="form-label"),
-                    dcc.Dropdown(
-                        id='financial-trends-agg-dropdown-2',
-                        options=[
-                            {'label': 'Average', 'value': 'avg'},
-                            {'label': 'Sum', 'value': 'sum'}
-                        ],
-                        value='avg',
-                        className="form-select"
-                    )
-                ], style={"width": "25%", "marginRight": "10px"}),
-                html.Div([
-                    html.Label("", className="form-label", style={"visibility": "hidden"}),
-                    html.Button("Download Data", id="download-btn-2", className="btn btn-outline",
-                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
-                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
-            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
-            html.Div([
-                dcc.Download(id="download-data-2"),
-                dcc.Graph(id='financial-trends-chart-2', config={'displayModeBar': False})
-            ])
-        ], className="chart-card", style={"marginBottom": "20px"}),
-
-        # Third Chart
-        html.Div([
-            html.Div([
-                html.Div([
-                    html.Label("Metric 3:", className="form-label"),
-                    dcc.Dropdown(
-                        id='financial-trends-metric-dropdown-3',
-                        options=metrics_options,
-                        value=default_metric_3,
-                        className="form-select"
-                    )
-                ], style={"width": "40%", "marginRight": "10px"}),
-                html.Div([
-                    html.Label("Aggregation:", className="form-label"),
-                    dcc.Dropdown(
-                        id='financial-trends-agg-dropdown-3',
-                        options=[
-                            {'label': 'Average', 'value': 'avg'},
-                            {'label': 'Sum', 'value': 'sum'}
-                        ],
-                        value='avg',
-                        className="form-select"
-                    )
-                ], style={"width": "25%", "marginRight": "10px"}),
-                html.Div([
-                    html.Label("", className="form-label", style={"visibility": "hidden"}),
-                    html.Button("Download Data", id="download-btn-3", className="btn btn-outline",
-                               style={"fontSize": "12px", "padding": "6px 12px", "whiteSpace": "nowrap"})
-                ], style={"width": "25%", "display": "flex", "justifyContent": "flex-end", "alignItems": "end"}),
-            ], className="form-group", style={"display": "flex", "alignItems": "end", "marginBottom": "10px"}),
-            html.Div([
-                dcc.Download(id="download-data-3"),
-                dcc.Graph(id='financial-trends-chart-3', config={'displayModeBar': False})
-            ])
-        ], className="chart-card")
-    ], className="main-content")
+def _get_metric_options(df: pl.DataFrame):
+    exclude = {"facility_id", "obligor_name", "origination_date", "maturity_date",
+                "reporting_date", "lob", "industry", "cre_property_type", "msa", "sir", "risk_category"}
+    numeric = [c for c in df.columns if df[c].dtype in (pl.Float64, pl.Float32, pl.Int64, pl.Int32) and c not in exclude]
+    return [{"label": c.replace("_", " ").title(), "value": c} for c in numeric]
 
 
 def _apply_filters(df: pl.DataFrame, criteria):
-    """Apply the new filter-list format to a DataFrame."""
     from ..data.dataset import Dataset
     criteria = Dataset._migrate_criteria(criteria)
     for level in criteria.get("filters", []):
         col, vals = level.get("column"), level.get("values", [])
         if col and vals and col in df.columns:
-            str_vals = [str(v) for v in vals]
-            df = df.filter(pl.col(col).cast(pl.Utf8).is_in(str_vals))
+            df = df.filter(pl.col(col).cast(pl.Utf8).is_in([str(v) for v in vals]))
     return df
 
 
-def _get_timeseries(facilities_df: pl.DataFrame, portfolios, portfolio_name, metric, agg_method='avg'):
-    """Get time series for a portfolio and metric."""
-    if portfolio_name not in portfolios or not metric:
+def _get_timeseries(df, portfolios, name, metric, agg):
+    """Return (dates, values) for a portfolio metric time-series."""
+    if name not in portfolios or not metric:
         return [], []
-
-    df = _apply_filters(facilities_df, portfolios[portfolio_name])
-
-    if metric not in df.columns:
+    filtered = _apply_filters(df, portfolios[name])
+    if metric not in filtered.columns or len(filtered) == 0:
         return [], []
-
-    date_col = 'reporting_date'
-    if date_col not in df.columns:
-        return [], []
-
-    if agg_method == 'sum':
-        result = df.group_by(date_col).agg(pl.col(metric).sum()).sort(date_col)
-    else:
-        result = df.group_by(date_col).agg(pl.col(metric).mean()).sort(date_col)
-
+    expr = pl.col(metric).sum() if agg == "sum" else pl.col(metric).mean()
+    result = filtered.group_by("reporting_date").agg(expr).sort("reporting_date")
     if result.is_empty():
         return [], []
-    return result[date_col].to_list(), result[metric].to_list()
+    return result["reporting_date"].to_list(), result[metric].to_list()
 
 
-def build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric, agg_method='avg'):
-    """Build chart for a portfolio trend metric."""
-    if not metric:
-        fig = go.Figure()
-        fig.update_layout(
-            plot_bgcolor='rgba(0,0,0,0)',
-            paper_bgcolor='rgba(0,0,0,0)',
-            height=350,
-            margin=dict(l=40, r=20, t=20, b=100),
-            font=dict(size=12, color='rgba(255,255,255,0.7)'),
-            autosize=True
-        )
-        fig.add_annotation(text="Select a metric to view chart", xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
-        return fig
-
-    dates_main, vals_main = _get_timeseries(facilities_df, portfolios, selected_portfolio, metric, agg_method)
-    dates_bench, vals_bench = _get_timeseries(facilities_df, portfolios, benchmark_portfolio, metric, agg_method) if benchmark_portfolio else ([], [])
-
+def _build_trend_chart(df, portfolios, selected, benchmark, metric, agg):
     fig = go.Figure()
-
-    if dates_main:
-        fig.add_trace(go.Scatter(
-            x=dates_main,
-            y=vals_main,
-            mode='lines+markers',
-            name='Selected Portfolio',
-            line=dict(color='#a78bfa', width=3, dash='solid'),
-            marker=dict(color='#a78bfa')
-        ))
-
-    if dates_bench:
-        fig.add_trace(go.Scatter(
-            x=dates_bench,
-            y=vals_bench,
-            mode='lines+markers',
-            name='Benchmark Portfolio',
-            line=dict(color='#2dd4bf', width=3, dash='dash'),
-            marker=dict(color='#2dd4bf')
-        ))
-
-    fig.update_layout(
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)',
-        height=350,
-        margin=dict(l=40, r=20, t=20, b=100),
-        font=dict(size=12, color='rgba(255,255,255,0.7)'),
-        legend=dict(orientation='h', yanchor='bottom', y=1.02, xanchor='right', x=1),
-        autosize=True,
-        xaxis=dict(
-            rangeslider=dict(
-                visible=True,
-                thickness=0.15,
-                bgcolor='rgba(0,0,0,0)',
-                bordercolor='rgba(0,0,0,0)'
-            ),
-            showgrid=True,
-            gridcolor='rgba(255,255,255,0.06)',
-            color='rgba(255,255,255,0.5)'
-        ),
-        yaxis=dict(
-            showgrid=True,
-            gridcolor='rgba(255,255,255,0.06)',
-            color='rgba(255,255,255,0.5)'
-        )
+    dates, vals = _get_timeseries(df, portfolios, selected, metric, agg)
+    if dates:
+        fig.add_trace(go.Scatter(x=dates, y=vals, mode="lines+markers", name="Selected",
+                                 line=dict(color="#a78bfa", width=3)))
+    if benchmark:
+        bd, bv = _get_timeseries(df, portfolios, benchmark, metric, agg)
+        if bd:
+            fig.add_trace(go.Scatter(x=bd, y=bv, mode="lines+markers", name="Benchmark",
+                                     line=dict(color="#2dd4bf", width=3, dash="dash")))
+    theme = plotly_theme(
+        height=400,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     )
-
+    fig.update_layout(**theme)
+    if not dates:
+        fig.add_annotation(text="Select a metric", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False)
     return fig
 
 
-def create_portfolio_trends_charts(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric1, metric2, metric3, agg1, agg2, agg3):
-    """Create all three portfolio trend charts."""
-    chart1 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric1, agg1)
-    chart2 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric2, agg2)
-    chart3 = build_portfolio_trend_chart(facilities_df, portfolios, selected_portfolio, benchmark_portfolio, metric3, agg3)
+def _fmt(val, metric):
+    """Format a metric value for display."""
+    if val is None:
+        return "N/A"
+    if metric == "balance":
+        return f"${val:,.0f}"
+    return f"{val:,.2f}"
 
-    return chart1, chart2, chart3
+
+def _compute_stats(vals):
+    """Compute summary statistics from a time-series values list."""
+    if not vals:
+        return None
+    non_null = [v for v in vals if v is not None]
+    if not non_null:
+        return None
+
+    current = non_null[-1]
+    avg_all = sum(non_null) / len(non_null)
+    peak = max(non_null)
+    trough = min(non_null)
+
+    recent_4 = non_null[-4:] if len(non_null) >= 4 else non_null
+    avg_12m = sum(recent_4) / len(recent_4)
+
+    recent_20 = non_null[-20:] if len(non_null) >= 20 else non_null
+    avg_5y = sum(recent_20) / len(recent_20)
+
+    return {
+        "current": current, "average": avg_all,
+        "peak": peak, "trough": trough,
+        "avg_12m": avg_12m, "avg_5y": avg_5y,
+    }
+
+
+def _trend_badge(current, reference):
+    """Return a pill-shaped badge with colored % change."""
+    if current is None or reference is None or reference == 0:
+        return html.Span("—", className="stat-trend-badge stat-trend-badge--neutral")
+    pct = (current - reference) / abs(reference) * 100
+    if pct > 0:
+        cls = "stat-trend-badge stat-trend-badge--up"
+        text = f"+{pct:.1f}%"
+    elif pct < 0:
+        cls = "stat-trend-badge stat-trend-badge--down"
+        text = f"{pct:.1f}%"
+    else:
+        cls = "stat-trend-badge stat-trend-badge--neutral"
+        text = "0.0%"
+    return html.Span(text, className=cls)
+
+
+def _stat_card(label, value_str, badge=None):
+    """A single KPI-style stat with optional trend badge."""
+    return html.Div([
+        html.Div(label, className="stat-card-label"),
+        html.Div([
+            html.Span(value_str, className="stat-card-value"),
+            *([] if badge is None else [badge]),
+        ], className="stat-card-row"),
+    ], className="stat-card")
+
+
+def _section_header(text, color=None):
+    style = {"color": color} if color else {}
+    return html.Div(text, className="stat-section-header", style=style)
+
+
+def _build_stats_panel(df, portfolios, portfolio, benchmark, metric, agg):
+    """Build a modern stats panel summarizing the selected metric's time-series."""
+    _, vals = _get_timeseries(df, portfolios, portfolio, metric, agg)
+    stats = _compute_stats(vals)
+    metric_label = metric.replace("_", " ").title() if metric else "Metric"
+
+    if stats is None:
+        return html.Div("No data available", className="p-4",
+                         style={"color": "var(--text-muted)"})
+
+    children = [
+        html.Div(metric_label, className="stat-panel-title"),
+        html.Div([
+            _stat_card("Current", _fmt(stats["current"], metric)),
+            _stat_card("Average", _fmt(stats["average"], metric)),
+        ], className="stat-card-grid"),
+        html.Div([
+            _stat_card("Peak", _fmt(stats["peak"], metric)),
+            _stat_card("Trough", _fmt(stats["trough"], metric)),
+        ], className="stat-card-grid"),
+        _section_header("Trend Comparison"),
+        _stat_card("vs 12-Month Avg", _fmt(stats["avg_12m"], metric),
+                   _trend_badge(stats["current"], stats["avg_12m"])),
+        _stat_card("vs 5-Year Avg", _fmt(stats["avg_5y"], metric),
+                   _trend_badge(stats["current"], stats["avg_5y"])),
+    ]
+
+    if benchmark:
+        _, bv = _get_timeseries(df, portfolios, benchmark, metric, agg)
+        bstats = _compute_stats(bv)
+        if bstats:
+            children.extend([
+                _section_header(f"Benchmark: {benchmark}", "var(--accent-400)"),
+                html.Div([
+                    _stat_card("Current", _fmt(bstats["current"], metric)),
+                    _stat_card("Average", _fmt(bstats["average"], metric)),
+                ], className="stat-card-grid"),
+                html.Div([
+                    _stat_card("Peak", _fmt(bstats["peak"], metric)),
+                    _stat_card("Trough", _fmt(bstats["trough"], metric)),
+                ], className="stat-card-grid"),
+                _stat_card("vs 12-Month Avg", _fmt(bstats["avg_12m"], metric),
+                           _trend_badge(bstats["current"], bstats["avg_12m"])),
+                _stat_card("vs 5-Year Avg", _fmt(bstats["avg_5y"], metric),
+                           _trend_badge(bstats["current"], bstats["avg_5y"])),
+            ])
+
+    return html.Div(children, className="stat-panel")

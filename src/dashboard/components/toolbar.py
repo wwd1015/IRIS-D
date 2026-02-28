@@ -76,7 +76,7 @@ class ToolbarControl(ABC):
     id: str
     label: str = ""
     order: int = 50
-    align: ToolbarAlign = ToolbarAlign.LEFT
+    align: ToolbarAlign = ToolbarAlign.RIGHT
     width: str = "min-w-[180px]"
     visible: bool = True
 
@@ -116,7 +116,7 @@ class DropdownControl(ToolbarControl):
         multi: bool = False,
         placeholder: str = "Select...",
         order: int = 50,
-        align: ToolbarAlign = ToolbarAlign.LEFT,
+        align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[180px]",
         visible: bool = True,
     ):
@@ -134,9 +134,9 @@ class DropdownControl(ToolbarControl):
     def render(self, ctx: TabContext) -> html.Div:
         style = {} if self.visible else {"display": "none"}
         return html.Div([
-            html.Label(
+            html.Span(
                 self.label,
-                className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300",
+                className="control-label",
             ),
             dcc.Dropdown(
                 id=self.id,
@@ -177,7 +177,7 @@ class SliderControl(ToolbarControl):
         value: int | None = None,
         marks: dict | None = None,
         order: int = 50,
-        align: ToolbarAlign = ToolbarAlign.LEFT,
+        align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[200px]",
         visible: bool = True,
     ):
@@ -197,9 +197,9 @@ class SliderControl(ToolbarControl):
         style = {} if self.visible else {"display": "none"}
         marks = self.marks or {self.min_val: str(self.min_val), self.max_val: str(self.max_val)}
         return html.Div([
-            html.Label(
+            html.Span(
                 self.label,
-                className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300",
+                className="control-label",
             ),
             dcc.Slider(
                 id=self.id,
@@ -230,7 +230,7 @@ class ToggleControl(ToolbarControl):
         label: str = "",
         default: bool = False,
         order: int = 50,
-        align: ToolbarAlign = ToolbarAlign.LEFT,
+        align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[120px]",
         visible: bool = True,
     ):
@@ -245,9 +245,9 @@ class ToggleControl(ToolbarControl):
     def render(self, ctx: TabContext) -> html.Div:
         style = {} if self.visible else {"display": "none"}
         return html.Div([
-            html.Label(
+            html.Span(
                 self.label,
-                className="block text-xs font-medium mb-2 text-ink-600 dark:text-slate-300",
+                className="control-label",
             ),
             dcc.Checklist(
                 id=self.id,
@@ -290,7 +290,7 @@ class RangeSliderControl(ToolbarControl):
         value: list | None = None,
         marks: dict | None = None,
         order: int = 50,
-        align: ToolbarAlign = ToolbarAlign.LEFT,
+        align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[240px]",
         visible: bool = True,
     ):
@@ -310,9 +310,9 @@ class RangeSliderControl(ToolbarControl):
         style = {} if self.visible else {"display": "none"}
         marks = self.marks or {self.min_val: str(self.min_val), self.max_val: str(self.max_val)}
         return html.Div([
-            html.Label(
+            html.Span(
                 self.label,
-                className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300",
+                className="control-label",
             ),
             dcc.RangeSlider(
                 id=self.id,
@@ -350,7 +350,7 @@ class RawControl(ToolbarControl):
         id: str,
         component,
         order: int = 50,
-        align: ToolbarAlign = ToolbarAlign.LEFT,
+        align: ToolbarAlign = ToolbarAlign.RIGHT,
     ):
         self.id = id
         self.label = ""
@@ -369,17 +369,20 @@ class RawControl(ToolbarControl):
 # =============================================================================
 
 
-def render_toolbar(controls: list[ToolbarControl], ctx: TabContext) -> Optional[html.Div]:
+def render_toolbar(controls: list[ToolbarControl], ctx: TabContext, badge=None) -> html.Div:
     """Render all toolbar controls into a single row.
 
     Controls are split into left-aligned and right-aligned groups (each
     sorted by ``order``).  The two groups sit at opposite ends of the
     toolbar with ``justify-between``.
 
-    Returns ``None`` if *controls* is empty.
+    Always renders a toolbar row (even if empty) so the tier badge is visible.
+
+    Parameters
+    ----------
+    badge : Dash component, optional
+        A badge component (e.g. tier badge) rendered first in the left group.
     """
-    if not controls:
-        return None
     from ..utils.helpers import toolbar_row
 
     left = sorted(
@@ -391,10 +394,15 @@ def render_toolbar(controls: list[ToolbarControl], ctx: TabContext) -> Optional[
         key=lambda c: c.order,
     )
 
+    left_children = []
+    if badge is not None:
+        left_children.append(badge)
+    left_children.extend(c.render(ctx) for c in left)
+
     left_group = html.Div(
-        [c.render(ctx) for c in left],
+        left_children,
         className="flex flex-wrap items-end gap-4",
-    ) if left else None
+    ) if left_children else None
 
     right_group = html.Div(
         [c.render(ctx) for c in right],
