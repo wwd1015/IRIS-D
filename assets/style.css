@@ -1580,10 +1580,11 @@ button[id^="tab-"].bg-ink-900 {
 
 /* ── MODAL OVERRIDES (dark) ── */
 #login-modal>div,
-#profile-switch-modal>div,
+#profile-switch-modal>div>div,
 #contact-modal>div,
 #portfolio-modal>div>div,
-#time-window-modal>div>div {
+#time-window-modal>div>div,
+#custom-metric-modal>div>div {
   background-color: var(--bg-raised) !important;
   border: 1px solid var(--glass-border) !important;
   color: var(--text-primary) !important;
@@ -1608,6 +1609,26 @@ button[id^="tab-"].bg-ink-900 {
   background: rgba(255, 255, 255, 0.04) !important;
   border-color: var(--border-default) !important;
   color: var(--text-primary) !important;
+}
+
+/* Modal header — raised background tint */
+#profile-switch-modal header,
+#time-window-modal header,
+#custom-metric-modal header,
+#portfolio-create-modal header,
+#perf-warning-modal header {
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px 16px 0 0;
+}
+
+html:not(.dark) #profile-switch-modal header,
+html:not(.dark) #time-window-modal header,
+html:not(.dark) #custom-metric-modal header,
+html:not(.dark) #portfolio-create-modal header,
+html:not(.dark) #perf-warning-modal header {
+  background: rgba(0, 0, 0, 0.03);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* Modal overlay backdrop blur */

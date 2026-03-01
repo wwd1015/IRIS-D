@@ -24,7 +24,7 @@ class PortfolioSummaryTab(BaseTab):
     order = 10
     tier = "gold"
     tier_tooltip = "Gold tier — set tier='gold' in your BaseTab subclass"
-    content_layout = ContentLayout.WIDE_LEFT
+    content_layout = ContentLayout.TWO_COL
 
     def get_toolbar_controls(self, ctx: TabContext):
         metric_opts = _get_metric_options(ctx.facilities_df)
@@ -174,9 +174,15 @@ register_tab(PortfolioSummaryTab())
 
 
 def _get_metric_options(df: pl.DataFrame):
-    exclude = {"facility_id", "obligor_name", "origination_date", "maturity_date",
-               "reporting_date", "lob", "industry", "cre_property_type", "msa", "sir", "risk_category"}
-    numeric = [c for c in df.columns if df[c].dtype in (pl.Float64, pl.Float32, pl.Int64, pl.Int32) and c not in exclude]
+    from ..app_state import app_state
+    # Always include balance; plus any user-defined custom metric columns
+    allowed = {"balance"}
+    allowed.update(app_state.custom_metrics.keys())
+    numeric = [c for c in df.columns if c in allowed and df[c].dtype in (pl.Float64, pl.Float32, pl.Int64, pl.Int32)]
+    # Ensure balance appears first if present
+    if "balance" in numeric:
+        numeric.remove("balance")
+        numeric.insert(0, "balance")
     return [{"label": c.replace("_", " ").title(), "value": c} for c in numeric]
 
 

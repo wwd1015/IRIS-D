@@ -39,11 +39,12 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
          Output("profile-switch-dropdown", "value")],
         [Input("profile-avatar-btn", "n_clicks"),
          Input("profile-switch-confirm", "n_clicks"),
-         Input("profile-switch-cancel", "n_clicks")],
+         Input("profile-switch-cancel", "n_clicks"),
+         Input("profile-switch-cancel-x", "n_clicks")],
         [State("profile-switch-dropdown", "value")],
         prevent_initial_call=True,
     )
-    def handle_profile_switch_modal(avatar_clicks, confirm_clicks, cancel_clicks, selected_profile):
+    def handle_profile_switch_modal(avatar_clicks, confirm_clicks, cancel_clicks, cancel_x_clicks, selected_profile):
         ctx = callback_context
         if not ctx.triggered:
             return no_update, no_update, no_update
@@ -54,7 +55,7 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
 
         if trigger == "profile-avatar-btn":
             return _SHOWN, opts, user_management.get_current_user()
-        if trigger == "profile-switch-cancel":
+        if trigger in ("profile-switch-cancel", "profile-switch-cancel-x"):
             return _HIDDEN, opts, user_management.get_current_user()
         if trigger == "profile-switch-confirm" and selected_profile:
             return _HIDDEN, opts, selected_profile

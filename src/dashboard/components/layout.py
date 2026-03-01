@@ -139,17 +139,26 @@ _MODAL_CENTER = {
 def _profile_switch_modal():
     return html.Div([
         html.Div([
-            html.H3("Switch Profile", style={"marginBottom": "20px", "color": "rgba(255,255,255,0.92)", "textAlign": "center"}),
+            html.Header([
+                html.Div([
+                    html.H2("Switch Profile", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.Button("✕", id="profile-switch-cancel-x", className="btn btn-ghost text-xl cursor-pointer",
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                ], className="flex items-center justify-between"),
+            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
-                html.Label("Select Profile:", style={"fontSize": "14px", "fontWeight": "500", "marginBottom": "10px", "display": "block", "color": "rgba(255,255,255,0.6)"}),
-                dcc.Dropdown(id="profile-switch-dropdown", placeholder="Choose a profile...",
-                             style={"marginBottom": "20px"}, className="form-select"),
-            ]),
-            html.Div([
-                html.Button("Switch", id="profile-switch-confirm", className="btn btn-primary", style={"marginRight": "10px"}),
-                html.Button("Cancel", id="profile-switch-cancel", className="btn btn-outline"),
-            ], style={"textAlign": "center", "display": "flex", "justifyContent": "center", "gap": "8px"}),
-        ], style={**_MODAL_BG, **_MODAL_CENTER, "padding": "30px", "width": "380px", "maxWidth": "90vw"}),
+                html.Div([
+                    html.Label("Select Profile", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-400"),
+                    dcc.Dropdown(id="profile-switch-dropdown", placeholder="Choose a profile...",
+                                 className="text-sm", style={"fontSize": "13px"}),
+                ], className="mb-4"),
+                html.Div([
+                    html.Button("Switch", id="profile-switch-confirm", className="btn btn-primary", style={"fontSize": "13px", "flex": "1"}),
+                    html.Button("Cancel", id="profile-switch-cancel", className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}),
+                ], className="flex gap-2"),
+            ], className="p-4"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
     ], id="profile-switch-modal", style=_MODAL_OVERLAY)
 
 
@@ -400,13 +409,11 @@ def _custom_metric_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Custom Metrics", className="text-lg font-semibold",
-                            style={"color": "var(--text-primary)"}),
+                    html.H2("Custom Metrics", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                     html.Button("✕", id="custom-metric-close-x", className="btn btn-ghost text-xl cursor-pointer",
-                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto",
-                                       "color": "var(--text-secondary)"}),
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
                 ], className="flex items-center justify-between"),
-            ], style={"padding": "12px 16px", "borderBottom": "1px solid var(--border-default)"}),
+            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
                 # Dataset selector
                 html.Div([
