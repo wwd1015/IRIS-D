@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-IRIS-D – Interactive Reporting & Insight Generation System - Dashboard
+IRIS-D – Interactive Research & Insight Generation System - Dashboard
 
 A comprehensive portfolio performance dashboard for Corporate Banking and Commercial Real Estate
 portfolios built with Dash and Python.

@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**IRIS-D** (Interactive Reporting & Insight Generation System – Dashboard) is a portfolio performance dashboard for **Corporate Banking** and **Commercial Real Estate (CRE)** portfolios. It is built with **Dash** (Plotly) and **Python**, and is designed for deployment on **Posit Connect**.
+**IRIS-D** (Interactive Research & Insight Generation System – Dashboard) is a portfolio performance dashboard for **Corporate Banking** and **Commercial Real Estate (CRE)** portfolios. It is built with **Dash** (Plotly) and **Python**, and is designed for deployment on **Posit Connect**.
 
 ## Tech Stack
 
@@ -41,10 +41,8 @@ IRIS-D/
 │       │   ├── __init__.py            # Auto-discovers & imports all non-_ tab modules
 │       │   ├── _template.py           # Annotated starter template for new tabs
 │       │   ├── portfolio_summary.py   # Portfolio summary (bar chart + waterfall chart, click-detail)
-│       │   ├── holdings.py            # Holdings tab (table, time-series expansion)
 │       │   ├── financial_trend.py     # Financial trends (details table, filters)
 │       │   ├── portfolio_trend.py     # Portfolio trend (benchmark charts)
-│       │   ├── vintage_analysis.py    # Vintage analysis (cohort charts)
 │       │   └── role_tabs.py           # Role-gated tabs (SIR, Location, Projection, Backtesting)
 │       ├── components/        # Shared UI framework (NOT tab-specific)
 │       │   ├── cards.py               # DisplayCard hierarchy (ChartCard, TableCard, MetricCard)
@@ -285,7 +283,7 @@ rsconnect deploy dash main.py --title "Portfolio Performance Dashboard"
 ## Key Concepts
 
 - **Portfolios**: The app manages two default portfolios (Corporate Banking, CRE). Users can also create custom portfolios filtered by LOB, industry, or property type.
-- **Tabs**: Portfolio Summary, Holdings, Financial Trends, Portfolio Trends, Vintage Analysis, SIR Analysis, Location Analysis, Financial Projection, Model Backtesting.
+- **Tabs**: Portfolio Summary, Financial Trends, Portfolio Trends, SIR Analysis, Location Analysis, Financial Projection, Model Backtesting.
 - **User Profiles**: Stored in `data/user_profiles.json`. Supports guest mode and named profiles with saved portfolios and custom metrics.
 - **Custom Metrics**: Users can create formula-based metrics using column names (backtick syntax for spaced names, e.g., `` `free cash flow` / liquidity ``).
 - **Roles**: Role-based access control — Corp SCO, CRE SCO, SAG, BA.

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main entry point for IRIS-D (Interactive Reporting & Insight Generation System - Dashboard).
+Main entry point for IRIS-D (Interactive Research & Insight Generation System - Dashboard).
 """
 
 import sys

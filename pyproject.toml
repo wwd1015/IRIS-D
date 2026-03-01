@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "iris-d"
 version = "1.0.0"
-description = "IRIS-D – Interactive Reporting & Insight Generation System - Dashboard for Corporate Banking and CRE portfolios"
+description = "IRIS-D – Interactive Research & Insight Generation System - Dashboard for Corporate Banking and CRE portfolios"
 readme = "README.md"
 authors = [
     {name = "Wendi Wang", email = "wendi.wang@example.com"}

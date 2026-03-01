@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Posit Connect compatible entry point for IRIS-D (Interactive Reporting & Insight Generation System - Dashboard).
+Posit Connect compatible entry point for IRIS-D (Interactive Research & Insight Generation System - Dashboard).
 This file provides WSGI-compatible application instance for deployment.
 """
 
