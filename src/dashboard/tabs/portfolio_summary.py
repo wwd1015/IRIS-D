@@ -1,9 +1,10 @@
 """
 Portfolio Summary tab – the default landing page.
 
-Layout: WIDE_LEFT (2fr bar chart | 1fr placeholder).
+Layout: TWO_COL (bar chart | waterfall chart).
 Toolbar: Metric (all numeric cols) + Frequency (M/Q/A).
 Left card: time-series bar chart with optional segmentation stacked bars.
+Right card: period-over-period waterfall (run-off / changes / new origination).
 """
 
 from __future__ import annotations
@@ -51,6 +52,8 @@ class PortfolioSummaryTab(BaseTab):
         seg_opts = _get_segmentation_options(ctx.facilities_df)
         fig = _build_bar_chart(ctx.facilities_df, ctx.portfolios,
                                ctx.selected_portfolio, "balance", "monthly", None)
+        fig_right = _build_waterfall_chart(ctx.facilities_df, ctx.portfolios,
+                                           ctx.selected_portfolio, "balance", "monthly")
         return html.Div([
             html.Div([
                 html.Div([
@@ -72,8 +75,7 @@ class PortfolioSummaryTab(BaseTab):
                 chart_with_detail_layout("ps-bar-chart", figure=fig, height=400),
             ], className="glass-card p-4"),
             html.Div([
-                html.Div("Placeholder — right panel coming soon",
-                         className="p-4", style={"color": "var(--text-muted)"}),
+                chart_with_detail_layout("ps-waterfall-chart", figure=fig_right, height=400),
             ], className="glass-card p-4"),
         ])
 
@@ -163,6 +165,80 @@ class PortfolioSummaryTab(BaseTab):
                 Input("ps-metric", "value"),
                 Input("ps-freq", "value"),
                 Input("ps-segmentation", "value"),
+            ],
+        )
+
+        @callback(
+            Output("ps-waterfall-chart", "figure"),
+            [Input("universal-portfolio-dropdown", "value"),
+             Input("time-window-store", "data"),
+             Input("custom-metric-store", "data"),
+             Input("ps-metric", "value"),
+             Input("ps-freq", "value")],
+            prevent_initial_call=True,
+        )
+        def update_waterfall_chart(portfolio, _tw, _cm, metric, freq):
+            if not portfolio:
+                return no_update
+            metric = metric or "balance"
+            freq = freq or "monthly"
+            windowed = app_state._apply_time_window(app_state.facilities_df)
+            return _build_waterfall_chart(windowed, app_state.portfolios,
+                                          portfolio, metric, freq)
+
+        def _get_waterfall_detail(click_point, curve_name, x_value, portfolio):
+            """Return facility rows for the clicked waterfall bar category."""
+            if not portfolio or portfolio not in app_state.portfolios:
+                return None
+            windowed = app_state._apply_time_window(app_state.facilities_df)
+            filtered = _apply_filters(windowed, app_state.portfolios[portfolio])
+            if filtered.is_empty() or "reporting_date" not in filtered.columns:
+                return None
+
+            # Determine current metric/freq from the callback context isn't
+            # available here, so we re-derive the period column using the
+            # x_value format to guess freq.
+            freq = _guess_freq_from_x(x_value)
+            df_with_period = _add_period_column(filtered, freq)
+            periods = df_with_period["_period"].unique().sort().to_list()
+
+            # Map x_value back to raw period
+            curr_period = _x_value_to_period(x_value, periods, freq)
+            if curr_period is None or curr_period not in periods:
+                return None
+            idx = periods.index(curr_period)
+            if idx == 0:
+                return None  # first period has no previous
+            prev_period = periods[idx - 1]
+
+            prev_rows = df_with_period.filter(pl.col("_period") == prev_period)
+            curr_rows = df_with_period.filter(pl.col("_period") == curr_period)
+            prev_ids = set(prev_rows["facility_id"].to_list())
+            curr_ids = set(curr_rows["facility_id"].to_list())
+
+            if curve_name == "Run-off":
+                ids = prev_ids - curr_ids
+                result = prev_rows.filter(pl.col("facility_id").is_in(list(ids)))
+            elif curve_name == "New Origination":
+                ids = curr_ids - prev_ids
+                result = curr_rows.filter(pl.col("facility_id").is_in(list(ids)))
+            elif curve_name == "Changes":
+                ids = prev_ids & curr_ids
+                result = curr_rows.filter(pl.col("facility_id").is_in(list(ids)))
+            else:
+                return None
+
+            if result.is_empty():
+                return None
+            show_cols = [c for c in result.columns if c != "_period"]
+            return result.select(show_cols).head(200)
+
+        register_detail_callback(
+            app, "ps-waterfall-chart", detail_fn=_get_waterfall_detail,
+            extra_states=[DashState("universal-portfolio-dropdown", "value")],
+            reset_inputs=[
+                Input("ps-metric", "value"),
+                Input("ps-freq", "value"),
             ],
         )
 
@@ -326,3 +402,142 @@ def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
         tickangle=-45 if len(periods) > 12 else 0,
     )
     return fig
+
+
+def _add_period_column(df: pl.DataFrame, freq: str) -> pl.DataFrame:
+    """Add _period column to df using same logic as _resample."""
+    rd = df["reporting_date"]
+    date_col = pl.col("reporting_date")
+    if rd.dtype != pl.Utf8:
+        date_col = date_col.cast(pl.Utf8)
+    year_expr = date_col.str.slice(0, 4)
+    month_expr = date_col.str.slice(5, 2)
+    if freq == "quarterly":
+        q_month = ((month_expr.cast(pl.Int32) - 1) // 3 * 3 + 1).cast(pl.Utf8).str.pad_start(2, "0")
+        return df.with_columns((year_expr + "-" + q_month + "-01").alias("_period"))
+    elif freq == "annually":
+        return df.with_columns((year_expr + "-01-01").alias("_period"))
+    else:
+        return df.with_columns((year_expr + "-" + month_expr + "-01").alias("_period"))
+
+
+def _compute_period_changes(df: pl.DataFrame, freq: str, metric: str) -> pl.DataFrame:
+    """Compute run-off, changes, and new origination between consecutive periods."""
+    if "reporting_date" not in df.columns or metric not in df.columns or "facility_id" not in df.columns:
+        return pl.DataFrame()
+
+    df = _add_period_column(df, freq)
+    periods = df["_period"].unique().sort().to_list()
+    if len(periods) < 2:
+        return pl.DataFrame()
+
+    rows: list[dict] = []
+    for i in range(1, len(periods)):
+        prev_p, curr_p = periods[i - 1], periods[i]
+        prev = df.filter(pl.col("_period") == prev_p)
+        curr = df.filter(pl.col("_period") == curr_p)
+        prev_ids = set(prev["facility_id"].to_list())
+        curr_ids = set(curr["facility_id"].to_list())
+
+        runoff_ids = prev_ids - curr_ids
+        new_ids = curr_ids - prev_ids
+        common_ids = prev_ids & curr_ids
+
+        runoff_val = -prev.filter(pl.col("facility_id").is_in(list(runoff_ids)))[metric].sum() if runoff_ids else 0
+        new_val = curr.filter(pl.col("facility_id").is_in(list(new_ids)))[metric].sum() if new_ids else 0
+        if common_ids:
+            common_list = list(common_ids)
+            curr_sum = curr.filter(pl.col("facility_id").is_in(common_list))[metric].sum()
+            prev_sum = prev.filter(pl.col("facility_id").is_in(common_list))[metric].sum()
+            changes_val = curr_sum - prev_sum
+        else:
+            changes_val = 0
+
+        rows.append({"_period": curr_p, "category": "Run-off", "value": runoff_val})
+        rows.append({"_period": curr_p, "category": "Changes", "value": changes_val})
+        rows.append({"_period": curr_p, "category": "New Origination", "value": new_val})
+
+    return pl.DataFrame(rows)
+
+
+_WATERFALL_COLORS = {
+    "Run-off": "#f87171",
+    "Changes": "#60a5fa",
+    "New Origination": "#34d399",
+}
+
+
+def _build_waterfall_chart(df, portfolios, portfolio, metric, freq):
+    """Build a period-over-period waterfall chart."""
+    fig = go.Figure()
+
+    if portfolio not in portfolios:
+        fig.update_layout(**plotly_theme(height=400))
+        fig.add_annotation(text="Select a portfolio", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False)
+        return fig
+
+    filtered = _apply_filters(df, portfolios[portfolio])
+    if filtered.is_empty() or metric not in filtered.columns:
+        fig.update_layout(**plotly_theme(height=400))
+        fig.add_annotation(text="No data", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False)
+        return fig
+
+    changes = _compute_period_changes(filtered, freq, metric)
+    if changes.is_empty():
+        fig.update_layout(**plotly_theme(height=400))
+        fig.add_annotation(text="Not enough periods", xref="paper", yref="paper",
+                           x=0.5, y=0.5, showarrow=False)
+        return fig
+
+    for category in ["Run-off", "Changes", "New Origination"]:
+        cat_data = changes.filter(pl.col("category") == category)
+        periods_list = cat_data["_period"].to_list()
+        fig.add_trace(go.Bar(
+            x=periods_list,
+            y=cat_data["value"].to_list(),
+            name=category,
+            customdata=[[category] for _ in periods_list],
+            marker_color=_WATERFALL_COLORS[category],
+        ))
+
+    periods = changes["_period"].unique().sort().to_list()
+    tick_labels = [_format_period(p, freq) for p in periods]
+    metric_label = metric.replace("_", " ").title()
+
+    theme = plotly_theme(
+        height=400,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    fig.update_layout(**theme, barmode="relative", yaxis_title=f"{metric_label} Change",
+                      clickmode="event")
+    fig.update_xaxes(
+        tickvals=periods,
+        ticktext=tick_labels,
+        tickangle=-45 if len(periods) > 12 else 0,
+    )
+    return fig
+
+
+def _guess_freq_from_x(x_value: str) -> str:
+    """Guess frequency from x_value format (period string like '2024-06-01')."""
+    if not x_value or len(x_value) < 7:
+        return "monthly"
+    month = int(x_value[5:7])
+    if x_value.endswith("-01-01") and month == 1:
+        return "annually"
+    if month in (1, 4, 7, 10):
+        return "quarterly"  # could be monthly too, but quarterly is a reasonable guess
+    return "monthly"
+
+
+def _x_value_to_period(x_value: str, periods: list[str], freq: str) -> str | None:
+    """Map an x_value (which may be a formatted label or raw period) to a raw period string."""
+    if x_value in periods:
+        return x_value
+    # Try matching by formatted label
+    for p in periods:
+        if _format_period(p, freq) == x_value:
+            return p
+    return None

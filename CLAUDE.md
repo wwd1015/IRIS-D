@@ -40,7 +40,7 @@ IRIS-D/
 │       │   ├── registry.py            # BaseTab, TabContext, register_tab()
 │       │   ├── __init__.py            # Auto-discovers & imports all non-_ tab modules
 │       │   ├── _template.py           # Annotated starter template for new tabs
-│       │   ├── portfolio_summary.py   # Portfolio summary (charts, watchlist, sidebar, CRUD)
+│       │   ├── portfolio_summary.py   # Portfolio summary (bar chart + waterfall chart, click-detail)
 │       │   ├── holdings.py            # Holdings tab (table, time-series expansion)
 │       │   ├── financial_trend.py     # Financial trends (details table, filters)
 │       │   ├── portfolio_trend.py     # Portfolio trend (benchmark charts)
@@ -224,11 +224,28 @@ def my_detail_fn(click_point, curve_name, x_value, portfolio):
 
 **Behavior:** Click a bar/point → detail table slides in below with matching rows, clicked element highlighted (others dimmed to 25% opacity). Click same element again → toggle hide. Close button → hide. Switching to a different element updates the table and highlight.
 
+**Multi-column layout:** In `TWO_COL` or other grid layouts, columns match the primary column's height by default. When any detail panel opens, CSS `:has(.detail-panel[style*="display: block"])` switches the grid to `align-items: start` so each column sizes independently. Columns re-sync when all detail panels close.
+
 **Important:** Set `customdata` on chart traces to pass the trace name reliably:
 ```python
 fig.add_trace(go.Bar(x=..., y=..., name="Segment A",
                      customdata=[["Segment A"] for _ in x_values]))
 ```
+
+### Period-over-Period Waterfall Chart
+
+The Portfolio Summary tab includes a waterfall chart (right panel) showing period-over-period changes decomposed into three categories:
+
+- **Run-off** (red, `#f87171`): Facilities present in the previous period but absent in the current — shown as negative values
+- **Changes** (blue, `#60a5fa`): Metric delta for facilities present in both periods — positive or negative
+- **New Origination** (green, `#34d399`): Facilities only in the current period — shown as positive values
+
+Key helpers in `portfolio_summary.py`:
+- `_compute_period_changes(df, freq, metric)` — partitions facility IDs between consecutive periods and computes sums
+- `_build_waterfall_chart(df, portfolios, portfolio, metric, freq)` — builds `barmode="relative"` chart with 3 traces
+- `_add_period_column(df, freq)` — reusable period extraction (shared with `_resample`)
+
+The waterfall chart shares the same callback inputs as the left bar chart (portfolio, time window, custom metric, metric, frequency) minus segmentation, keeping both charts in sync. Click-detail on waterfall bars shows the relevant facility rows for the clicked category and period.
 
 ### Signals
 

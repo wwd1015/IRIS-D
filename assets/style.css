@@ -1840,6 +1840,20 @@ html:not(.dark) #perf-warning-modal header {
   overflow-y: auto;
 }
 
+/* When any detail panel is open, columns size independently */
+.content-grid:has(.detail-panel[style*="display: block"]) {
+  align-items: start;
+}
+
+.content-grid:has(.detail-panel[style*="display: block"]) .content-grid-col--scroll {
+  position: static;
+}
+
+.content-grid:has(.detail-panel[style*="display: block"]) .content-grid-col--scroll > * {
+  position: static;
+  overflow-y: visible;
+}
+
 /* Grid rows follow the primary column height */
 .content-grid {
   grid-auto-rows: minmax(0, auto);
