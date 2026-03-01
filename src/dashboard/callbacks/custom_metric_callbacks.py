@@ -193,9 +193,10 @@ def register(app) -> None:
     @app.callback(
         Output("custom-metric-saved-list", "children"),
         [Input("custom-metric-token-store", "data"),
-         Input("custom-metric-modal", "style")],
+         Input("custom-metric-modal", "style"),
+         Input("custom-metric-store", "data")],
     )
-    def render_saved_metrics(_, style):
+    def render_saved_metrics(_, style, __cm):
         if not app_state.custom_metrics:
             return html.Span("No saved metrics yet.",
                              style={"color": "var(--text-muted)", "fontStyle": "italic", "fontSize": "13px"})
@@ -254,16 +255,18 @@ def register(app) -> None:
     # ── Delete a saved metric ─────────────────────────────────────────────
 
     @app.callback(
-        Output("custom-metric-save-status", "children", allow_duplicate=True),
+        [Output("custom-metric-save-status", "children", allow_duplicate=True),
+         Output("custom-metric-store", "data", allow_duplicate=True)],
         Input({"type": "custom-metric-delete", "index": ALL}, "n_clicks"),
+        State("custom-metric-store", "data"),
         prevent_initial_call=True,
     )
-    def delete_metric(n_clicks_list):
+    def delete_metric(n_clicks_list, metric_counter):
         if not any(n_clicks_list):
-            return no_update
+            return no_update, no_update
         trigger = ctx.triggered_id
         if not trigger:
-            return no_update
+            return no_update, no_update
         name = trigger["index"]
         if name in app_state.custom_metrics:
             meta = app_state.custom_metrics[name]
@@ -281,8 +284,11 @@ def register(app) -> None:
             current_user = user_management.get_current_user()
             if current_user:
                 app_state.save_user_data(current_user)
-            return html.Span(f"Deleted '{name}'", style={"color": "#2dd4bf", "fontSize": "12px"})
-        return no_update
+            return (
+                html.Span(f"Deleted '{name}'", style={"color": "#2dd4bf", "fontSize": "12px"}),
+                (metric_counter or 0) + 1,
+            )
+        return no_update, no_update
 
     # ── Save metric ───────────────────────────────────────────────────────
 
@@ -290,47 +296,47 @@ def register(app) -> None:
         [Output("custom-metric-save-status", "children"),
          Output("custom-metric-name-input", "value"),
          Output("custom-metric-token-store", "data", allow_duplicate=True),
-         Output("custom-metric-edit-name", "data", allow_duplicate=True)],
+         Output("custom-metric-edit-name", "data", allow_duplicate=True),
+         Output("custom-metric-store", "data", allow_duplicate=True)],
         Input("custom-metric-save-btn", "n_clicks"),
         [State("custom-metric-name-input", "value"),
          State("custom-metric-dataset-dropdown", "value"),
          State("custom-metric-token-store", "data"),
-         State("custom-metric-edit-name", "data")],
+         State("custom-metric-edit-name", "data"),
+         State("custom-metric-store", "data")],
         prevent_initial_call=True,
     )
-    def save_metric(n_clicks, name, dataset_name, tokens, editing_name):
+    def save_metric(n_clicks, name, dataset_name, tokens, editing_name, metric_counter):
+        _no_change = (no_update, no_update, no_update, no_update, no_update)
+        _err = lambda msg: (html.Span(msg, style={"color": "#ef4444", "fontSize": "12px"}),
+                            no_update, no_update, no_update, no_update)
+
         if not n_clicks:
-            return no_update, no_update, no_update, no_update
+            return _no_change
 
         # Validate
         if not name or not name.strip():
-            return (html.Span("Please enter a metric name.", style={"color": "#ef4444", "fontSize": "12px"}),
-                    no_update, no_update, no_update)
+            return _err("Please enter a metric name.")
         if not tokens:
-            return (html.Span("Formula is empty.", style={"color": "#ef4444", "fontSize": "12px"}),
-                    no_update, no_update, no_update)
+            return _err("Formula is empty.")
         if not dataset_name:
-            return (html.Span("Please select a dataset.", style={"color": "#ef4444", "fontSize": "12px"}),
-                    no_update, no_update, no_update)
+            return _err("Please select a dataset.")
 
         full_name = f"{name.strip()} (customized)"
 
         # Check for name collision (only if not editing the same metric)
         if full_name in app_state.custom_metrics and full_name != editing_name:
-            return (html.Span(f"'{full_name}' already exists.", style={"color": "#ef4444", "fontSize": "12px"}),
-                    no_update, no_update, no_update)
+            return _err(f"'{full_name}' already exists.")
 
         # Build and evaluate expression
         try:
             expr = _tokens_to_polars_expr(tokens)
         except ValueError as e:
-            return (html.Span(str(e), style={"color": "#ef4444", "fontSize": "12px"}),
-                    no_update, no_update, no_update)
+            return _err(str(e))
 
         # Apply to dataset
         if not DatasetRegistry.has(dataset_name):
-            return (html.Span(f"Dataset '{dataset_name}' not found.", style={"color": "#ef4444", "fontSize": "12px"}),
-                    no_update, no_update, no_update)
+            return _err(f"Dataset '{dataset_name}' not found.")
 
         ds = DatasetRegistry.get(dataset_name)
 
@@ -351,8 +357,7 @@ def register(app) -> None:
             ds.latest_df = ds.latest_df.with_columns(expr.alias(full_name))
             ds.invalidate_cache()
         except Exception as e:
-            return (html.Span(f"Formula error: {e}", style={"color": "#ef4444", "fontSize": "12px"}),
-                    no_update, no_update, no_update)
+            return _err(f"Formula error: {e}")
 
         # Save to state and persist
         app_state.custom_metrics[full_name] = {
@@ -369,6 +374,7 @@ def register(app) -> None:
             "",    # clear name input
             [],    # clear tokens
             None,  # clear edit mode
+            (metric_counter or 0) + 1,  # bump signal to trigger tab re-render
         )
 
 

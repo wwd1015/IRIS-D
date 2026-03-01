@@ -70,6 +70,7 @@ def _build_tab_navigation_callback() -> None:
     inputs = [Input(f"tab-{tid}", "n_clicks") for tid in tab_ids]
     inputs.append(Input("universal-portfolio-dropdown", "value"))
     inputs.append(Input("time-window-store", "data"))
+    inputs.append(Input("custom-metric-store", "data"))
 
     @callback(outputs, inputs,
               State("active-tab-store", "data"),
@@ -91,8 +92,8 @@ def _build_tab_navigation_callback() -> None:
                 # Portfolio or time-window change — stay on current tab
                 active_tab_id = stored_tab
 
-        # Args: [n_clicks...], portfolio, time-window, stored_tab(State)
-        universal_portfolio = args[-3]
+        # Args: [n_clicks...], portfolio, time-window, custom-metric, stored_tab(State)
+        universal_portfolio = args[-4]
         sel_portfolio = universal_portfolio or app_state.default_portfolio
 
         # Server-side role gating: fall back to first accessible tab

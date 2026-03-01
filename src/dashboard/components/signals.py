@@ -59,6 +59,7 @@ class Signal:
     THEME = "signal-theme"              # str  — "light" | "dark"
     DATE_RANGE = "signal-date-range"    # dict — {"start": iso, "end": iso}
     NOTIFICATION = "signal-notification"  # dict — {"message": str, "level": str}
+    CUSTOM_METRICS = "custom-metric-store"  # int — counter bumped on save/delete
 
     # ── Layer 2 → Layer 3 (tab-scoped) ─────────────────────────────────────
     @staticmethod
@@ -106,6 +107,7 @@ def all_signal_ids() -> list[str]:
         Signal.THEME,
         Signal.DATE_RANGE,
         Signal.NOTIFICATION,
+        Signal.CUSTOM_METRICS,
     ]
     for tab in get_all_tabs():
         ids.append(Signal.tab_filter(tab.id))

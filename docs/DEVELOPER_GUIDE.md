@@ -56,6 +56,7 @@ graph TB
 | `src/dashboard/components/toolbar.py` | `ToolbarControl` presets |
 | `src/dashboard/components/signals.py` | Cross-layer `dcc.Store` signal IDs |
 | `src/dashboard/components/layout.py` | App shell (header, content, modals, stores) |
+| `src/dashboard/components/mixins/click_detail.py` | Click-to-detail chart drill-down (reusable) |
 | `src/dashboard/callbacks/__init__.py` | `CallbackRegistry` auto-wiring |
 | `src/dashboard/callbacks/user_callbacks.py` | Login, register, delete-profile, profile-switch |
 | `src/dashboard/callbacks/portfolio_callbacks.py` | Portfolio CRUD (create, select, update, delete) |
@@ -373,6 +374,105 @@ def _build_concentration_chart(df, dimension, metric):
 
 register_tab(ConcentrationTab())
 ```
+
+### Adding Click-to-Detail Drill-Down
+
+Any chart can be enhanced with a click-to-detail panel using `components/mixins/click_detail.py`. Clicking a chart element (bar, point, segment) shows a detail table below the chart with matching rows. The clicked element is highlighted while others dim to 25% opacity.
+
+#### Quick Setup (3 steps)
+
+```python
+from ..components.mixins.click_detail import chart_with_detail_layout, register_detail_callback
+
+class MyTab(BaseTab):
+    def render_content(self, ctx):
+        fig = _build_my_chart(...)
+        # Step 1: Replace dcc.Graph with the wrapper
+        return html.Div([
+            chart_with_detail_layout("my-chart", figure=fig, height=400),
+        ], className="glass-card p-4")
+
+    def register_callbacks(self, app):
+        from ..app_state import app_state
+        from dash import State as DashState
+
+        # Step 2: Define a detail function
+        def _get_detail(click_point, curve_name, x_value, portfolio):
+            # click_point: clickData["points"][0]
+            # curve_name: from customdata (preferred) or curveNumber
+            # x_value: str(point["x"])
+            # portfolio: from extra_states
+            df = ...  # filter your data based on x_value and curve_name
+            return df  # pl.DataFrame, or None to hide the panel
+
+        # Step 3: Register the callback
+        register_detail_callback(
+            app, "my-chart", detail_fn=_get_detail,
+            extra_states=[DashState("universal-portfolio-dropdown", "value")],
+        )
+```
+
+#### API Reference
+
+**`chart_with_detail_layout(graph_id, figure, height, detail_max_rows)`**
+
+Returns a `html.Div` containing:
+- `dcc.Store` for toggle state
+- `dcc.Graph` with the chart
+- Hidden detail panel with header (title + close button) and `DataTable`
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `graph_id` | `str` | required | Unique ID for the graph (used as prefix for all sub-component IDs) |
+| `figure` | `go.Figure` | `None` | Initial Plotly figure |
+| `height` | `int` | `400` | Chart height in pixels |
+| `detail_max_rows` | `int` | `200` | Max rows shown in the detail table |
+
+**`register_detail_callback(app, graph_id, detail_fn, title_fn, extra_states)`**
+
+Wires `clickData` on the graph to the detail panel.
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `app` | `Dash` | required | The Dash app instance |
+| `graph_id` | `str` | required | Must match the ID passed to `chart_with_detail_layout` |
+| `detail_fn` | `callable` | required | `(click_point, curve_name, x_value, *extra) -> pl.DataFrame \| None` |
+| `title_fn` | `callable` | `None` | `(click_point, curve_name, x_value) -> str`. Default: `"Details for {x} — {curve}"` |
+| `extra_states` | `list[State]` | `None` | Additional `State(...)` objects forwarded to `detail_fn` as extra positional args |
+
+#### Interaction Behavior
+
+- **Click element** → detail table slides in, clicked element highlighted, others dimmed
+- **Click same element** → toggle: table hides, opacity restored
+- **Click different element** → table updates, highlight moves
+- **Close button (✕)** → table hides, opacity restored
+
+#### Important: Set `customdata` on Traces
+
+The callback extracts the trace/curve name from `clickData`. Plotly doesn't reliably include the trace name, so **set `customdata`** on each trace:
+
+```python
+fig.add_trace(go.Bar(
+    x=periods, y=values,
+    name="Segment A",
+    customdata=[["Segment A"] for _ in periods],  # ← required for drill-down
+))
+```
+
+#### CSS Classes
+
+The detail panel uses these CSS classes (defined in `assets/style.css`):
+
+| Class | Purpose |
+|---|---|
+| `.detail-chart-wrapper` | Flex column container, constrains width |
+| `.detail-panel` | Hidden by default, glassmorphism background |
+| `.detail-panel__header` | Flex row: title + close button |
+| `.detail-panel__title` | 13px bold title |
+| `.detail-panel__close` | ✕ close button |
+| `@keyframes detail-slide-in` | 0.2s slide-in animation |
+
+---
 
 ### Key patterns demonstrated above:
 
@@ -999,7 +1099,9 @@ src/dashboard/
 │   ├── controls.py              # GlobalControl, PortfolioSelector, TimeWindowButton, ...
 │   ├── toolbar.py               # ToolbarControl, DropdownControl, SliderControl, ...
 │   ├── signals.py               # Signal IDs for cross-layer dcc.Store
-│   └── layout.py                # App shell (header, content, modals, stores)
+│   ├── layout.py                # App shell (header, content, modals, stores)
+│   └── mixins/                  # Reusable chart interaction mixins
+│       └── click_detail.py      # Click-to-detail drill-down (layout + callback)
 ├── callbacks/                   # Callback modules grouped by concern
 │   ├── __init__.py              # CallbackRegistry — auto-wires CallbackSpec instances
 │   ├── user_callbacks.py        # Login, register, delete-profile, profile-switch

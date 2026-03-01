@@ -80,6 +80,31 @@ class TemplateTab(BaseTab):
         """Register any Dash callbacks for this tab."""
         pass  # TODO: add callbacks if needed
 
+    # ------------------------------------------------------------------
+    # Click-to-Detail (optional)
+    # ------------------------------------------------------------------
+    # To add drill-down on a chart, use the click_detail mixin:
+    #
+    #   from ..components.mixins.click_detail import (
+    #       chart_with_detail_layout, register_detail_callback,
+    #   )
+    #
+    # In render_content or get_cards:
+    #   chart_with_detail_layout("my-chart", figure=fig, height=400)
+    #
+    # In register_callbacks:
+    #   def _detail_fn(click_point, curve_name, x_value, portfolio):
+    #       ...filter data for clicked element...
+    #       return pl.DataFrame(...)  # or None to hide
+    #
+    #   register_detail_callback(
+    #       app, "my-chart", detail_fn=_detail_fn,
+    #       extra_states=[State("universal-portfolio-dropdown", "value")],
+    #   )
+    #
+    # Important: set customdata on traces for reliable curve name extraction:
+    #   fig.add_trace(go.Bar(..., customdata=[["name"] for _ in x_vals]))
+
 
 # ── Registration ────────────────────────────────────────────────────────────
 # Uncomment (and keep) this line after you rename the class:

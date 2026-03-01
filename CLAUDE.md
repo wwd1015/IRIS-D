@@ -51,7 +51,9 @@ IRIS-D/
 │       │   ├── controls.py            # GlobalControl hierarchy (L1 header controls)
 │       │   ├── toolbar.py             # ToolbarControl presets (L2 dropdowns, sliders)
 │       │   ├── signals.py             # Signal bus (PORTFOLIO, USER, THEME, DATE_RANGE, NOTIFICATION)
-│       │   └── layout.py              # Main app shell (header, content, modals)
+│       │   ├── layout.py              # Main app shell (header, content, modals)
+│       │   └── mixins/                # Reusable chart interaction mixins
+│       │       └── click_detail.py    # Click-to-detail: drill-down table on chart click
 │       ├── data/              # Data loading & generation
 │       │   ├── dataset.py             # Dataset abstraction (filtering, caching, introspection)
 │       │   ├── registry.py            # DatasetRegistry — named dataset access
@@ -196,6 +198,37 @@ The `Dataset` class handles:
 3. Implement `render_content()` (and optionally `get_toolbar_controls`, `get_cards`, `render_sidebar`, `register_callbacks`)
 4. Uncomment `register_tab(MyAnalysisTab())` at the bottom
 5. That's it — auto-discovery handles the rest
+
+### Click-to-Detail (Chart Drill-Down)
+
+Any chart can gain click-to-detail drill-down via `components/mixins/click_detail.py`:
+
+```python
+from ..components.mixins.click_detail import chart_with_detail_layout, register_detail_callback
+
+# 1. In render_content — replace dcc.Graph with the wrapper:
+chart_with_detail_layout("my-chart", figure=fig, height=400)
+
+# 2. In register_callbacks — wire up the detail function:
+register_detail_callback(
+    app, "my-chart", detail_fn=my_detail_fn,
+    extra_states=[State("universal-portfolio-dropdown", "value")],
+)
+
+# 3. Implement detail_fn — return a pl.DataFrame for the clicked element:
+def my_detail_fn(click_point, curve_name, x_value, portfolio):
+    # click_point: clickData["points"][0], curve_name: from customdata or curveNumber
+    # Return None to hide the panel
+    return filtered_df
+```
+
+**Behavior:** Click a bar/point → detail table slides in below with matching rows, clicked element highlighted (others dimmed to 25% opacity). Click same element again → toggle hide. Close button → hide. Switching to a different element updates the table and highlight.
+
+**Important:** Set `customdata` on chart traces to pass the trace name reliably:
+```python
+fig.add_trace(go.Bar(x=..., y=..., name="Segment A",
+                     customdata=[["Segment A"] for _ in x_values]))
+```
 
 ### Signals
 
