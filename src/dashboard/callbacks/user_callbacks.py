@@ -12,15 +12,9 @@ from dash import Input, Output, State, callback, callback_context, no_update
 
 from ..app_state import app_state
 from ..auth import user_management
+from ..utils.helpers import MODAL_SHOWN, MODAL_HIDDEN
 
 logger = logging.getLogger(__name__)
-
-_HIDDEN = {
-    "position": "fixed", "top": "0", "left": "0", "width": "100%",
-    "height": "100%", "backgroundColor": "rgba(0,0,0,0.5)",
-    "zIndex": "1000", "display": "none",
-}
-_SHOWN = {**_HIDDEN, "display": "block"}
 
 
 def _initials(username: str) -> str:
@@ -54,13 +48,13 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
         opts = [{"label": f"{u['name']} ({u['role']})", "value": u["name"]} for u in roster]
 
         if trigger == "profile-avatar-btn":
-            return _SHOWN, opts, user_management.get_current_user()
+            return MODAL_SHOWN, opts, user_management.get_current_user()
         if trigger in ("profile-switch-cancel", "profile-switch-cancel-x"):
-            return _HIDDEN, opts, user_management.get_current_user()
+            return MODAL_HIDDEN, opts, user_management.get_current_user()
         if trigger == "profile-switch-confirm" and selected_profile:
-            return _HIDDEN, opts, selected_profile
+            return MODAL_HIDDEN, opts, selected_profile
 
-        return _HIDDEN, opts, user_management.get_current_user()
+        return MODAL_HIDDEN, opts, user_management.get_current_user()
 
     @callback(
         Output("contact-modal", "style"),
@@ -73,8 +67,8 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
             return no_update
         trigger = ctx.triggered[0]["prop_id"].split(".")[0]
         if trigger == "contact-btn":
-            return _SHOWN
-        return _HIDDEN
+            return MODAL_SHOWN
+        return MODAL_HIDDEN
 
     @callback(
         [Output("current-user-store", "data"),

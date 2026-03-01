@@ -69,22 +69,28 @@ class Dataset:
             filters.append({"column": "obligor_name", "values": ob if isinstance(ob, list) else [ob]})
         return {"filters": filters}
 
-    def _apply_filter(self, portfolio_name: str, portfolios: dict, df: pl.DataFrame) -> pl.DataFrame:
-        """Apply portfolio criteria to a DataFrame."""
-        if portfolio_name not in portfolios:
-            return df.clear()
+    @staticmethod
+    def apply_criteria(df: pl.DataFrame, criteria: dict) -> pl.DataFrame:
+        """Apply filter criteria dict to a DataFrame.
 
-        criteria = self._migrate_criteria(portfolios[portfolio_name])
+        This is the canonical filter implementation — use this instead of
+        reimplementing filter logic in tabs or callbacks.
+        """
+        criteria = Dataset._migrate_criteria(criteria)
         filtered = df
-
         for level in criteria.get("filters", []):
             col = level.get("column")
             vals = level.get("values", [])
             if col and vals and col in filtered.columns:
                 str_vals = [str(v) for v in vals]
                 filtered = filtered.filter(pl.col(col).cast(pl.Utf8).is_in(str_vals))
-
         return filtered
+
+    def _apply_filter(self, portfolio_name: str, portfolios: dict, df: pl.DataFrame) -> pl.DataFrame:
+        """Apply portfolio criteria to a DataFrame."""
+        if portfolio_name not in portfolios:
+            return df.clear()
+        return self.apply_criteria(df, portfolios[portfolio_name])
 
     def get_filtered(self, portfolio_name: str, portfolios: dict) -> pl.DataFrame:
         """Return latest_df filtered by portfolio criteria, with caching."""

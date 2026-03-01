@@ -4,11 +4,14 @@ Pydantic models for bank risk data validation and transformation
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator, computed_field
 import pandas as pd
 import polars as pl
+
+logger = logging.getLogger(__name__)
 
 
 class FacilityRecord(BaseModel):
@@ -162,10 +165,10 @@ class FacilityDataset(BaseModel):
 
         if errors:
             for error in errors[:5]:
-                print(f"Validation error: {error}")
+                logger.warning("Validation error: %s", error)
             if len(errors) > 5:
-                print(f"... and {len(errors) - 5} more validation errors")
-            print(f"Continuing with {len(records)} valid records out of {len(rows)} total records")
+                logger.warning("... and %d more validation errors", len(errors) - 5)
+            logger.info("Continuing with %d valid records out of %d total records", len(records), len(rows))
 
         if not records:
             raise ValueError("No valid records found after validation")

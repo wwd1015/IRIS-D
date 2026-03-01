@@ -29,9 +29,6 @@ class DatabaseSettings:
     path: str = field(
         default_factory=lambda: os.environ.get("DATABASE_PATH", "data/bank_risk.db")
     )
-    datatidy_config: str = field(
-        default_factory=lambda: os.environ.get("DATATIDY_CONFIG", "data/datatidy_config.yaml")
-    )
     profiles_file: str = field(
         default_factory=lambda: os.environ.get("PROFILES_FILE", "data/user_profiles.json")
     )
@@ -118,7 +115,6 @@ DEFAULT_PORTFOLIOS = {
 
 # Flat aliases — kept so existing imports don't need changing
 DATABASE_PATH: str = settings.db.path
-DATATIDY_CONFIG_PATH: str = settings.db.datatidy_config
 PROFILES_FILE: str = settings.db.profiles_file
 
 HOST: str = settings.app.host

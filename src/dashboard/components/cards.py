@@ -26,10 +26,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, TYPE_CHECKING
 
-import pandas as pd
 import polars as pl
+
+if TYPE_CHECKING:
+    import pandas as pd
 import plotly.graph_objects as go
 from dash import dash_table, dcc, html
 

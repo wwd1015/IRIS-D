@@ -280,7 +280,7 @@ class AppState:
     def load_user_portfolios(self, username: str) -> None:
         """Reload portfolios and custom_metrics for the given user."""
         # Remove old custom metric columns before loading new profile
-        from .callbacks.custom_metric_callbacks import remove_custom_metric_columns, apply_custom_metrics
+        from .utils.custom_metrics import remove_custom_metric_columns, apply_custom_metrics
         if self.custom_metrics:
             remove_custom_metric_columns(self)
 

@@ -4,14 +4,7 @@ Time Window callbacks — modal open/close, apply, and global state update.
 
 from dash import Input, Output, State, callback, no_update, callback_context
 
-
-_MODAL_SHOWN = {
-    "position": "fixed", "top": "0", "left": "0", "width": "100%",
-    "height": "100%", "backgroundColor": "rgba(0,0,0,0.5)",
-    "zIndex": "10000", "display": "flex",
-    "alignItems": "center", "justifyContent": "center",
-}
-_MODAL_HIDDEN = {"display": "none"}
+from ..utils.helpers import MODAL_SHOWN, MODAL_HIDDEN
 
 
 def register(app):
@@ -72,7 +65,7 @@ def register(app):
             sel = current_portfolio or app_state.default_portfolio
             if sel in config.DEFAULT_PORTFOLIOS:
                 # Show warning instead of applying
-                return no_update, no_update, _MODAL_SHOWN
+                return no_update, no_update, MODAL_SHOWN
             # Safe to apply — portfolio has filters
             app_state.set_time_window(None, None)
             if all_dates:
@@ -88,7 +81,7 @@ def register(app):
                 label = _format_time_label(all_dates[0][:10], all_dates[-1][:10])
             else:
                 label = _format_time_label(None, None)
-            return None, label, _MODAL_HIDDEN
+            return None, label, MODAL_HIDDEN
 
         # Apply button
         if not start_val or not end_val:
@@ -107,4 +100,4 @@ def register(app):
     def cancel_warning(n_clicks):
         if not n_clicks:
             return no_update
-        return _MODAL_HIDDEN
+        return MODAL_HIDDEN

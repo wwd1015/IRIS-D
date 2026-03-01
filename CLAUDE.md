@@ -62,11 +62,11 @@ IRIS-D/
 │       │   ├── models.py              # Pydantic FacilityRecord + FacilityDataset
 │       │   └── db_data_generator.py
 │       └── utils/             # Utility functions
-│           ├── helpers.py
+│           ├── helpers.py             # Plotly theme, card wrappers, modal styles, formatters
+│           ├── custom_metrics.py      # Formula parsing (tokens → Polars expr), apply/remove
 │           └── logging.py             # configure_logging() — structured console output
 ├── data/
 │   ├── bank_risk.db           # SQLite database (generated locally, not in repo)
-│   ├── datatidy_config.yaml   # Data processing rules
 │   └── user_profiles.json     # User preferences (auto-created)
 ├── assets/
 │   ├── style.css              # CSS styling (glassmorphism dark theme)
