@@ -16,7 +16,7 @@ from dash import callback, dcc, html, Input, Output, no_update
 from .registry import BaseTab, ContentLayout, TabContext, register_tab
 from ..components.toolbar import DropdownControl
 from ..components.mixins.click_detail import chart_with_detail_layout, register_detail_callback
-from ..utils.helpers import plotly_theme
+from ..utils.helpers import plotly_theme, empty_figure
 
 
 class PortfolioSummaryTab(BaseTab):
@@ -186,7 +186,7 @@ class PortfolioSummaryTab(BaseTab):
             return _build_waterfall_chart(windowed, app_state.portfolios,
                                           portfolio, metric, freq)
 
-        def _get_waterfall_detail(click_point, curve_name, x_value, portfolio):
+        def _get_waterfall_detail(click_point, curve_name, x_value, portfolio, freq):
             """Return facility rows for the clicked waterfall bar category."""
             if not portfolio or portfolio not in app_state.portfolios:
                 return None
@@ -195,10 +195,7 @@ class PortfolioSummaryTab(BaseTab):
             if filtered.is_empty() or "reporting_date" not in filtered.columns:
                 return None
 
-            # Determine current metric/freq from the callback context isn't
-            # available here, so we re-derive the period column using the
-            # x_value format to guess freq.
-            freq = _guess_freq_from_x(x_value)
+            freq = freq or "monthly"
             df_with_period = _add_period_column(filtered, freq)
             periods = df_with_period["_period"].unique().sort().to_list()
 
@@ -235,7 +232,8 @@ class PortfolioSummaryTab(BaseTab):
 
         register_detail_callback(
             app, "ps-waterfall-chart", detail_fn=_get_waterfall_detail,
-            extra_states=[DashState("universal-portfolio-dropdown", "value")],
+            extra_states=[DashState("universal-portfolio-dropdown", "value"),
+                          DashState("ps-freq", "value")],
             reset_inputs=[
                 Input("ps-metric", "value"),
                 Input("ps-freq", "value"),
@@ -284,22 +282,7 @@ def _resample(df: pl.DataFrame, freq: str, metric: str, segmentation: str | None
     if "reporting_date" not in df.columns or metric not in df.columns:
         return pl.DataFrame()
 
-    # Work with string dates — extract year/month via substring (fast, no parsing)
-    rd = df["reporting_date"]
-    date_col = pl.col("reporting_date")
-    if rd.dtype != pl.Utf8:
-        date_col = date_col.cast(pl.Utf8)
-
-    year_expr = date_col.str.slice(0, 4)   # "2024"
-    month_expr = date_col.str.slice(5, 2)  # "06"
-
-    if freq == "quarterly":
-        q_month = ((month_expr.cast(pl.Int32) - 1) // 3 * 3 + 1).cast(pl.Utf8).str.pad_start(2, "0")
-        df = df.with_columns((year_expr + "-" + q_month + "-01").alias("_period"))
-    elif freq == "annually":
-        df = df.with_columns((year_expr + "-01-01").alias("_period"))
-    else:
-        df = df.with_columns((year_expr + "-" + month_expr + "-01").alias("_period"))
+    df = _add_period_column(df, freq)
 
     group_cols = ["_period"]
     if segmentation and segmentation in df.columns:
@@ -335,27 +318,18 @@ def _format_period(period_str: str, freq: str) -> str:
 
 def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
     """Build a (stacked) bar chart of the metric over time."""
-    fig = go.Figure()
-
     if portfolio not in portfolios:
-        fig.update_layout(**plotly_theme(height=400))
-        fig.add_annotation(text="Select a portfolio", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False)
-        return fig
+        return empty_figure("Select a portfolio", 400)
 
     filtered = _apply_filters(df, portfolios[portfolio])
     if len(filtered) == 0 or metric not in filtered.columns:
-        fig.update_layout(**plotly_theme(height=400))
-        fig.add_annotation(text="No data", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False)
-        return fig
+        return empty_figure("No data", 400)
 
     agg = _resample(filtered, freq, metric, segmentation)
     if agg.is_empty():
-        fig.update_layout(**plotly_theme(height=400))
-        fig.add_annotation(text="No data", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False)
-        return fig
+        return empty_figure("No data", 400)
+
+    fig = go.Figure()
 
     metric_label = metric.replace("_", " ").title()
 
@@ -464,27 +438,18 @@ _WATERFALL_COLORS = {
 
 def _build_waterfall_chart(df, portfolios, portfolio, metric, freq):
     """Build a period-over-period waterfall chart."""
-    fig = go.Figure()
-
     if portfolio not in portfolios:
-        fig.update_layout(**plotly_theme(height=400))
-        fig.add_annotation(text="Select a portfolio", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False)
-        return fig
+        return empty_figure("Select a portfolio", 400)
 
     filtered = _apply_filters(df, portfolios[portfolio])
     if filtered.is_empty() or metric not in filtered.columns:
-        fig.update_layout(**plotly_theme(height=400))
-        fig.add_annotation(text="No data", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False)
-        return fig
+        return empty_figure("No data", 400)
 
     changes = _compute_period_changes(filtered, freq, metric)
     if changes.is_empty():
-        fig.update_layout(**plotly_theme(height=400))
-        fig.add_annotation(text="Not enough periods", xref="paper", yref="paper",
-                           x=0.5, y=0.5, showarrow=False)
-        return fig
+        return empty_figure("Not enough periods", 400)
+
+    fig = go.Figure()
 
     for category in ["Run-off", "Changes", "New Origination"]:
         cat_data = changes.filter(pl.col("category") == category)
@@ -514,17 +479,6 @@ def _build_waterfall_chart(df, portfolios, portfolio, metric, freq):
     )
     return fig
 
-
-def _guess_freq_from_x(x_value: str) -> str:
-    """Guess frequency from x_value format (period string like '2024-06-01')."""
-    if not x_value or len(x_value) < 7:
-        return "monthly"
-    month = int(x_value[5:7])
-    if x_value.endswith("-01-01") and month == 1:
-        return "annually"
-    if month in (1, 4, 7, 10):
-        return "quarterly"  # could be monthly too, but quarterly is a reasonable guess
-    return "monthly"
 
 
 def _x_value_to_period(x_value: str, periods: list[str], freq: str) -> str | None:

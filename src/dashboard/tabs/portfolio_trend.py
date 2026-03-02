@@ -143,12 +143,7 @@ def _get_metric_options(df: pl.DataFrame):
 
 def _apply_filters(df: pl.DataFrame, criteria):
     from ..data.dataset import Dataset
-    criteria = Dataset._migrate_criteria(criteria)
-    for level in criteria.get("filters", []):
-        col, vals = level.get("column"), level.get("values", [])
-        if col and vals and col in df.columns:
-            df = df.filter(pl.col(col).cast(pl.Utf8).is_in([str(v) for v in vals]))
-    return df
+    return Dataset.apply_criteria(df, criteria)
 
 
 def _get_timeseries(df, portfolios, name, metric, agg):

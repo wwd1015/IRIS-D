@@ -213,9 +213,8 @@ def register(app) -> None:  # noqa: ARG001
         if selected == _CREATE_NEW:
             return no_update, no_update, no_update
         return (
-            {"display": "block", "position": "fixed", "inset": "0", "zIndex": "10000",
-             "display": "flex", "alignItems": "center", "justifyContent": "center",
-             "background": "rgba(0,0,0,0.5)"},
+            {**MODAL_SHOWN, "zIndex": "10000", "display": "flex",
+             "alignItems": "center", "justifyContent": "center"},
             f'Are you sure you want to delete "{selected}"? This action cannot be undone.',
             "",
         )
