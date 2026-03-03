@@ -7,7 +7,7 @@
 ## Tech Stack
 
 - **Framework**: Dash (Plotly) for interactive web-based dashboards
-- **Language**: Python 3.8+
+- **Language**: Python 3.12+
 - **Data**: Polars (primary), Pandas (SQL boundary only), NumPy, SQLAlchemy (SQLite backend at `data/bank_risk.db`)
 - **Validation**: Pydantic
 - **Config**: PyYAML
