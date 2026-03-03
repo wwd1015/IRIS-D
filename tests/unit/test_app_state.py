@@ -143,3 +143,33 @@ class TestLoadUserPortfolios:
         app_state.custom_metrics["test_metric"] = "value"
         app_state.load_user_portfolios("Guest")
         assert app_state.custom_metrics == {}
+
+
+class TestControlValueStore:
+    def test_set_get_roundtrip(self, app_state):
+        app_state.set_control_value("my-ctrl", "hello")
+        assert app_state.get_control_value("my-ctrl") == "hello"
+
+    def test_get_default(self, app_state):
+        assert app_state.get_control_value("nonexistent", "fallback") == "fallback"
+
+    def test_get_none_default(self, app_state):
+        assert app_state.get_control_value("nonexistent") is None
+
+    def test_clear_transient_removes_non_preserved(self, app_state):
+        app_state.set_control_value("transient", "val1")
+        app_state.set_control_value("sticky", "val2")
+        app_state.register_control("sticky", preserve=True)
+        app_state.clear_transient_controls()
+        assert app_state.get_control_value("transient") is None
+        assert app_state.get_control_value("sticky") == "val2"
+
+    def test_register_preserve_false_removes_from_set(self, app_state):
+        app_state.register_control("ctrl", preserve=True)
+        app_state.set_control_value("ctrl", "val")
+        app_state.register_control("ctrl", preserve=False)
+        app_state.clear_transient_controls()
+        assert app_state.get_control_value("ctrl") is None
+
+    def test_clear_transient_with_no_controls(self, app_state):
+        app_state.clear_transient_controls()  # should not raise

@@ -85,6 +85,12 @@ start, end = app_state.get_time_window()
 min_date, max_date = app_state.get_available_date_range()
 windowed_df = app_state._apply_time_window(app_state.facilities_df)
 
+# Control value store (see "Control Value Store" section below)
+app_state.set_control_value("ps-segmentation", "industry")
+val = app_state.get_control_value("ps-segmentation", default=None)
+app_state.register_control("ps-segmentation", preserve=True)
+app_state.clear_transient_controls()  # called automatically on global changes
+
 # User management
 app_state.load_user_portfolios(username)   # on login/switch
 app_state.save_user_data(username)         # on portfolio CRUD / autosave
@@ -109,6 +115,53 @@ The global time window filters data throughout the app:
 | `custom_metrics` | `dict` | User-defined metric formulas |
 | `available_portfolios` | `list[str]` | All portfolio names |
 | `default_portfolio` | `str` | Default portfolio name (`"Entire Commercial"`) |
+
+### Control Value Store
+
+AppState includes a centralized store for tab control values with an opt-in `preserve` flag. By default, control values are **transient** — they are cleared when global state changes (portfolio switch, time window, custom metric). Controls registered with `preserve=True` survive these resets.
+
+**How it works:**
+
+1. **Tab renders** → control reads its value via `app_state.get_control_value(id, default)`
+2. **User interacts** → callback stores via `app_state.set_control_value(id, value)`
+3. **Global change fires** → `route_tabs` calls `app_state.clear_transient_controls()` → transient values removed → tab re-renders → preserved controls keep their value, transient controls fall back to their hardcoded default
+
+**API:**
+
+| Method | Description |
+|---|---|
+| `set_control_value(id, value)` | Store a control's current value |
+| `get_control_value(id, default=None)` | Read a stored value (falls back to *default*) |
+| `register_control(id, preserve=True)` | Mark a control as preserved across global resets |
+| `clear_transient_controls()` | Remove all non-preserved values (called automatically by `route_tabs`) |
+
+**Example — card-level control (transient by default):**
+
+```python
+# In render_content():
+seg = app_state.get_control_value("ps-segmentation")  # None after global change
+
+# In callback:
+app_state.set_control_value("ps-segmentation", segmentation)
+```
+
+**Example — making a control preserved:**
+
+```python
+# In render_content() — one line to opt in:
+app_state.register_control("ps-segmentation", preserve=True)
+seg = app_state.get_control_value("ps-segmentation")  # survives portfolio switches
+```
+
+**Toolbar controls** support `preserve` as a constructor parameter. When `preserve=True`, the control auto-registers itself and reads from the store during `render()`:
+
+```python
+DropdownControl(
+    id="my-metric", label="Metric",
+    options=[...], value="balance",
+    preserve=True,  # value survives global state changes
+)
+```
 
 ---
 
@@ -772,11 +825,13 @@ register_global_control(NotificationBell())
 
 | Class | What it renders | Key params |
 |---|---|---|
-| `DropdownControl` | `dcc.Dropdown` | `options`, `value`, `multi`, `placeholder` |
-| `SliderControl` | `dcc.Slider` | `min_val`, `max_val`, `step`, `value`, `marks` |
-| `RangeSliderControl` | `dcc.RangeSlider` | `min_val`, `max_val`, `step`, `value`, `marks` |
-| `ToggleControl` | `dcc.Checklist` as toggle | `default` (bool) |
+| `DropdownControl` | `dcc.Dropdown` | `options`, `value`, `multi`, `placeholder`, `preserve` |
+| `SliderControl` | `dcc.Slider` | `min_val`, `max_val`, `step`, `value`, `marks`, `preserve` |
+| `RangeSliderControl` | `dcc.RangeSlider` | `min_val`, `max_val`, `step`, `value`, `marks`, `preserve` |
+| `ToggleControl` | `dcc.Checklist` as toggle | `default` (bool), `preserve` |
 | `RawControl` | Any Dash component | `component` (pass any Dash element) |
+
+All presets accept `preserve: bool = False`. When `True`, the control's value is stored in `AppState` and survives global state changes (portfolio switch, time window). See [Control Value Store](#control-value-store).
 
 ### Custom Toolbar Control
 

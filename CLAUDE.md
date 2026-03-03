@@ -106,9 +106,17 @@ df  = app_state.get_filtered_data("CRE")
 app_state.set_time_window("2024-01-31", "2026-01-31")  # global time window
 app_state.load_user_portfolios(username)   # on login/switch
 app_state.save_user_data(username)         # on portfolio CRUD / autosave
+
+# Control value store — centralized tab control state with opt-in persistence
+app_state.set_control_value("ps-segmentation", "industry")
+app_state.get_control_value("ps-segmentation", default=None)
+app_state.register_control("ps-segmentation", preserve=True)  # survives global resets
+app_state.clear_transient_controls()  # auto-called by route_tabs on global changes
 ```
 
 **Time window:** `make_tab_context()` passes time-windowed `facilities_df` to tabs. `get_filtered_data()` returns the latest snapshot within the window. Default: last 2 years.
+
+**Control value store:** Tab controls (toolbar and card-level) store their values via `set_control_value()` / `get_control_value()`. On global state changes (portfolio, time window, custom metric), `route_tabs` calls `clear_transient_controls()` which removes all non-preserved values. Controls registered with `register_control(id, preserve=True)` survive the reset. Toolbar presets (`DropdownControl`, `SliderControl`, etc.) accept a `preserve=True` constructor param that auto-registers and reads from the store.
 
 ### Data Layer
 

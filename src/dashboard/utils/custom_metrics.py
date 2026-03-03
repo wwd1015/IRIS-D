@@ -16,7 +16,7 @@ import polars as pl
 
 logger = logging.getLogger(__name__)
 
-_ALLOWED_OPS = frozenset({"+", "-", "*", "/", "(", ")", ">=", "<=", ">", "<", "=="})
+_ALLOWED_OPS = frozenset({"+", "-", "*", "/", "(", ")", ">=", "<=", ">", "<", "==", "AND", "OR"})
 
 
 def tokens_to_polars_expr(tokens: list[dict]) -> pl.Expr:
@@ -34,8 +34,82 @@ def tokens_to_polars_expr(tokens: list[dict]) -> pl.Expr:
     return _build_arithmetic_expr(tokens)
 
 
+def _split_at_logic(tokens: list[dict], keyword: str) -> list[list[dict]]:
+    """Split token list at top-level (depth-0) occurrences of a logic keyword.
+
+    Returns a list of token groups. If keyword is not found at depth 0,
+    returns a single-element list containing the original tokens.
+    """
+    groups: list[list[dict]] = []
+    current: list[dict] = []
+    depth = 0
+    for tok in tokens:
+        t, v = tok.get("type", ""), tok.get("value", "")
+        if t == "operator" and v == "(":
+            depth += 1
+        elif t == "operator" and v == ")":
+            depth -= 1
+        if depth == 0 and t == "operator" and v == keyword:
+            groups.append(current)
+            current = []
+        else:
+            current.append(tok)
+    groups.append(current)
+    return groups
+
+
+def _strip_outer_parens(tokens: list[dict]) -> list[dict]:
+    """Strip one layer of matching outer parentheses if they wrap the entire list."""
+    while (len(tokens) >= 2
+           and tokens[0].get("type") == "operator" and tokens[0].get("value") == "("
+           and tokens[-1].get("type") == "operator" and tokens[-1].get("value") == ")"):
+        # Verify the open paren at 0 matches the close paren at -1
+        depth = 0
+        matches_end = True
+        for i, tok in enumerate(tokens):
+            v = tok.get("value", "")
+            if tok.get("type") == "operator" and v == "(":
+                depth += 1
+            elif tok.get("type") == "operator" and v == ")":
+                depth -= 1
+            if depth == 0 and i < len(tokens) - 1:
+                matches_end = False
+                break
+        if matches_end:
+            tokens = tokens[1:-1]
+        else:
+            break
+    return tokens
+
+
 def _build_arithmetic_expr(tokens: list[dict]) -> pl.Expr:
-    """Build a simple arithmetic/comparison expression."""
+    """Build an arithmetic/comparison expression, with AND/OR support.
+
+    Precedence (low→high): OR → AND → comparisons → arithmetic.
+    Parentheses override precedence — splits only happen at depth 0.
+    """
+    # Strip matching outer parentheses so inner AND/OR can be split
+    tokens = _strip_outer_parens(tokens)
+
+    # Split on OR first (lowest precedence)
+    or_groups = _split_at_logic(tokens, "OR")
+    if len(or_groups) > 1:
+        exprs = [_build_arithmetic_expr(g) for g in or_groups]
+        result = exprs[0]
+        for e in exprs[1:]:
+            result = result | e
+        return result
+
+    # Then split on AND
+    and_groups = _split_at_logic(tokens, "AND")
+    if len(and_groups) > 1:
+        exprs = [_build_arithmetic_expr(g) for g in and_groups]
+        result = exprs[0]
+        for e in exprs[1:]:
+            result = result & e
+        return result
+
+    # Base case — flat arithmetic/comparison eval
     parts: list[str] = []
     for tok in tokens:
         t, v = tok["type"], tok["value"]

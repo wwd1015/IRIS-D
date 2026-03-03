@@ -49,9 +49,12 @@ class PortfolioSummaryTab(BaseTab):
         ]
 
     def render_content(self, ctx: TabContext):
+        from ..app_state import app_state
         seg_opts = _get_segmentation_options(ctx.facilities_df)
+        app_state.register_control("ps-segmentation", preserve=True)
+        current_seg = app_state.get_control_value("ps-segmentation")
         fig = _build_bar_chart(ctx.facilities_df, ctx.portfolios,
-                               ctx.selected_portfolio, "balance", "monthly", None)
+                               ctx.selected_portfolio, "balance", "monthly", current_seg)
         fig_right = _build_waterfall_chart(ctx.facilities_df, ctx.portfolios,
                                            ctx.selected_portfolio, "balance", "monthly")
         return html.Div([
@@ -63,11 +66,9 @@ class PortfolioSummaryTab(BaseTab):
                         dcc.Dropdown(
                             id="ps-segmentation",
                             options=seg_opts,
-                            value=None,
+                            value=current_seg,
                             placeholder="None",
                             clearable=True,
-                            persistence=True,
-                            persistence_type="session",
                             style={"width": "160px", "fontSize": "13px"},
                         ),
                     ]),
@@ -95,6 +96,7 @@ class PortfolioSummaryTab(BaseTab):
         def update_chart(portfolio, _tw, _cm, metric, freq, segmentation):
             if not portfolio:
                 return no_update
+            app_state.set_control_value("ps-segmentation", segmentation)
             metric = metric or "balance"
             freq = freq or "monthly"
             windowed = app_state._apply_time_window(app_state.facilities_df)

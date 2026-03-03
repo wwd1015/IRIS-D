@@ -85,6 +85,8 @@ def register(app) -> None:
         "custom-metric-op-gt": ">",
         "custom-metric-op-lt": "<",
         "custom-metric-op-eq": "==",
+        "custom-metric-op-and": "AND",
+        "custom-metric-op-or": "OR",
         "custom-metric-op-if": "IF",
         "custom-metric-op-then": "THEN",
         "custom-metric-op-else": "ELSE",
@@ -135,6 +137,7 @@ def register(app) -> None:
         if trigger in _OP_MAP:
             val = _OP_MAP[trigger]
             tok_type = "logic" if val in ("IF", "THEN", "ELSE") else "operator"
+            # AND/OR are operators (handled by _build_arithmetic_expr), not logic keywords
             tokens = tokens + [{"type": tok_type, "value": val}]
 
         return tokens, clear_col, clear_const

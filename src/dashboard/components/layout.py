@@ -466,6 +466,10 @@ def _custom_metric_modal():
                                     style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
                         html.Button("ELSE", id="custom-metric-op-else", className="btn btn-outline",
                                     style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
+                        html.Button("AND", id="custom-metric-op-and", className="btn btn-outline",
+                                    style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
+                        html.Button("OR", id="custom-metric-op-or", className="btn btn-outline",
+                                    style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
                     ], className="flex flex-wrap gap-1 mb-2"),
 
                     # Constant input + undo

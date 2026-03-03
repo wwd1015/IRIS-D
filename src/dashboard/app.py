@@ -83,6 +83,7 @@ def _build_tab_navigation_callback() -> None:
         stored_tab = args[-1]
         active_tab_id = tab_ids[0]
 
+        is_global_trigger = False
         if ctx.triggered:
             button_id = ctx.triggered[0]["prop_id"].split(".")[0]
             candidate = button_id.replace("tab-", "")
@@ -91,6 +92,7 @@ def _build_tab_navigation_callback() -> None:
             elif stored_tab and stored_tab in tab_ids:
                 # Portfolio or time-window change — stay on current tab
                 active_tab_id = stored_tab
+                is_global_trigger = True
 
         # Args: [n_clicks...], portfolio, time-window, custom-metric, stored_tab(State)
         universal_portfolio = args[-4]
@@ -102,6 +104,9 @@ def _build_tab_navigation_callback() -> None:
         if active_tab and active_tab.required_roles and user_role not in active_tab.required_roles:
             accessible = [t for t in all_tabs if not t.required_roles or user_role in t.required_roles]
             active_tab_id = accessible[0].id if accessible else tab_ids[0]
+
+        if is_global_trigger:
+            app_state.clear_transient_controls()
 
         tab_ctx = app_state.make_tab_context(sel_portfolio)
 

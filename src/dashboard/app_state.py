@@ -27,6 +27,7 @@ Callback authoring pattern
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 import polars as pl
 
@@ -58,6 +59,8 @@ class AppState:
         self.available_portfolios: list[str] = []
         self._date_start: str | None = None
         self._date_end: str | None = None
+        self._control_values: dict[str, Any] = {}
+        self._preserved_controls: set[str] = set()
 
     # ── Properties delegating to Dataset ──────────────────────────────────
 
@@ -154,6 +157,29 @@ class AppState:
     def get_time_window(self) -> tuple[str | None, str | None]:
         """Return (start, end) ISO date strings for the current time window."""
         return self._date_start, self._date_end
+
+    # ── Control value store ────────────────────────────────────────────────
+
+    def set_control_value(self, control_id: str, value: Any) -> None:
+        """Store a control's current value."""
+        self._control_values[control_id] = value
+
+    def get_control_value(self, control_id: str, default: Any = None) -> Any:
+        """Read a control's stored value, falling back to *default*."""
+        return self._control_values.get(control_id, default)
+
+    def register_control(self, control_id: str, preserve: bool = False) -> None:
+        """Register a control. If *preserve* is True, its value survives global resets."""
+        if preserve:
+            self._preserved_controls.add(control_id)
+        else:
+            self._preserved_controls.discard(control_id)
+
+    def clear_transient_controls(self) -> None:
+        """Remove values for all non-preserved controls."""
+        transient = [k for k in self._control_values if k not in self._preserved_controls]
+        for k in transient:
+            del self._control_values[k]
 
     def get_available_date_range(self) -> tuple[str | None, str | None]:
         """Return (min, max) reporting_date from the full dataset."""

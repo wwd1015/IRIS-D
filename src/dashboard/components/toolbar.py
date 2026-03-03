@@ -71,6 +71,9 @@ class ToolbarControl(ABC):
         CSS class(es) controlling the control's width.
     visible : bool
         Whether the control is initially visible.
+    preserve : bool
+        If True, the control's value survives global state changes (portfolio,
+        time window).  Default False — control resets to its hardcoded default.
     """
 
     id: str
@@ -79,6 +82,7 @@ class ToolbarControl(ABC):
     align: ToolbarAlign = ToolbarAlign.RIGHT
     width: str = "min-w-[180px]"
     visible: bool = True
+    preserve: bool = False
 
     @abstractmethod
     def render(self, ctx: TabContext) -> html.Div:
@@ -119,6 +123,7 @@ class DropdownControl(ToolbarControl):
         align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[180px]",
         visible: bool = True,
+        preserve: bool = False,
     ):
         self.id = id
         self.label = label
@@ -130,8 +135,14 @@ class DropdownControl(ToolbarControl):
         self.align = align
         self.width = width
         self.visible = visible
+        self.preserve = preserve
 
     def render(self, ctx: TabContext) -> html.Div:
+        effective_value = self.value
+        if self.preserve:
+            from ..app_state import app_state
+            app_state.register_control(self.id, preserve=True)
+            effective_value = app_state.get_control_value(self.id, self.value)
         style = {} if self.visible else {"display": "none"}
         return html.Div([
             html.Span(
@@ -141,7 +152,7 @@ class DropdownControl(ToolbarControl):
             dcc.Dropdown(
                 id=self.id,
                 options=self.options,
-                value=self.value,
+                value=effective_value,
                 multi=self.multi,
                 placeholder=self.placeholder,
                 className="text-xs",
@@ -180,6 +191,7 @@ class SliderControl(ToolbarControl):
         align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[200px]",
         visible: bool = True,
+        preserve: bool = False,
     ):
         self.id = id
         self.label = label
@@ -192,8 +204,14 @@ class SliderControl(ToolbarControl):
         self.align = align
         self.width = width
         self.visible = visible
+        self.preserve = preserve
 
     def render(self, ctx: TabContext) -> html.Div:
+        effective_value = self.value
+        if self.preserve:
+            from ..app_state import app_state
+            app_state.register_control(self.id, preserve=True)
+            effective_value = app_state.get_control_value(self.id, self.value)
         style = {} if self.visible else {"display": "none"}
         marks = self.marks or {self.min_val: str(self.min_val), self.max_val: str(self.max_val)}
         return html.Div([
@@ -206,7 +224,7 @@ class SliderControl(ToolbarControl):
                 min=self.min_val,
                 max=self.max_val,
                 step=self.step,
-                value=self.value,
+                value=effective_value,
                 marks=marks,
                 tooltip={"placement": "bottom", "always_visible": True},
             ),
@@ -233,6 +251,7 @@ class ToggleControl(ToolbarControl):
         align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[120px]",
         visible: bool = True,
+        preserve: bool = False,
     ):
         self.id = id
         self.label = label
@@ -241,8 +260,14 @@ class ToggleControl(ToolbarControl):
         self.align = align
         self.width = width
         self.visible = visible
+        self.preserve = preserve
 
     def render(self, ctx: TabContext) -> html.Div:
+        effective_value = ["on"] if self.default else []
+        if self.preserve:
+            from ..app_state import app_state
+            app_state.register_control(self.id, preserve=True)
+            effective_value = app_state.get_control_value(self.id, effective_value)
         style = {} if self.visible else {"display": "none"}
         return html.Div([
             html.Span(
@@ -252,7 +277,7 @@ class ToggleControl(ToolbarControl):
             dcc.Checklist(
                 id=self.id,
                 options=[{"label": "", "value": "on"}],
-                value=["on"] if self.default else [],
+                value=effective_value,
                 className="toggle-switch",
             ),
         ], className=f"{self.width} flex-shrink-0", style=style)
@@ -293,6 +318,7 @@ class RangeSliderControl(ToolbarControl):
         align: ToolbarAlign = ToolbarAlign.RIGHT,
         width: str = "min-w-[240px]",
         visible: bool = True,
+        preserve: bool = False,
     ):
         self.id = id
         self.label = label
@@ -305,8 +331,14 @@ class RangeSliderControl(ToolbarControl):
         self.align = align
         self.width = width
         self.visible = visible
+        self.preserve = preserve
 
     def render(self, ctx: TabContext) -> html.Div:
+        effective_value = self.value
+        if self.preserve:
+            from ..app_state import app_state
+            app_state.register_control(self.id, preserve=True)
+            effective_value = app_state.get_control_value(self.id, self.value)
         style = {} if self.visible else {"display": "none"}
         marks = self.marks or {self.min_val: str(self.min_val), self.max_val: str(self.max_val)}
         return html.Div([
@@ -319,7 +351,7 @@ class RangeSliderControl(ToolbarControl):
                 min=self.min_val,
                 max=self.max_val,
                 step=self.step,
-                value=self.value,
+                value=effective_value,
                 marks=marks,
                 tooltip={"placement": "bottom", "always_visible": True},
             ),
