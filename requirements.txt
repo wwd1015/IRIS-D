@@ -1,19 +1,18 @@
-# Bank Risk Dashboard - Requirements for Backward Compatibility
-# This file provides flexible version constraints for maximum compatibility
+# IRIS-D — Python 3.12+ required
+# Mirrors pyproject.toml dependencies
 
 # Core Framework
 dash>=2.14.0
 
-# Data Processing - Flexible constraints for compatibility
-pandas>=1.5.0
-numpy>=1.21.0
+# Data Processing
+pandas>=2.0.0
+numpy>=1.24.0
 plotly>=5.17.0
-
-# Database - Flexible SQLAlchemy versions for compatibility
-sqlalchemy>=1.4.0
-
-# Data Processing - Polars for high-performance DataFrames
 polars>=0.20.0
+pyarrow>=14.0.0
+
+# Database
+sqlalchemy>=2.0.0
 
 # Data Validation
 pydantic>=2.0.0
@@ -23,9 +22,3 @@ pyyaml>=6.0.0
 
 # Production Server
 gunicorn>=21.0.0
-
-# Compatibility Notes:
-# - pandas: Support both 1.x and 2.x series for older systems
-# - sqlalchemy: Support both 1.4+ and 2.x for compatibility
-# - Application includes automatic fallback mechanisms for version conflicts
-# - Run `python3 test_db_connection.py` to verify compatibility on your system
