@@ -263,3 +263,40 @@ def format_percent(value: float, decimals: int = 1) -> str:
     '12.3%'
     """
     return f"{value * 100:.{decimals}f}%"
+
+
+# ── Period helpers (shared by portfolio_summary and playground) ──────────
+
+_MONTH_ABBR = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def add_period_column(df, freq: str):
+    """Add a ``_period`` column derived from ``reporting_date``."""
+    import polars as pl
+
+    rd = df["reporting_date"]
+    date_col = pl.col("reporting_date")
+    if rd.dtype != pl.Utf8:
+        date_col = date_col.cast(pl.Utf8)
+    year_expr = date_col.str.slice(0, 4)
+    month_expr = date_col.str.slice(5, 2)
+    if freq == "quarterly":
+        q_month = ((month_expr.cast(pl.Int32) - 1) // 3 * 3 + 1).cast(pl.Utf8).str.pad_start(2, "0")
+        return df.with_columns((year_expr + "-" + q_month + "-01").alias("_period"))
+    elif freq == "annually":
+        return df.with_columns((year_expr + "-01-01").alias("_period"))
+    else:
+        return df.with_columns((year_expr + "-" + month_expr + "-01").alias("_period"))
+
+
+def format_period(period_str: str, freq: str) -> str:
+    """Format a period string (``YYYY-MM-01``) for display."""
+    year = period_str[:4]
+    month = int(period_str[5:7])
+    if freq == "annually":
+        return year
+    if freq == "quarterly":
+        q = (month - 1) // 3 + 1
+        return f"Q{q} {year}"
+    return f"{_MONTH_ABBR[month]} {year}"

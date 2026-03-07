@@ -1701,7 +1701,7 @@ html:not(.dark) #perf-warning-modal header {
 
 /* ── CONTAINER ── */
 .container {
-  max-width: 1400px;
+  max-width: none;
   margin: 0 auto;
   padding: 0 var(--sp-4);
 }
@@ -1876,6 +1876,64 @@ html:not(.dark) #perf-warning-modal header {
     position: static;
     overflow-y: visible;
   }
+}
+
+/* ── Playground grid ── */
+.pg-cards-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+    transition: grid-template-columns 0.3s ease;
+}
+
+/* When any detail panel is open, stop stretching siblings */
+.pg-cards-grid:has(.detail-panel[style*="display: block"]) {
+    align-items: start;
+}
+
+.pg-icon-btn {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.pg-icon-inner {
+    display: inline-block;
+    width: 14px;
+    text-align: center;
+    font-size: 14px;
+    line-height: 1;
+}
+
+.pg-add-col-btn--disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+.pg-save-btn--disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.pg-settings-panel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100;
+    min-width: 200px;
+    padding: 12px;
+    margin-top: 4px;
+    background: var(--glass-bg, rgba(30, 30, 50, 0.95));
+    border: 1px solid var(--border-subtle, rgba(255,255,255,0.1));
+    border-radius: 8px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
 
 /* ── STAT PANEL (modern KPI cards) ── */

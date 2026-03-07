@@ -16,7 +16,7 @@ from dash import callback, dcc, html, Input, Output, no_update
 from .registry import BaseTab, ContentLayout, TabContext, register_tab
 from ..components.toolbar import DropdownControl
 from ..components.mixins.click_detail import chart_with_detail_layout, register_detail_callback
-from ..utils.helpers import plotly_theme, empty_figure
+from ..utils.helpers import plotly_theme, empty_figure, add_period_column, format_period
 
 
 class PortfolioSummaryTab(BaseTab):
@@ -302,20 +302,7 @@ _COLORS = [
 ]
 
 
-_MONTH_ABBR = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-               "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-
-def _format_period(period_str: str, freq: str) -> str:
-    """Format a period string like '2024-06-01' based on frequency."""
-    year = period_str[:4]
-    month = int(period_str[5:7])
-    if freq == "annually":
-        return year
-    if freq == "quarterly":
-        q = (month - 1) // 3 + 1
-        return f"Q{q} {year}"
-    return f"{_MONTH_ABBR[month]} {year}"
+_format_period = format_period  # backward compat alias
 
 
 def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
@@ -375,21 +362,7 @@ def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
     return fig
 
 
-def _add_period_column(df: pl.DataFrame, freq: str) -> pl.DataFrame:
-    """Add _period column to df using same logic as _resample."""
-    rd = df["reporting_date"]
-    date_col = pl.col("reporting_date")
-    if rd.dtype != pl.Utf8:
-        date_col = date_col.cast(pl.Utf8)
-    year_expr = date_col.str.slice(0, 4)
-    month_expr = date_col.str.slice(5, 2)
-    if freq == "quarterly":
-        q_month = ((month_expr.cast(pl.Int32) - 1) // 3 * 3 + 1).cast(pl.Utf8).str.pad_start(2, "0")
-        return df.with_columns((year_expr + "-" + q_month + "-01").alias("_period"))
-    elif freq == "annually":
-        return df.with_columns((year_expr + "-01-01").alias("_period"))
-    else:
-        return df.with_columns((year_expr + "-" + month_expr + "-01").alias("_period"))
+_add_period_column = add_period_column  # backward compat alias
 
 
 def _compute_period_changes(df: pl.DataFrame, freq: str, metric: str) -> pl.DataFrame:

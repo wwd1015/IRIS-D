@@ -20,7 +20,8 @@ def create_navigation_tabs():
     user_role = user_management.get_current_user_role()
     tabs = get_all_tabs()
 
-    buttons = []
+    left_buttons = []
+    right_buttons = []
     for i, tab in enumerate(tabs):
         # Determine visibility: hide if tab requires specific roles and user doesn't have one
         visible = True
@@ -31,17 +32,22 @@ def create_navigation_tabs():
         cls = "px-3 py-1.5 rounded bg-ink-900 text-white" if i == 0 else "px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"
         style = {"display": "inline-block"} if visible else {"display": "none"}
 
-        buttons.append(
-            html.Button(
-                tab.label,
-                id=f"tab-{tab.id}",
-                n_clicks=0,
-                className=cls,
-                style=style if tab.required_roles else {},
-            )
+        btn = html.Button(
+            tab.label,
+            id=f"tab-{tab.id}",
+            n_clicks=0,
+            className=cls,
+            style=style if tab.required_roles else {},
         )
 
-    return buttons
+        if getattr(tab, "nav_align", "left") == "right":
+            right_buttons.append(btn)
+        else:
+            left_buttons.append(btn)
+
+    if right_buttons:
+        return left_buttons + [html.Div(style={"flex": "1"})] + right_buttons
+    return left_buttons
 
 
 def create_layout(selected_portfolio, app_index_string, available_portfolios=None):
@@ -80,7 +86,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                 children=create_navigation_tabs(),
                 className="flex items-center gap-2 overflow-x-auto py-2 text-sm",
             ),
-        ], className="header sticky top-0 z-40 mx-auto max-w-[1600px]"),
+        ], className="header sticky top-0 z-40"),
 
         # ── Main content ────────────────────────────────────────────────────
         html.Main([
@@ -91,7 +97,7 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                     html.Div("Refreshing", className="tab-loading-text"),
                 ], id="tab-loading-overlay"),
             ], id="tab-content-wrapper", className="tab-content-wrapper"),
-        ], className="mx-auto max-w-[1600px] px-5 py-4"),
+        ], className="px-5 py-4"),
 
         # ── Modals ──────────────────────────────────────────────────────────
         _profile_switch_modal(),

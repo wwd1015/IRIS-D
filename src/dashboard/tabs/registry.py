@@ -117,6 +117,7 @@ class BaseTab(ABC):
     tier_tooltip: str = ""
     content_layout: ContentLayout = ContentLayout.FULL
     primary_column: int = 0
+    nav_align: str = "left"
 
     # ── Tier badge ────────────────────────────────────────────────────────
 
