@@ -193,9 +193,10 @@ class PlaygroundTab(BaseTab):
         # Per-card drill filter stores: card i's store holds the filter
         # that card i-1's legend selection produced (i.e., what filters card i).
         drill_stores = [dcc.Store(id=f"pg-drill-{i}", data=None) for i in range(_MAX_CARDS)]
+        reset_signal = dcc.Store(id="pg-reset-signal", data=0)
 
         return html.Div([html.Div([
-            *drill_stores,
+            *drill_stores, reset_signal,
             html.Div(cards, id="pg-cards-grid",
                      className="pg-cards-grid"),
         ])])
@@ -215,6 +216,68 @@ class PlaygroundTab(BaseTab):
             _register_click_callback(app, i, app_state)
 
         _register_save_to_portfolio(app, app_state)
+        _register_global_reset(app)
+
+
+def _register_global_reset(app):
+    """Reset all playground state when global controls change."""
+    outputs = []
+    # For every card: reset controls + stores
+    for i in range(_MAX_CARDS):
+        outputs.append(Output(f"pg-card-{i}-seg", "value", allow_duplicate=True))
+        outputs.append(Output(f"pg-card-{i}-agg", "value", allow_duplicate=True))
+        outputs.append(Output(f"pg-card-{i}-plot", "data", allow_duplicate=True))
+        outputs.append(Output(f"pg-card-{i}-trace-vis", "data", allow_duplicate=True))
+        outputs.append(Output(f"pg-card-{i}-last-click", "data", allow_duplicate=True))
+        outputs.append(Output(f"pg-card-{i}-detail-panel", "style", allow_duplicate=True))
+    # Drill stores for cards 1+
+    for i in range(1, _MAX_CARDS):
+        outputs.append(Output(f"pg-drill-{i}", "data", allow_duplicate=True))
+    # Reset signal — triggers JS to hide cards 1+ and update grid
+    outputs.append(Output("pg-reset-signal", "data", allow_duplicate=True))
+
+    @app.callback(
+        outputs,
+        [Input("universal-portfolio-dropdown", "value"),
+         Input("time-window-store", "data"),
+         Input("custom-metric-store", "data")],
+        [State("pg-reset-signal", "data")],
+        prevent_initial_call=True,
+    )
+    def reset_on_global(*args):
+        prev_signal = args[-1] or 0
+        result = []
+        # Reset controls for all cards
+        for _ in range(_MAX_CARDS):
+            result.append(None)                # seg = None
+            result.append("sum")               # agg = sum
+            result.append("bar")               # plot type = bar
+            result.append(None)                # trace-vis = None
+            result.append(None)                # last-click = None
+            result.append({"display": "none"}) # hide detail panel
+        # Clear drill stores for cards 1+
+        for _ in range(1, _MAX_CARDS):
+            result.append(None)
+        # Bump reset signal so JS hides cards
+        result.append(prev_signal + 1)
+        return result
+
+    # Clientside callback: when reset signal changes, hide cards 1+ via DOM and update grid
+    app.clientside_callback(
+        """
+        function(signal) {
+            for (var i = 1; i < """ + str(_MAX_CARDS) + """; i++) {
+                var card = document.getElementById("pg-card-" + i + "-wrapper");
+                if (card) card.style.display = "none";
+            }
+            if (window.pgUpdateGrid) window.pgUpdateGrid();
+            return "pg-cards-grid";
+        }
+        """,
+        Output("pg-cards-grid", "className"),
+        Input("pg-reset-signal", "data"),
+        prevent_initial_call=True,
+    )
 
 
 def _register_chart_update(app, i: int, app_state):
@@ -241,9 +304,9 @@ def _register_chart_update(app, i: int, app_state):
         prevent_initial_call=True,
     )
     def update_chart(*args, _i=i):
-        # States are at the end: portfolio, tw, cm, then drill filters 1.._i
         n_drill = _i  # number of drill state values
         plot_type, metric, seg, agg = args[0], args[1], args[2], args[3]
+        # States at end: portfolio, tw, cm, then drill filters 1.._i
         portfolio = args[-(n_drill + 3)]
 
         if not portfolio:

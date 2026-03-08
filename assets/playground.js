@@ -4,6 +4,9 @@
 (function () {
     var wiredElements = new WeakSet();
 
+    // Expose updateGrid globally so Dash clientside callbacks can call it
+    window.pgUpdateGrid = updateGrid;
+
     function updateGrid() {
         var grid = document.getElementById("pg-cards-grid");
         if (!grid) return;
