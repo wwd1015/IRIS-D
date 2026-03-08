@@ -476,15 +476,25 @@ def _custom_metric_modal():
                                     style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
                         html.Button("OR", id="custom-metric-op-or", className="btn btn-outline",
                                     style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
+                        html.Button("TRUE", id="custom-metric-bool-true", className="btn btn-outline",
+                                    style={**_BTN_LOGIC, "color": "#2dd4bf"}),
+                        html.Button("FALSE", id="custom-metric-bool-false", className="btn btn-outline",
+                                    style={**_BTN_LOGIC, "color": "#2dd4bf"}),
                     ], className="flex flex-wrap gap-1 mb-2"),
 
-                    # Constant input + undo
+                    # Constant input + text constant + undo
                     html.Div([
-                        dcc.Input(id="custom-metric-constant-input", type="text", placeholder="Constant",
+                        dcc.Input(id="custom-metric-constant-input", type="text", placeholder="Number",
                                   className="px-2 py-1 text-xs rounded-md",
-                                  style={"width": "80px", "border": "1px solid var(--border-default)",
+                                  style={"width": "70px", "border": "1px solid var(--border-default)",
                                          "background": "var(--bg-base)", "color": "var(--text-primary)"}),
                         html.Button("Add", id="custom-metric-add-const-btn", className="btn btn-outline",
+                                    style={"fontSize": "12px", "padding": "4px 10px"}),
+                        dcc.Input(id="custom-metric-text-input", type="text", placeholder="Text",
+                                  className="px-2 py-1 text-xs rounded-md",
+                                  style={"width": "70px", "border": "1px solid var(--border-default)",
+                                         "background": "var(--bg-base)", "color": "var(--text-primary)"}),
+                        html.Button("Add Text", id="custom-metric-add-text-btn", className="btn btn-outline",
                                     style={"fontSize": "12px", "padding": "4px 10px"}),
                         html.Div(style={"flex": "1"}),
                         html.Button("⌫ Undo", id="custom-metric-undo-btn", className="btn btn-ghost",

@@ -494,8 +494,9 @@ def _get_metric_options(df: pl.DataFrame) -> list[dict]:
     exclude = {"facility_id", "obligor_rating", "latitude", "longitude"}
     numeric_types = (pl.Float64, pl.Float32, pl.Int64, pl.Int32)
     cols = [c for c in df.columns if c not in exclude and df[c].dtype in numeric_types]
-    for name in app_state.custom_metrics:
-        if name in df.columns and name not in cols:
+    for name, meta in app_state.custom_metrics.items():
+        mt = meta.get("metric_type", "numeric")
+        if mt == "numeric" and name in df.columns and name not in cols:
             cols.append(name)
     if "balance" in cols:
         cols.remove("balance")
@@ -504,6 +505,7 @@ def _get_metric_options(df: pl.DataFrame) -> list[dict]:
 
 
 def _get_segmentation_options(df: pl.DataFrame) -> list[dict]:
+    from ..utils.helpers import append_custom_segmentation_options
     exclude_ids = {"facility_id", "reporting_date", "origination_date", "maturity_date", "obligor_name"}
     cols = []
     for c in df.columns:
@@ -511,7 +513,7 @@ def _get_segmentation_options(df: pl.DataFrame) -> list[dict]:
             continue
         if df[c].dtype in (pl.Utf8, pl.Categorical):
             cols.append({"label": c.replace("_", " ").title(), "value": c})
-    return cols
+    return append_custom_segmentation_options(cols)
 
 
 def _apply_filters(df: pl.DataFrame, criteria) -> pl.DataFrame:

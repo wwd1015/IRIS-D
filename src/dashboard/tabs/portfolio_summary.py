@@ -251,9 +251,12 @@ register_tab(PortfolioSummaryTab())
 
 def _get_metric_options(df: pl.DataFrame):
     from ..app_state import app_state
-    # Always include balance; plus any user-defined custom metric columns
+    # Always include balance; plus numeric custom metrics only
     allowed = {"balance"}
-    allowed.update(app_state.custom_metrics.keys())
+    for name, meta in app_state.custom_metrics.items():
+        mt = meta.get("metric_type", "numeric")
+        if mt == "numeric":
+            allowed.add(name)
     numeric = [c for c in df.columns if c in allowed and df[c].dtype in (pl.Float64, pl.Float32, pl.Int64, pl.Int32)]
     # Ensure balance appears first if present
     if "balance" in numeric:
@@ -263,7 +266,8 @@ def _get_metric_options(df: pl.DataFrame):
 
 
 def _get_segmentation_options(df: pl.DataFrame):
-    """Return categorical columns suitable for segmentation."""
+    """Return categorical columns suitable for segmentation, including custom categorical/indicator metrics."""
+    from ..utils.helpers import append_custom_segmentation_options
     exclude_ids = {"facility_id", "reporting_date", "origination_date", "maturity_date", "obligor_name"}
     cols = []
     for c in df.columns:
@@ -271,7 +275,7 @@ def _get_segmentation_options(df: pl.DataFrame):
             continue
         if df[c].dtype in (pl.Utf8, pl.Categorical):
             cols.append({"label": c.replace("_", " ").title(), "value": c})
-    return cols
+    return append_custom_segmentation_options(cols)
 
 
 def _apply_filters(df: pl.DataFrame, criteria):

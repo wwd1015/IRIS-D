@@ -300,3 +300,17 @@ def format_period(period_str: str, freq: str) -> str:
         q = (month - 1) // 3 + 1
         return f"Q{q} {year}"
     return f"{_MONTH_ABBR[month]} {year}"
+
+
+def append_custom_segmentation_options(cols: list[dict]) -> list[dict]:
+    """Append custom categorical/indicator metrics to segmentation options list."""
+    from ..app_state import app_state
+    seen = {o["value"] for o in cols}
+    for name, meta in app_state.custom_metrics.items():
+        if not isinstance(meta, dict):
+            continue
+        mt = meta.get("metric_type", "numeric")
+        if mt in ("categorical", "indicator") and name not in seen:
+            cols.append({"label": name.replace("_", " ").title(), "value": name})
+            seen.add(name)
+    return cols

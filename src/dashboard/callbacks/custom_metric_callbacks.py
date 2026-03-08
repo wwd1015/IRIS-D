@@ -15,9 +15,12 @@ import polars as pl
 
 logger = logging.getLogger(__name__)
 
+_BADGE_COLORS = {"numeric": "#a78bfa", "categorical": "#fbbf24", "indicator": "#2dd4bf"}
+_BADGE_LABELS = {"numeric": "Num", "categorical": "Cat", "indicator": "Bool"}
 
-def _get_numeric_columns(dataset_name: str) -> list[dict]:
-    """Return dropdown options for non-custom numeric columns in a dataset."""
+
+def _get_available_columns(dataset_name: str) -> list[dict]:
+    """Return dropdown options for all non-custom columns in a dataset."""
     from ..data.registry import DatasetRegistry
     from ..app_state import app_state
 
@@ -25,16 +28,13 @@ def _get_numeric_columns(dataset_name: str) -> list[dict]:
         return []
     ds = DatasetRegistry.get(dataset_name)
     df = ds.latest_df
-    # Exclude columns that are custom metrics
     custom_names = set(app_state.custom_metrics.keys())
     exclude_ids = {"facility_id", "reporting_date", "origination_date", "maturity_date"}
-    numeric_cols = [
+    cols = [
         col for col in df.columns
-        if df[col].dtype in pl.NUMERIC_DTYPES
-        and col not in custom_names
-        and col not in exclude_ids
+        if col not in custom_names and col not in exclude_ids
     ]
-    return [{"label": col.replace("_", " ").title(), "value": col} for col in sorted(numeric_cols)]
+    return [{"label": col.replace("_", " ").title(), "value": col} for col in sorted(cols)]
 
 
 def register(app) -> None:
@@ -47,7 +47,8 @@ def register(app) -> None:
     # ── Open / close modal ────────────────────────────────────────────────
 
     @app.callback(
-        Output("custom-metric-modal", "style"),
+        [Output("custom-metric-modal", "style"),
+         Output("custom-metric-save-status", "children", allow_duplicate=True)],
         [Input("custom-metric-btn", "n_clicks"),
          Input("custom-metric-close-x", "n_clicks")],
         State("custom-metric-modal", "style"),
@@ -56,8 +57,8 @@ def register(app) -> None:
     def toggle_modal(open_clicks, close_clicks, current_style):
         trigger = ctx.triggered_id
         if trigger == "custom-metric-btn":
-            return {**current_style, "display": "block"}
-        return {**current_style, "display": "none"}
+            return {**current_style, "display": "block"}, ""
+        return {**current_style, "display": "none"}, no_update
 
     # ── Populate column dropdown on modal open or dataset change ──────────
 
@@ -69,7 +70,7 @@ def register(app) -> None:
     )
     def update_column_options(modal_style, dataset_val, dataset_state):
         dataset_name = dataset_val or dataset_state
-        return _get_numeric_columns(dataset_name)
+        return _get_available_columns(dataset_name)
 
     # ── Formula token manipulation ────────────────────────────────────────
 
@@ -95,34 +96,41 @@ def register(app) -> None:
     @app.callback(
         [Output("custom-metric-token-store", "data"),
          Output("custom-metric-column-dropdown", "value"),
-         Output("custom-metric-constant-input", "value")],
+         Output("custom-metric-constant-input", "value"),
+         Output("custom-metric-text-input", "value")],
         [Input("custom-metric-add-col-btn", "n_clicks"),
          *[Input(k, "n_clicks") for k in _OP_MAP],
          Input("custom-metric-add-const-btn", "n_clicks"),
+         Input("custom-metric-add-text-btn", "n_clicks"),
+         Input("custom-metric-bool-true", "n_clicks"),
+         Input("custom-metric-bool-false", "n_clicks"),
          Input("custom-metric-undo-btn", "n_clicks")],
         [State("custom-metric-token-store", "data"),
          State("custom-metric-column-dropdown", "value"),
-         State("custom-metric-constant-input", "value")],
+         State("custom-metric-constant-input", "value"),
+         State("custom-metric-text-input", "value")],
         prevent_initial_call=True,
     )
     def update_tokens(*args):
-        tokens = args[-3] or []
-        selected_col = args[-2]
-        const_val = args[-1]
+        tokens = args[-4] or []
+        selected_col = args[-3]
+        const_val = args[-2]
+        text_val = args[-1]
         trigger = ctx.triggered_id
         clear_col = no_update
         clear_const = no_update
+        clear_text = no_update
 
         if trigger == "custom-metric-undo-btn":
             if tokens:
                 tokens = tokens[:-1]
-            return tokens, clear_col, clear_const
+            return tokens, clear_col, clear_const, clear_text
 
         if trigger == "custom-metric-add-col-btn":
             if selected_col:
                 tokens = tokens + [{"type": "column", "value": selected_col}]
                 clear_col = None
-            return tokens, clear_col, clear_const
+            return tokens, clear_col, clear_const, clear_text
 
         if trigger == "custom-metric-add-const-btn":
             if const_val is not None and const_val != "":
@@ -132,15 +140,29 @@ def register(app) -> None:
                     clear_const = ""
                 except (ValueError, TypeError):
                     pass
-            return tokens, clear_col, clear_const
+            return tokens, clear_col, clear_const, clear_text
+
+        if trigger == "custom-metric-add-text-btn":
+            if text_val is not None and text_val.strip() != "":
+                # Store as quoted string constant
+                tokens = tokens + [{"type": "constant", "value": f'"{text_val.strip()}"'}]
+                clear_text = ""
+            return tokens, clear_col, clear_const, clear_text
+
+        if trigger == "custom-metric-bool-true":
+            tokens = tokens + [{"type": "boolean", "value": "true"}]
+            return tokens, clear_col, clear_const, clear_text
+
+        if trigger == "custom-metric-bool-false":
+            tokens = tokens + [{"type": "boolean", "value": "false"}]
+            return tokens, clear_col, clear_const, clear_text
 
         if trigger in _OP_MAP:
             val = _OP_MAP[trigger]
             tok_type = "logic" if val in ("IF", "THEN", "ELSE") else "operator"
-            # AND/OR are operators (handled by _build_arithmetic_expr), not logic keywords
             tokens = tokens + [{"type": tok_type, "value": val}]
 
-        return tokens, clear_col, clear_const
+        return tokens, clear_col, clear_const, clear_text
 
     # ── Render formula display ────────────────────────────────────────────
 
@@ -180,13 +202,25 @@ def register(app) -> None:
                     },
                 ))
             elif tok["type"] == "constant":
+                val = tok["value"]
+                is_string = val.startswith('"') and val.endswith('"')
                 pills.append(html.Span(
-                    tok["value"],
+                    val,
                     className="inline-block px-2 py-0.5 mx-0.5 rounded text-xs font-medium",
                     style={
-                        "background": "rgba(45, 212, 191, 0.15)",
-                        "color": "var(--accent-400)",
-                        "border": "1px solid rgba(45, 212, 191, 0.3)",
+                        "background": "rgba(251, 191, 36, 0.15)" if is_string else "rgba(45, 212, 191, 0.15)",
+                        "color": "#fbbf24" if is_string else "var(--accent-400)",
+                        "border": "1px solid rgba(251, 191, 36, 0.3)" if is_string else "1px solid rgba(45, 212, 191, 0.3)",
+                    },
+                ))
+            elif tok["type"] == "boolean":
+                pills.append(html.Span(
+                    tok["value"].upper(),
+                    className="inline-block px-2 py-0.5 mx-0.5 rounded text-xs font-bold",
+                    style={
+                        "background": "rgba(45, 212, 191, 0.2)",
+                        "color": "#2dd4bf",
+                        "border": "1px solid rgba(45, 212, 191, 0.4)",
                     },
                 ))
         return pills
@@ -207,8 +241,12 @@ def register(app) -> None:
         for name, meta in app_state.custom_metrics.items():
             if not isinstance(meta, dict):
                 continue
+            mt = meta.get("metric_type", "numeric")
             items.append(html.Div([
                 html.Span(name, className="text-sm", style={"color": "var(--text-primary)", "flex": "1"}),
+                html.Span(_BADGE_LABELS.get(mt, "Num"), className="text-xs px-1.5 py-0.5 rounded",
+                           style={"color": "#0f172a", "background": _BADGE_COLORS.get(mt, "#a78bfa"),
+                                  "fontWeight": "600", "fontSize": "10px"}),
                 html.Button(
                     "Edit",
                     id={"type": "custom-metric-edit", "index": name},
@@ -244,7 +282,6 @@ def register(app) -> None:
         meta = app_state.custom_metrics.get(name)
         if not isinstance(meta, dict):
             return no_update, no_update, no_update, no_update
-        # Strip " (customized)" suffix for the name input
         display_name = name
         if display_name.endswith(" (customized)"):
             display_name = display_name[:-len(" (customized)")]
@@ -252,7 +289,7 @@ def register(app) -> None:
             meta.get("tokens", []),
             display_name,
             meta.get("dataset", "facilities"),
-            name,  # store the full name being edited
+            name,
         )
 
     # ── Delete a saved metric ─────────────────────────────────────────────
@@ -272,6 +309,23 @@ def register(app) -> None:
             return no_update, no_update
         name = trigger["index"]
         if name in app_state.custom_metrics:
+            # Check if any portfolio uses this metric as a filter column
+            using_portfolios = [
+                pname for pname, criteria in app_state.portfolios.items()
+                if any(
+                    f.get("column") == name
+                    for f in (criteria.get("filters", []) if isinstance(criteria, dict) else [])
+                )
+            ]
+            if using_portfolios:
+                portfolios_str = ", ".join(using_portfolios)
+                return (
+                    html.Span(
+                        f"Cannot delete '{name}' — used by portfolio(s): {portfolios_str}",
+                        style={"color": "#ef4444", "fontSize": "12px"},
+                    ),
+                    no_update,
+                )
             meta = app_state.custom_metrics[name]
             dataset_name = meta.get("dataset", "facilities") if isinstance(meta, dict) else "facilities"
             del app_state.custom_metrics[name]
@@ -355,6 +409,10 @@ def register(app) -> None:
                     old_ds.latest_df = old_ds.latest_df.drop(editing_name)
             del app_state.custom_metrics[editing_name]
 
+        # Auto-detect metric type from expression result
+        metric_type = detect_metric_type(expr, ds.full_df) if not ds.full_df.is_empty() else "numeric"
+        if metric_type == "indicator":
+            expr = expr.cast(pl.Utf8)
         try:
             ds.full_df = ds.full_df.with_columns(expr.alias(full_name))
             ds.latest_df = ds.latest_df.with_columns(expr.alias(full_name))
@@ -366,6 +424,7 @@ def register(app) -> None:
         app_state.custom_metrics[full_name] = {
             "dataset": dataset_name,
             "tokens": tokens,
+            "metric_type": metric_type,
         }
         current_user = user_management.get_current_user()
         if current_user:
@@ -388,4 +447,5 @@ from ..utils.custom_metrics import (  # noqa: F401
     tokens_to_polars_expr as _tokens_to_polars_expr,
     apply_custom_metrics,
     remove_custom_metric_columns,
+    detect_metric_type,
 )

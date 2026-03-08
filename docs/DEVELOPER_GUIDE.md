@@ -112,7 +112,7 @@ The global time window filters data throughout the app:
 | `facilities_df` | `pl.DataFrame` | Full facilities dataset (delegates to `Dataset.full_df`) |
 | `latest_facilities` | `pl.DataFrame` | Latest quarter snapshot (delegates to `Dataset.latest_df`) |
 | `portfolios` | `dict` | Portfolio definitions `{name: {"filters": [...]}}` |
-| `custom_metrics` | `dict` | User-defined metric formulas |
+| `custom_metrics` | `dict` | User-defined metric formulas `{name: {"dataset", "tokens", "metric_type"}}` where `metric_type` is `"numeric"`, `"categorical"`, or `"indicator"` |
 | `available_portfolios` | `list[str]` | All portfolio names |
 | `default_portfolio` | `str` | Default portfolio name (`"Entire Commercial"`) |
 
@@ -1014,7 +1014,7 @@ Every render method receives a `TabContext` with these attributes:
 | `portfolios` | `dict` | Portfolio definitions `{name: {"filters": [...]}}` |
 | `facilities_df` | `pl.DataFrame` | Facilities data **scoped to the active time window** |
 | `latest_facilities` | `pl.DataFrame` | Latest quarter snapshot (full, not windowed) |
-| `custom_metrics` | `dict` | User-defined custom metric formulas |
+| `custom_metrics` | `dict` | User-defined custom metric formulas `{name: {"dataset", "tokens", "metric_type"}}` |
 | `get_filtered_data` | `callable` | `get_filtered_data(portfolio_name) -> pl.DataFrame` |
 
 > **Important:** `ctx.facilities_df` is pre-filtered by the global time window. Tabs rendering time-series charts will only see data within the window. Use `app_state.facilities_df` directly if you need the full unwindowed dataset.

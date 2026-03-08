@@ -1,11 +1,17 @@
 """
 Custom metric formula parsing — token-to-Polars expression converter.
 
-Converts a list of UI tokens (column, constant, operator, logic) into
+Converts a list of UI tokens (column, constant, operator, logic, boolean) into
 a ``pl.Expr`` that can be applied to a DataFrame via ``.with_columns()``.
 
 Supports arithmetic (+, -, *, /), comparisons (>=, <=, >, <, ==),
-and conditional logic (IF ... THEN ... ELSE ...).
+conditional logic (IF ... THEN ... ELSE ...), boolean literals (TRUE/FALSE),
+and string constants (quoted values like ``"Large"``).
+
+Result type is auto-detected via ``detect_metric_type()``:
+- Numeric expressions → metric dropdowns
+- Boolean expressions → indicator (cast to Utf8 for segmentation)
+- String expressions → categorical (segmentation dropdowns)
 """
 
 from __future__ import annotations
@@ -17,6 +23,23 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 _ALLOWED_OPS = frozenset({"+", "-", "*", "/", "(", ")", ">=", "<=", ">", "<", "==", "AND", "OR"})
+
+
+def _token_to_part(t: str, v: str) -> str:
+    """Convert a single token type+value to a Polars expression string fragment."""
+    if t == "column":
+        return f"pl.col('{v}')"
+    if t == "constant":
+        if v.startswith('"') and v.endswith('"'):
+            return f"pl.lit({v})"
+        return f"pl.lit({float(v)})"
+    if t == "boolean":
+        return f"pl.lit({v == 'true'})"
+    if t == "operator":
+        if v not in _ALLOWED_OPS:
+            raise ValueError(f"Invalid operator: {v}")
+        return v
+    raise ValueError(f"Unknown token type: {t}")
 
 
 def tokens_to_polars_expr(tokens: list[dict]) -> pl.Expr:
@@ -110,19 +133,7 @@ def _build_arithmetic_expr(tokens: list[dict]) -> pl.Expr:
         return result
 
     # Base case — flat arithmetic/comparison eval
-    parts: list[str] = []
-    for tok in tokens:
-        t, v = tok["type"], tok["value"]
-        if t == "column":
-            parts.append(f"pl.col('{v}')")
-        elif t == "constant":
-            parts.append(f"pl.lit({float(v)})")
-        elif t == "operator":
-            if v not in _ALLOWED_OPS:
-                raise ValueError(f"Invalid operator: {v}")
-            parts.append(v)
-        else:
-            raise ValueError(f"Unknown token type: {t}")
+    parts: list[str] = [_token_to_part(tok["type"], tok["value"]) for tok in tokens]
 
     expr_str = " ".join(parts)
     try:
@@ -188,19 +199,10 @@ def _build_conditional_expr(tokens: list[dict]) -> pl.Expr:
     # Wrap with prefix / suffix arithmetic if present
     if prefix_tokens or suffix_tokens:
         combined = prefix_tokens + [{"type": "_cond", "value": "__cond__"}] + suffix_tokens
-        parts: list[str] = []
-        for tok in combined:
-            t, v = tok["type"], tok["value"]
-            if t == "_cond":
-                parts.append("__cond__")
-            elif t == "column":
-                parts.append(f"pl.col('{v}')")
-            elif t == "constant":
-                parts.append(f"pl.lit({float(v)})")
-            elif t == "operator":
-                if v not in _ALLOWED_OPS:
-                    raise ValueError(f"Invalid operator: {v}")
-                parts.append(v)
+        parts: list[str] = [
+            "__cond__" if tok["type"] == "_cond" else _token_to_part(tok["type"], tok["value"])
+            for tok in combined
+        ]
         expr_str = " ".join(parts)
         try:
             result = eval(expr_str, {"__builtins__": {}, "pl": pl, "__cond__": result})
@@ -238,7 +240,7 @@ def _split_else_suffix(after_else: list[dict], prefix: list[dict]) -> tuple[list
     for i, tok in enumerate(after_else):
         t, v = tok.get("type", ""), tok.get("value", "")
 
-        if t in ("column", "constant"):
+        if t in ("column", "constant", "boolean"):
             saw_value = True
         elif t == "operator" and v == "(":
             depth += 1
@@ -251,6 +253,20 @@ def _split_else_suffix(after_else: list[dict], prefix: list[dict]) -> tuple[list
             return after_else[:i], after_else[i:]
 
     return after_else, []
+
+
+def detect_metric_type(expr: pl.Expr, df: pl.DataFrame) -> str:
+    """Detect the result type of an expression via lazy schema probing."""
+    try:
+        schema = df.lazy().select(expr.alias("__probe__")).collect_schema()
+        dtype = schema["__probe__"]
+        if dtype == pl.Boolean:
+            return "indicator"
+        if dtype in (pl.Utf8, pl.Categorical):
+            return "categorical"
+        return "numeric"
+    except Exception:
+        return "numeric"
 
 
 def apply_custom_metrics(app_state_ref) -> None:
@@ -270,6 +286,13 @@ def apply_custom_metrics(app_state_ref) -> None:
         try:
             expr = tokens_to_polars_expr(tokens)
             ds = DatasetRegistry.get(dataset_name)
+            # Auto-detect type if not stored, then cast booleans to Utf8
+            metric_type = meta.get("metric_type")
+            if not metric_type:
+                metric_type = detect_metric_type(expr, ds.full_df)
+                meta["metric_type"] = metric_type
+            if metric_type == "indicator":
+                expr = expr.cast(pl.Utf8)
             if name not in ds.full_df.columns:
                 ds.full_df = ds.full_df.with_columns(expr.alias(name))
             if name not in ds.latest_df.columns:

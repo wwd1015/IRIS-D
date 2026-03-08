@@ -61,7 +61,7 @@ IRIS-D/
 │       │   └── db_data_generator.py
 │       └── utils/             # Utility functions
 │           ├── helpers.py             # Plotly theme, card wrappers, modal styles, formatters
-│           ├── custom_metrics.py      # Formula parsing (tokens → Polars expr), apply/remove
+│           ├── custom_metrics.py      # Formula parsing (tokens → Polars expr), type detection, apply/remove
 │           └── logging.py             # configure_logging() — structured console output
 ├── data/
 │   ├── bank_risk.db           # SQLite database (generated locally, not in repo)
@@ -293,7 +293,12 @@ rsconnect deploy dash main.py --title "Portfolio Performance Dashboard"
 - **Portfolios**: The app manages two default portfolios (Corporate Banking, CRE). Users can also create custom portfolios filtered by LOB, industry, or property type.
 - **Tabs**: Portfolio Summary, Financial Trends, Portfolio Trends, SIR Analysis, Location Analysis, Financial Projection, Model Backtesting.
 - **User Profiles**: Stored in `data/user_profiles.json`. Supports guest mode and named profiles with saved portfolios and custom metrics.
-- **Custom Metrics**: Users can create formula-based metrics using column names (backtick syntax for spaced names, e.g., `` `free cash flow` / liquidity ``).
+- **Custom Metrics**: Three types, auto-detected from formula result:
+  - **Numeric** — arithmetic result (e.g., `balance / 1000`) → appears in metric dropdowns
+  - **Categorical** — string result (e.g., `IF balance > 1M THEN "Large" ELSE "Small"`) → appears in segmentation dropdowns
+  - **Indicator** — boolean result (e.g., `balance > 1000000`) → cast to Utf8 ("true"/"false"), appears in segmentation dropdowns
+  - Formula builder supports: columns, numeric constants, text constants (quoted strings), TRUE/FALSE boolean literals, arithmetic, comparisons, IF/THEN/ELSE, AND/OR
+  - Metadata: `app_state.custom_metrics[name] = {"dataset": str, "tokens": list, "metric_type": "numeric"|"categorical"|"indicator"}`
 - **Roles**: Role-based access control — Corp SCO, CRE SCO, SAG, BA.
 
 ## Environment Variables
