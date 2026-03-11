@@ -88,6 +88,7 @@ class GlobalControl(ABC):
     label: str = ""
     position: ControlPosition = ControlPosition.RIGHT
     order: int = 50
+    power_user: bool = False
 
     @abstractmethod
     def render(self, **kwargs) -> html.Div:
@@ -302,6 +303,7 @@ class CustomMetricButton(GlobalControl):
     label = "Custom Metrics"
     position = ControlPosition.LEFT
     order = 20  # after time window
+    power_user = True
 
     def render(self, **kwargs) -> html.Div:
         return html.Div([
@@ -315,6 +317,87 @@ class CustomMetricButton(GlobalControl):
                 style={"fontStyle": "italic"},
             ),
         ])
+
+
+class PowerUserToggle(GlobalControl):
+    """Toggle button to enable/disable power user mode (shows advanced controls)."""
+
+    id = "power-user-toggle"
+    label = "Power User"
+    position = ControlPosition.RIGHT
+    order = 25
+
+    def render(self, **kwargs) -> html.Button:
+        return html.Button(
+            "\u2699\ufe0f",
+            id="power-user-toggle-btn",
+            n_clicks=0,
+            className="header-btn power-user-toggle-btn",
+            title="Power User Mode",
+            style={"fontSize": "16px", "opacity": "0.6"},
+        )
+
+    def callback_specs(self) -> list[CallbackSpec]:
+        specs = []
+
+        # 1. Store changes → update toggle button style + show/hide gated controls
+        specs.append(CallbackSpec(
+            outputs=[("power-user-toggle-btn", "style")],
+            inputs=[("power-user-store", "data")],
+            client_side="""\
+            function(active){
+              document.querySelectorAll('[id^="power-gate-"]').forEach(function(el){
+                el.style.display = active ? '' : 'none';
+              });
+              if (active){
+                return {
+                  "fontSize": "16px", "opacity": "1",
+                  "border": "1px solid var(--primary-500)",
+                  "boxShadow": "0 0 8px var(--primary-glow)"
+                };
+              }
+              return {"fontSize": "16px", "opacity": "0.6"};
+            }
+            """,
+        ))
+
+        # 2. Single callback for toggle click, confirm, cancel → store + modal
+        specs.append(CallbackSpec(
+            outputs=[("power-user-store", "data"), ("power-user-confirm-modal", "style")],
+            inputs=[
+                ("power-user-toggle-btn", "n_clicks"),
+                ("power-user-confirm", "n_clicks"),
+                ("power-user-cancel", "n_clicks"),
+            ],
+            states=[("power-user-store", "data")],
+            prevent_initial_call=True,
+            client_side="""\
+            function(nToggle, nConfirm, nCancel, active){
+              var nu = window.dash_clientside.no_update;
+              var hidden = {"position":"fixed","top":"0","left":"0","width":"100%",
+                "height":"100%","backgroundColor":"rgba(0,0,0,0.5)","zIndex":"1000","display":"none"};
+              var show = Object.assign({}, hidden, {"display":"flex"});
+              var ctx = window.dash_clientside.callback_context;
+              if (!ctx || !ctx.triggered || !ctx.triggered.length) return [nu, nu];
+              var tid = ctx.triggered[0].prop_id;
+              if (tid === 'power-user-confirm.n_clicks'){
+                localStorage.setItem('power_user_confirmed', 'true');
+                return [true, hidden];
+              }
+              if (tid === 'power-user-cancel.n_clicks'){
+                return [nu, hidden];
+              }
+              // toggle button
+              if (active) return [false, hidden];
+              if (localStorage.getItem('power_user_confirmed') === 'true'){
+                return [true, hidden];
+              }
+              return [nu, show];
+            }
+            """,
+        ))
+
+        return specs
 
 
 class ContactButton(GlobalControl):
@@ -344,4 +427,5 @@ register_global_control(ProfileAvatar())
 register_global_control(ThemeToggle())
 register_global_control(AccentColorPicker())
 register_global_control(CustomMetricButton())
+register_global_control(PowerUserToggle())
 register_global_control(ContactButton())

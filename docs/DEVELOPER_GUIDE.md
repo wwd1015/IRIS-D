@@ -15,10 +15,12 @@ graph TB
         L1["Sticky header bar"]
         L1a["PortfolioSelector"]
         L1b["TimeWindowButton"]
-        L1c["ProfileAvatar"]
-        L1d["ThemeToggle"]
-        L1e["AccentColorPicker"]
-        L1f["ContactButton"]
+        L1c["CustomMetricButton 🔒"]
+        L1d["ProfileAvatar"]
+        L1e["PowerUserToggle"]
+        L1f["ThemeToggle"]
+        L1g["AccentColorPicker"]
+        L1h["ContactButton"]
     end
     subgraph "Layer 2 — ToolbarControl"
         direction LR
@@ -812,10 +814,38 @@ register_global_control(NotificationBell())
 |---|---|---|---|---|
 | `PortfolioSelector` | `portfolio-selector` | LEFT | 10 | Portfolio dropdown |
 | `TimeWindowButton` | `time-window` | LEFT | 15 | Time window picker |
+| `CustomMetricButton` | `custom-metric` | LEFT | 20 | Custom metric builder (power user gated) |
 | `ProfileAvatar` | `profile-avatar` | RIGHT | 20 | User profile switcher |
+| `PowerUserToggle` | `power-user-toggle` | RIGHT | 25 | Toggles power user mode on/off |
 | `ThemeToggle` | `theme-toggle` | RIGHT | 30 | Light/dark mode |
 | `AccentColorPicker` | `accent-color-picker` | RIGHT | 31 | Accent color cycling |
 | `ContactButton` | `contact` | RIGHT | 40 | Contact/support modal |
+
+### Power User Gating
+
+Any global control can be hidden behind the Power User toggle by setting `power_user = True`:
+
+```python
+class MyAdvancedControl(GlobalControl):
+    id = "my-advanced"
+    label = "Advanced"
+    position = ControlPosition.LEFT
+    order = 25
+    power_user = True  # hidden until power user mode is enabled
+
+    def render(self, **kwargs):
+        return html.Button("Advanced", id=self.id, className="header-btn")
+
+register_global_control(MyAdvancedControl())
+```
+
+**How it works:**
+
+- Controls with `power_user = True` are rendered but wrapped in `html.Div(id=f"power-gate-{ctrl.id}", style={"display": "none"})` by `layout.py`
+- The `PowerUserToggle` button (gear icon in the right header) manages the mode
+- State is persisted via `dcc.Store(id="power-user-store", storage_type="local")`
+- First activation shows a confirmation modal; subsequent toggles skip it (localStorage `power_user_confirmed` flag)
+- A clientside callback on the store toggles `display` on all `power-gate-*` elements via `document.querySelectorAll`
 
 ---
 

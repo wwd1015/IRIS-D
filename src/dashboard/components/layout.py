@@ -56,15 +56,21 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
     from .signals import all_signal_ids
 
     # Render Layer 1 controls from the GlobalControl registry
-    left_controls = [
-        c.render(selected_portfolio=selected_portfolio,
-                 available_portfolios=available_portfolios or [])
-        for c in get_global_controls(ControlPosition.LEFT)
-    ]
-    right_controls = [
-        c.render()
-        for c in get_global_controls(ControlPosition.RIGHT)
-    ]
+    # Power-user controls are wrapped in a hidden gate div
+    left_controls = []
+    for c in get_global_controls(ControlPosition.LEFT):
+        rendered = c.render(selected_portfolio=selected_portfolio,
+                            available_portfolios=available_portfolios or [])
+        if c.power_user:
+            rendered = html.Div(rendered, id=f"power-gate-{c.id}", style={"display": "none"})
+        left_controls.append(rendered)
+
+    right_controls = []
+    for c in get_global_controls(ControlPosition.RIGHT):
+        rendered = c.render()
+        if c.power_user:
+            rendered = html.Div(rendered, id=f"power-gate-{c.id}", style={"display": "none"})
+        right_controls.append(rendered)
 
     # Signal stores for cross-layer communication
     signal_stores = [dcc.Store(id=sid, data=None) for sid in all_signal_ids()]
@@ -108,6 +114,10 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         _time_window_modal(),
         _performance_warning_modal(),
         _custom_metric_modal(),
+
+        # ── Power User ────────────────────────────────────────────────────────
+        _power_user_confirm_modal(),
+        dcc.Store(id="power-user-store", data=False, storage_type="local"),
 
         # ── Hidden infrastructure ───────────────────────────────────────────
         dcc.Store(id="custom-metric-token-store", data=[]),
@@ -392,6 +402,34 @@ def _performance_warning_modal():
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
     ], id="perf-warning-modal", style=_MODAL_OVERLAY)
+
+
+def _power_user_confirm_modal():
+    """Confirmation dialog before enabling power user mode."""
+    return html.Div([
+        html.Div([
+            html.Header([
+                html.Div([
+                    html.H2("Enable Power User Mode",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                ], className="flex items-center justify-between"),
+            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            html.Div([
+                html.P(
+                    "Power User mode enables advanced controls (custom metrics, etc.) "
+                    "that can modify data and may produce unexpected results.",
+                    className="text-sm text-ink-600 dark:text-slate-300 mb-4",
+                ),
+                html.Div([
+                    html.Button("Enable", id="power-user-confirm",
+                                className="btn btn-primary", style={"fontSize": "13px", "flex": "1"}),
+                    html.Button("Cancel", id="power-user-cancel",
+                                className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}),
+                ], className="flex gap-2"),
+            ], className="p-4"),
+        ], className="flex flex-col",
+           style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw"}),
+    ], id="power-user-confirm-modal", style=_MODAL_OVERLAY)
 
 
 def _custom_metric_modal():

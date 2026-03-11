@@ -46,7 +46,7 @@ IRIS-D/
 │       │   └── role_tabs.py           # Role-gated tabs (SIR, Location, Projection, Backtesting)
 │       ├── components/        # Shared UI framework (NOT tab-specific)
 │       │   ├── cards.py               # DisplayCard hierarchy (ChartCard, TableCard, MetricCard)
-│       │   ├── controls.py            # GlobalControl hierarchy (L1 header controls)
+│       │   ├── controls.py            # GlobalControl hierarchy (L1 header controls, power user gating)
 │       │   ├── toolbar.py             # ToolbarControl presets (L2 dropdowns, sliders)
 │       │   ├── signals.py             # Signal bus (PORTFOLIO, USER, THEME, DATE_RANGE, NOTIFICATION)
 │       │   ├── layout.py              # Main app shell (header, content, modals)
@@ -90,7 +90,7 @@ The dashboard uses a **3-layer modular framework**:
 
 | Layer | Purpose | Key File |
 |---|---|---|
-| **Layer 1 — Global Controls** | Sticky header (portfolio selector, time window, theme, profile) | `components/controls.py` |
+| **Layer 1 — Global Controls** | Sticky header (portfolio selector, time window, theme, profile, power user toggle) | `components/controls.py` |
 | **Layer 2 — Toolbar** | Per-tab controls (dropdowns, sliders, toggles) | `components/toolbar.py` |
 | **Layer 3 — Content** | Sidebar + main content grid (cards, charts, tables) | `components/cards.py` |
 
@@ -299,6 +299,7 @@ rsconnect deploy dash main.py --title "Portfolio Performance Dashboard"
   - **Indicator** — boolean result (e.g., `balance > 1000000`) → cast to Utf8 ("true"/"false"), appears in segmentation dropdowns
   - Formula builder supports: columns, numeric constants, text constants (quoted strings), TRUE/FALSE boolean literals, arithmetic, comparisons, IF/THEN/ELSE, AND/OR
   - Metadata: `app_state.custom_metrics[name] = {"dataset": str, "tokens": list, "metric_type": "numeric"|"categorical"|"indicator"}`
+- **Power User Mode**: Advanced controls (e.g., custom metrics) are hidden behind a power user toggle in the header. Any `GlobalControl` with `power_user = True` is wrapped in a `power-gate-{id}` div and hidden until power mode is active. State persists via `dcc.Store(storage_type="local")`. First activation shows a confirmation warning; subsequent toggles are instant (localStorage `power_user_confirmed`).
 - **Roles**: Role-based access control — Corp SCO, CRE SCO, SAG, BA.
 
 ## Environment Variables
