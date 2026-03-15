@@ -38,6 +38,8 @@ def create_navigation_tabs():
             n_clicks=0,
             className=cls,
             style=style if tab.required_roles else {},
+            role="tab",
+            **{"aria-selected": "true" if i == 0 else "false"},
         )
 
         if getattr(tab, "nav_align", "left") == "right":
@@ -75,6 +77,15 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
     # Signal stores for cross-layer communication
     signal_stores = [dcc.Store(id=sid, data=None) for sid in all_signal_ids()]
 
+    # Modal IDs for focus trap and Escape key handling
+    _modal_ids = [
+        "profile-switch-modal", "contact-modal", "portfolio-modal",
+        "portfolio-delete-confirm-modal", "portfolio-create-modal",
+        "time-window-modal", "perf-warning-modal", "power-user-confirm-modal",
+        "custom-metric-modal",
+    ]
+    _modal_ids_js = ", ".join(f'"{mid}"' for mid in _modal_ids)
+
     return html.Div(className="min-h-screen", children=[
         # ── Header ──────────────────────────────────────────────────────────
         html.Header([
@@ -86,18 +97,20 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                 html.Div([
                     *right_controls,
                 ], className="flex items-center gap-2 text-sm"),
-            ], className="flex h-14 items-center justify-between gap-3"),
+            ], className="flex h-14 items-center justify-between gap-3 flex-wrap"),
             html.Nav(
                 id="navigation-tabs-container",
                 children=create_navigation_tabs(),
                 className="flex items-center gap-2 overflow-x-auto py-2 text-sm",
+                role="tablist",
+                **{"aria-label": "Dashboard tabs"},
             ),
         ], className="header sticky top-0 z-40"),
 
         # ── Main content ────────────────────────────────────────────────────
         html.Main([
             html.Div([
-                html.Div(id="tab-content-container"),
+                html.Div(id="tab-content-container", role="tabpanel"),
                 html.Div([
                     html.Div(className="tab-loading-spinner"),
                     html.Div("Refreshing", className="tab-loading-text"),
@@ -125,6 +138,63 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
         dcc.Store(id="current-user-store", data=user_management.get_current_user()),
         dcc.Store(id="time-window-store", data=_initial_time_window()),
         *signal_stores,
+
+        # ── Modal Escape key + focus trap ──────────────────────────────────
+        html.Script(f"""
+        (function(){{
+          var MODAL_IDS = [{_modal_ids_js}];
+          var FOCUSABLE = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+
+          function getVisibleModal(){{
+            for(var i=0;i<MODAL_IDS.length;i++){{
+              var el=document.getElementById(MODAL_IDS[i]);
+              if(el && el.style.display && el.style.display!=='none') return el;
+            }}
+            return null;
+          }}
+
+          document.addEventListener('keydown',function(e){{
+            var modal=getVisibleModal();
+            if(!modal) return;
+            if(e.key==='Escape'){{
+              var close=modal.querySelector('[aria-label="Close"], .btn-outline, .detail-panel__close');
+              if(close) close.click();
+              return;
+            }}
+            if(e.key==='Tab'){{
+              var focusable=Array.from(modal.querySelectorAll(FOCUSABLE)).filter(function(f){{
+                return f.offsetParent!==null;
+              }});
+              if(!focusable.length) return;
+              var first=focusable[0], last=focusable[focusable.length-1];
+              if(e.shiftKey){{
+                if(document.activeElement===first){{e.preventDefault();last.focus();}}
+              }}else{{
+                if(document.activeElement===last){{e.preventDefault();first.focus();}}
+              }}
+            }}
+          }});
+
+          // Focus first focusable element when modal becomes visible
+          var observer=new MutationObserver(function(mutations){{
+            mutations.forEach(function(m){{
+              if(m.type==='attributes'&&m.attributeName==='style'){{
+                var el=m.target;
+                if(MODAL_IDS.indexOf(el.id)!==-1 && el.style.display && el.style.display!=='none'){{
+                  setTimeout(function(){{
+                    var first=el.querySelector(FOCUSABLE);
+                    if(first) first.focus();
+                  }},50);
+                }}
+              }}
+            }});
+          }});
+          MODAL_IDS.forEach(function(id){{
+            var el=document.getElementById(id);
+            if(el) observer.observe(el,{{attributes:true,attributeFilter:['style']}});
+          }});
+        }})();
+        """),
     ])
 
 
@@ -132,11 +202,11 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
 
 _MODAL_BG = {
     "background": "var(--bg-raised)",
-    "backdropFilter": "blur(20px)",
-    "WebkitBackdropFilter": "blur(20px)",
-    "borderRadius": "16px",
+    "backdropFilter": "none",
+    "WebkitBackdropFilter": "none",
+    "borderRadius": "14px",
     "border": "1px solid var(--glass-border)",
-    "boxShadow": "0 20px 60px rgba(0, 0, 0, 0.4)",
+    "boxShadow": "var(--shadow-lg)",
 }
 
 _MODAL_OVERLAY = {
@@ -157,9 +227,11 @@ def _profile_switch_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Switch Profile", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.H2("Switch Profile", id="profile-switch-title",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                     html.Button("✕", id="profile-switch-cancel-x", className="btn btn-ghost text-xl cursor-pointer",
-                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
+                                **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
@@ -175,26 +247,38 @@ def _profile_switch_modal():
             ], className="p-4"),
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
-    ], id="profile-switch-modal", style=_MODAL_OVERLAY)
+    ], id="profile-switch-modal", role="dialog", **{"aria-modal": "true", "aria-labelledby": "profile-switch-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _contact_modal():
     return html.Div([
         html.Div([
-            html.H3("Contact & Support", style={"marginBottom": "20px", "color": "rgba(255,255,255,0.92)", "textAlign": "center"}),
+            html.H3("Contact & Support", id="contact-title",
+                     className="text-lg font-semibold text-ink-800 dark:text-slate-200 mb-4 text-center"),
             html.Div([
-                html.H4("📧 Contact Information", style={"fontSize": "16px", "fontWeight": "600", "color": "rgba(255,255,255,0.8)", "marginBottom": "15px"}),
-                html.P("For technical support and inquiries:", style={"marginBottom": "10px", "color": "rgba(255,255,255,0.5)"}),
-                html.Div([html.Strong("Email: "), html.A("support@portfolio-dashboard.com", href="mailto:support@portfolio-dashboard.com", style={"color": "#a78bfa", "textDecoration": "none"})], style={"marginBottom": "10px"}),
-                html.Div([html.Strong("Phone: "), html.Span("+1 (555) 123-4567")], style={"marginBottom": "20px"}),
+                html.H4("Contact Information",
+                         className="text-base font-semibold text-ink-700 dark:text-slate-300 mb-3"),
+                html.P("For technical support and inquiries:",
+                       className="text-sm text-ink-500 dark:text-slate-400 mb-2"),
+                html.Div([html.Strong("Email: "), html.A("support@portfolio-dashboard.com",
+                          href="mailto:support@portfolio-dashboard.com",
+                          style={"color": "var(--primary-400)", "textDecoration": "none"})],
+                         className="mb-2"),
+                html.Div([html.Strong("Phone: "), html.Span("+1 (555) 123-4567")],
+                         className="mb-4"),
             ]),
             html.Div([
-                html.H4("💭 Feedback", style={"fontSize": "16px", "fontWeight": "600", "color": "rgba(255,255,255,0.8)", "marginBottom": "15px"}),
-                html.P("Help us improve by sharing your thoughts:", style={"marginBottom": "15px", "color": "rgba(255,255,255,0.5)"}),
+                html.H4("Feedback",
+                         className="text-base font-semibold text-ink-700 dark:text-slate-300 mb-3"),
+                html.P("Help us improve by sharing your thoughts:",
+                       className="text-sm text-ink-500 dark:text-slate-400 mb-3"),
             ]),
-            html.Div([html.Button("Close", id="contact-close", className="btn btn-outline")], style={"textAlign": "center"}),
+            html.Div([html.Button("Close", id="contact-close", className="btn btn-outline")],
+                     className="text-center"),
         ], style={**_MODAL_BG, **_MODAL_CENTER, "padding": "30px", "width": "420px", "maxWidth": "90vw"}),
-    ], id="contact-modal", style=_MODAL_OVERLAY)
+    ], id="contact-modal", role="dialog", **{"aria-modal": "true", "aria-labelledby": "contact-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _portfolio_modal():
@@ -203,9 +287,11 @@ def _portfolio_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Portfolio Management", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.H2("Portfolio Management", id="portfolio-modal-title",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                     html.Button("✕", id="portfolio-modal-cancel", className="btn btn-ghost text-xl cursor-pointer",
-                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
+                                **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
@@ -220,7 +306,8 @@ def _portfolio_modal():
             ], className="p-4"),
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw", "overflow": "visible"}),
-    ], id="portfolio-modal", style=_MODAL_OVERLAY)
+    ], id="portfolio-modal", role="dialog", **{"aria-modal": "true", "aria-labelledby": "portfolio-modal-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _portfolio_delete_confirm_modal():
@@ -229,7 +316,8 @@ def _portfolio_delete_confirm_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Confirm Deletion", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.H2("Confirm Deletion", id="delete-confirm-title",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
@@ -243,7 +331,8 @@ def _portfolio_delete_confirm_modal():
             ], className="p-4"),
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
-    ], id="portfolio-delete-confirm-modal", style=_MODAL_OVERLAY)
+    ], id="portfolio-delete-confirm-modal", role="dialog", **{"aria-modal": "true", "aria-labelledby": "delete-confirm-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _portfolio_create_modal():
@@ -255,7 +344,8 @@ def _portfolio_create_modal():
                     html.H2(id="portfolio-wizard-title", children="Create New Portfolio",
                             className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                     html.Button("✕", id="portfolio-create-cancel", className="btn btn-ghost text-xl cursor-pointer",
-                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
+                                **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
@@ -292,7 +382,9 @@ def _portfolio_create_modal():
         dcc.Store(id="portfolio-filter-state", data=[]),
         # Store for edit mode: portfolio name being edited (None = create mode)
         dcc.Store(id="portfolio-edit-name", data=None),
-    ], id="portfolio-create-modal", style=_MODAL_OVERLAY)
+    ], id="portfolio-create-modal", role="dialog",
+       **{"aria-modal": "true", "aria-labelledby": "portfolio-wizard-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _initial_time_window() -> dict | None:
@@ -333,9 +425,11 @@ def _time_window_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Time Window", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.H2("Time Window", id="time-window-title",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                     html.Button("✕", id="time-window-cancel-x", className="btn btn-ghost text-xl cursor-pointer",
-                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
+                                **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
@@ -374,7 +468,9 @@ def _time_window_modal():
             ], className="p-4"),
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw", "overflow": "visible"}),
-    ], id="time-window-modal", style=_MODAL_OVERLAY)
+    ], id="time-window-modal", role="dialog",
+       **{"aria-modal": "true", "aria-labelledby": "time-window-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _performance_warning_modal():
@@ -383,7 +479,8 @@ def _performance_warning_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Performance Warning", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.H2("Performance Warning", id="perf-warning-title",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
@@ -401,7 +498,9 @@ def _performance_warning_modal():
             ], className="p-4"),
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
-    ], id="perf-warning-modal", style=_MODAL_OVERLAY)
+    ], id="perf-warning-modal", role="dialog",
+       **{"aria-modal": "true", "aria-labelledby": "perf-warning-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _power_user_confirm_modal():
@@ -410,7 +509,7 @@ def _power_user_confirm_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Enable Power User Mode",
+                    html.H2("Enable Power User Mode", id="power-user-confirm-title",
                             className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
@@ -429,7 +528,9 @@ def _power_user_confirm_modal():
             ], className="p-4"),
         ], className="flex flex-col",
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "400px", "maxWidth": "90vw"}),
-    ], id="power-user-confirm-modal", style=_MODAL_OVERLAY)
+    ], id="power-user-confirm-modal", role="dialog",
+       **{"aria-modal": "true", "aria-labelledby": "power-user-confirm-title"},
+       style=_MODAL_OVERLAY)
 
 
 def _custom_metric_modal():
@@ -453,9 +554,11 @@ def _custom_metric_modal():
         html.Div([
             html.Header([
                 html.Div([
-                    html.H2("Custom Metrics", className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                    html.H2("Custom Metrics", id="custom-metric-title",
+                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
                     html.Button("✕", id="custom-metric-close-x", className="btn btn-ghost text-xl cursor-pointer",
-                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"}),
+                                style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
+                                **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
             ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
             html.Div([
@@ -515,9 +618,9 @@ def _custom_metric_modal():
                         html.Button("OR", id="custom-metric-op-or", className="btn btn-outline",
                                     style={**_BTN_LOGIC, "color": "var(--accent-400)"}),
                         html.Button("TRUE", id="custom-metric-bool-true", className="btn btn-outline",
-                                    style={**_BTN_LOGIC, "color": "#2dd4bf"}),
+                                    style={**_BTN_LOGIC, "color": "#4D8B6F"}),
                         html.Button("FALSE", id="custom-metric-bool-false", className="btn btn-outline",
-                                    style={**_BTN_LOGIC, "color": "#2dd4bf"}),
+                                    style={**_BTN_LOGIC, "color": "#4D8B6F"}),
                     ], className="flex flex-wrap gap-1 mb-2"),
 
                     # Constant input + text constant + undo
@@ -582,7 +685,9 @@ def _custom_metric_modal():
            style={**_MODAL_BG, **_MODAL_CENTER, "width": "500px", "maxWidth": "90vw", "maxHeight": "85vh", "overflow": "auto"}),
         # Store for editing mode (metric name being edited, None = new)
         dcc.Store(id="custom-metric-edit-name", data=None),
-    ], id="custom-metric-modal", style=_MODAL_OVERLAY)
+    ], id="custom-metric-modal", role="dialog",
+       **{"aria-modal": "true", "aria-labelledby": "custom-metric-title"},
+       style=_MODAL_OVERLAY)
 
 
 def get_app_index_string():
@@ -614,12 +719,12 @@ def get_app_index_string():
         darkMode: 'class',
         theme: {{ extend: {{
           colors: {{
-            ink: {{ 900:'#06080f',800:'#0c1020',700:'#111627',600:'#1c2333',500:'#64748b',100:'#e2e8f0',50:'#f1f5f9' }},
+            ink: {{ 900:'#111118',800:'#18181f',700:'#1e1e28',600:'#232330',500:'#64748b',100:'#e2e8f0',50:'#f5f5f0' }},
             brand: {{500:'{p500}',400:'{p400}',300:'{p400}'}}
           }},
           boxShadow: {{
-            soft: '0 2px 12px rgba(0,0,0,.25)',
-            glow: '0 0 20px rgba({glow_rgb},.15)'
+            soft: '0 1px 6px rgba(0,0,0,.08)',
+            glow: 'none'
           }}
         }}}}
       }};
@@ -633,13 +738,16 @@ def get_app_index_string():
         --primary-500: {p500};
         --primary-600: {p600};
         --primary-700: {p700};
-        --primary-glow: rgba({glow_rgb}, 0.18);
+        --primary-glow: rgba({glow_rgb}, 0.12);
       }}
       html.dark {{
-        --primary-glow: rgba({glow_rgb}, 0.25);
+        --primary-glow: rgba({glow_rgb}, 0.15);
       }}
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     {{%metas%}}
     {{%favicon%}}
     {{%css%}}
@@ -668,7 +776,7 @@ def get_app_index_string():
           r.setProperty('--primary-500', p['500']);
           r.setProperty('--primary-600', p['600']);
           r.setProperty('--primary-700', p['700']);
-          r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.25)');
+          r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.12)');
         }}
       }})();
     </script>

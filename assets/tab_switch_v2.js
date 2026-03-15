@@ -45,8 +45,10 @@
         var allTabs = document.querySelectorAll('button[id^="tab-"]');
         for (var i = 0; i < allTabs.length; i++) {
             allTabs[i].className = INACTIVE;
+            allTabs[i].setAttribute("aria-selected", "false");
         }
         btn.className = ACTIVE;
+        btn.setAttribute("aria-selected", "true");
         showOverlay();
     }, true);
 
@@ -68,21 +70,25 @@
             } catch (e) {}
         }
 
+        // Track whether this request targets tab-content-container
+        var isContentRequest = false;
+        if (typeof url === "string" && url.indexOf("_dash-update-component") !== -1) {
+            try {
+                var reqBody = opts && opts.body ? JSON.parse(opts.body) : {};
+                var reqOutput = reqBody.output || "";
+                if (reqOutput.indexOf("tab-content-container") !== -1) {
+                    isContentRequest = true;
+                }
+            } catch (e) {}
+        }
+
         return originalFetch.apply(this, arguments).then(function (response) {
-            // Check if this response is for a content update
-            if (typeof url === "string" && url.indexOf("_dash-update-component") !== -1) {
-                // Clone to read body without consuming it
-                var clone = response.clone();
-                clone.text().then(function (text) {
-                    if (text.indexOf("tab-content-container") !== -1) {
-                        // Content response arrived — schedule hide
-                        // Use requestAnimationFrame to wait for React to paint
-                        requestAnimationFrame(function () {
-                            requestAnimationFrame(function () {
-                                scheduleHide();
-                            });
-                        });
-                    }
+            // Only clone for content updates (avoid cloning large non-content responses)
+            if (isContentRequest) {
+                requestAnimationFrame(function () {
+                    requestAnimationFrame(function () {
+                        scheduleHide();
+                    });
                 });
             }
             return response;

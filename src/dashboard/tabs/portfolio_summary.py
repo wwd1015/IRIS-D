@@ -298,11 +298,11 @@ def _resample(df: pl.DataFrame, freq: str, metric: str, segmentation: str | None
     return result
 
 
-# Palette for stacked segments
+# Palette for stacked segments – warm, distinguishable
 _COLORS = [
-    "#a78bfa", "#2dd4bf", "#f97316", "#f472b6", "#60a5fa",
-    "#fbbf24", "#34d399", "#e879f9", "#fb923c", "#38bdf8",
-    "#a3e635", "#f87171", "#818cf8", "#c084fc", "#22d3ee",
+    "#4B6BFB", "#E8674F", "#4D8B6F", "#F59E0B", "#7C8DB5",
+    "#D15340", "#6DA58B", "#6B8AFF", "#B94035", "#2D6A4F",
+    "#F2836B", "#3B5BDB", "#364570", "#3D7A5F", "#475985",
 ]
 
 
@@ -345,7 +345,7 @@ def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
             x=periods_list,
             y=agg[metric].to_list(),
             customdata=[[metric_label] for _ in periods_list],
-            marker_color="#a78bfa",
+            marker_color="#4B6BFB",
             name=metric_label,
         ))
 

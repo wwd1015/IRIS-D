@@ -167,8 +167,8 @@ class ProfileAvatar(GlobalControl):
                 "transition-all duration-200"
             ),
             style={
-                "background": "linear-gradient(135deg, var(--primary-500), var(--primary-700))",
-                "boxShadow": "0 2px 8px var(--primary-glow)",
+                "background": "var(--primary-500)",
+                "boxShadow": "none",
             },
             title="Switch Profile",
         )
@@ -192,7 +192,7 @@ class ThemeToggle(GlobalControl):
 
     def callback_specs(self) -> list[CallbackSpec]:
         return [CallbackSpec(
-            outputs=[("theme-toggle", "children")],
+            outputs=[("theme-toggle", "children"), (Signal.THEME, "data")],
             inputs=[("theme-toggle", "n_clicks")],
             client_side="""\
             function(n_clicks){
@@ -207,9 +207,10 @@ class ThemeToggle(GlobalControl):
               if (n_clicks && n_clicks > 0){
                 const isDark = root.classList.toggle('dark');
                 localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                return isDark ? '🌙' : '☀️';
+                return [isDark ? '🌙' : '☀️', isDark ? 'dark' : 'light'];
               }
-              return root.classList.contains('dark') ? '🌙' : '☀️';
+              var mode = root.classList.contains('dark') ? 'dark' : 'light';
+              return [mode === 'dark' ? '🌙' : '☀️', mode];
             }
             """,
         )]
@@ -254,7 +255,7 @@ class AccentColorPicker(GlobalControl):
                 r.setProperty('--primary-500', p['500']);
                 r.setProperty('--primary-600', p['600']);
                 r.setProperty('--primary-700', p['700']);
-                r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.25)');
+                r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.12)');
               }
               return 'Accent: ' + cur;
             }
@@ -353,7 +354,7 @@ class PowerUserToggle(GlobalControl):
                 return {
                   "fontSize": "16px", "opacity": "1",
                   "border": "1px solid var(--primary-500)",
-                  "boxShadow": "0 0 8px var(--primary-glow)"
+                  "boxShadow": "none"
                 };
               }
               return {"fontSize": "16px", "opacity": "0.6"};

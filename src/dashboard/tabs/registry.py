@@ -123,11 +123,16 @@ class BaseTab(ABC):
 
     def _render_tier_badge(self) -> html.Div:
         """Render a labeled tier badge aligned with toolbar controls."""
+        tooltip = self.tier_tooltip or self.tier.capitalize()
         return html.Div([
             html.Span("Status", className="control-label"),
             html.Div(
                 className=f"tier-badge tier-badge--{self.tier}",
-                **{"data-tooltip": self.tier_tooltip or self.tier.capitalize()},
+                role="img",
+                **{
+                    "data-tooltip": tooltip,
+                    "aria-label": f"{self.tier.capitalize()} tier",
+                },
             ),
         ], className="tier-badge-wrapper")
 

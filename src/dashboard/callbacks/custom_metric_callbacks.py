@@ -15,7 +15,7 @@ import polars as pl
 
 logger = logging.getLogger(__name__)
 
-_BADGE_COLORS = {"numeric": "#a78bfa", "categorical": "#fbbf24", "indicator": "#2dd4bf"}
+_BADGE_COLORS = {"numeric": "#4B6BFB", "categorical": "#F59E0B", "indicator": "#4D8B6F"}
 _BADGE_LABELS = {"numeric": "Num", "categorical": "Cat", "indicator": "Bool"}
 
 
@@ -208,9 +208,9 @@ def register(app) -> None:
                     val,
                     className="inline-block px-2 py-0.5 mx-0.5 rounded text-xs font-medium",
                     style={
-                        "background": "rgba(251, 191, 36, 0.15)" if is_string else "rgba(45, 212, 191, 0.15)",
+                        "background": "rgba(251, 191, 36, 0.15)" if is_string else "rgba(77, 139, 111, 0.15)",
                         "color": "#fbbf24" if is_string else "var(--accent-400)",
-                        "border": "1px solid rgba(251, 191, 36, 0.3)" if is_string else "1px solid rgba(45, 212, 191, 0.3)",
+                        "border": "1px solid rgba(251, 191, 36, 0.3)" if is_string else "1px solid rgba(77, 139, 111, 0.3)",
                     },
                 ))
             elif tok["type"] == "boolean":
@@ -218,9 +218,9 @@ def register(app) -> None:
                     tok["value"].upper(),
                     className="inline-block px-2 py-0.5 mx-0.5 rounded text-xs font-bold",
                     style={
-                        "background": "rgba(45, 212, 191, 0.2)",
-                        "color": "#2dd4bf",
-                        "border": "1px solid rgba(45, 212, 191, 0.4)",
+                        "background": "rgba(77, 139, 111, 0.2)",
+                        "color": "#4D8B6F",
+                        "border": "1px solid rgba(77, 139, 111, 0.4)",
                     },
                 ))
         return pills
@@ -342,7 +342,7 @@ def register(app) -> None:
             if current_user:
                 app_state.save_user_data(current_user)
             return (
-                html.Span(f"Deleted '{name}'", style={"color": "#2dd4bf", "fontSize": "12px"}),
+                html.Span(f"Deleted '{name}'", style={"color": "#4D8B6F", "fontSize": "12px"}),
                 (metric_counter or 0) + 1,
             )
         return no_update, no_update
@@ -432,7 +432,7 @@ def register(app) -> None:
 
         verb = "Updated" if editing_name else "Saved"
         return (
-            html.Span(f"{verb} '{full_name}'", style={"color": "#2dd4bf", "fontSize": "12px"}),
+            html.Span(f"{verb} '{full_name}'", style={"color": "#4D8B6F", "fontSize": "12px"}),
             "",    # clear name input
             [],    # clear tokens
             None,  # clear edit mode

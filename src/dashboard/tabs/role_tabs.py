@@ -12,12 +12,7 @@ from dash import callback, dcc, html, Input, Output, no_update
 
 from .registry import BaseTab, ContentLayout, TabContext, register_tab
 from ..components.toolbar import DropdownControl
-
-_THEME = dict(
-    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-    font=dict(size=12, color="rgba(255,255,255,0.7)"),
-    margin=dict(l=40, r=20, t=20, b=40), showlegend=False,
-)
+from ..utils.helpers import plotly_theme
 
 
 def _apply_filters(df, criteria):
@@ -64,14 +59,14 @@ class SIRAnalysisTab(BaseTab):
 def _build_rating_distribution(df: pl.DataFrame):
     fig = go.Figure()
     if len(df) == 0:
-        fig.update_layout(**_THEME, height=400)
+        fig.update_layout(**plotly_theme(showlegend=False), height=400)
         return fig
     counts = df["obligor_rating"].value_counts().sort("obligor_rating")
     ratings = counts["obligor_rating"].to_list()
     vals = counts["count"].to_list()
     colors = ["#22c55e" if r <= 13 else "#f59e0b" if r <= 15 else "#ef4444" for r in ratings]
     fig.add_trace(go.Bar(x=[str(r) for r in ratings], y=vals, marker_color=colors))
-    fig.update_layout(**_THEME, height=400,
+    fig.update_layout(**plotly_theme(showlegend=False), height=400,
                       xaxis=dict(title="Rating", color="rgba(255,255,255,0.5)"),
                       yaxis=dict(title="Count", showgrid=True, gridcolor="rgba(255,255,255,0.06)",
                                  color="rgba(255,255,255,0.5)"))
@@ -199,18 +194,18 @@ class FinancialProjectionTab(BaseTab):
 def _build_hist_chart(df, portfolios, portfolio, metric):
     fig = go.Figure()
     if portfolio not in portfolios:
-        fig.update_layout(**_THEME, height=350)
+        fig.update_layout(**plotly_theme(showlegend=False), height=350)
         return fig
     filtered = _apply_filters(df, portfolios[portfolio])
     if metric not in filtered.columns or len(filtered) == 0:
-        fig.update_layout(**_THEME, height=350)
+        fig.update_layout(**plotly_theme(showlegend=False), height=350)
         return fig
     ts = filtered.group_by("reporting_date").agg(pl.col(metric).mean()).sort("reporting_date")
     fig.add_trace(go.Scatter(
         x=ts["reporting_date"].to_list(), y=ts[metric].to_list(),
-        mode="lines+markers", line=dict(color="#a78bfa", width=2),
+        mode="lines+markers", line=dict(color="#4B6BFB", width=2),
     ))
-    fig.update_layout(**_THEME, height=350,
+    fig.update_layout(**plotly_theme(showlegend=False), height=350,
                       xaxis=dict(showgrid=False, color="rgba(255,255,255,0.5)"),
                       yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.06)",
                                  color="rgba(255,255,255,0.5)"))
@@ -220,11 +215,11 @@ def _build_hist_chart(df, portfolios, portfolio, metric):
 def _build_distribution(df: pl.DataFrame, metric):
     fig = go.Figure()
     if len(df) == 0 or metric not in df.columns:
-        fig.update_layout(**_THEME, height=350)
+        fig.update_layout(**plotly_theme(showlegend=False), height=350)
         return fig
     vals = df[metric].drop_nulls().to_list()
-    fig.add_trace(go.Histogram(x=vals, nbinsx=30, marker_color="#8b5cf6"))
-    fig.update_layout(**_THEME, height=350,
+    fig.add_trace(go.Histogram(x=vals, nbinsx=30, marker_color="#4B6BFB"))
+    fig.update_layout(**plotly_theme(showlegend=False), height=350,
                       xaxis=dict(title=metric.replace("_", " ").title(),
                                  color="rgba(255,255,255,0.5)"),
                       yaxis=dict(title="Count", showgrid=True,
@@ -277,7 +272,7 @@ class ModelBacktestingTab(BaseTab):
 def _build_rating_migration(df: pl.DataFrame):
     fig = go.Figure()
     if len(df) == 0:
-        fig.update_layout(**_THEME, height=400)
+        fig.update_layout(**plotly_theme(showlegend=False), height=400)
         return fig
     # Rating bucket counts
     buckets = {"Pass (1-13)": 0, "Watch (14)": 0, "Criticized (15-16)": 0, "Default (17)": 0}
@@ -298,7 +293,7 @@ def _build_rating_migration(df: pl.DataFrame):
         x=list(buckets.keys()), y=list(buckets.values()),
         marker_color=colors,
     ))
-    fig.update_layout(**_THEME, height=400,
+    fig.update_layout(**plotly_theme(showlegend=False), height=400,
                       xaxis=dict(color="rgba(255,255,255,0.5)"),
                       yaxis=dict(title="Facilities", showgrid=True,
                                  gridcolor="rgba(255,255,255,0.06)",

@@ -239,7 +239,7 @@ class TableCard(DisplayCard):
             style_cell={
                 "padding": "10px 12px",
                 "whiteSpace": "nowrap",
-                "fontFamily": "Inter, system-ui, sans-serif",
+                "fontFamily": "Plus Jakarta Sans, system-ui, sans-serif",
                 "fontSize": 13,
             },
         )
@@ -295,13 +295,13 @@ class MetricCard(DisplayCard):
                 [html.Span(m.icon, className="text-2xl mb-1")]
                 if m.icon else []
             ),
-            html.Div(m.value, className="text-xl font-bold text-white"),
-            html.Div(m.label, className="text-xs text-slate-400 mt-0.5"),
+            html.Div(m.value, className="text-xl font-bold text-slate-900 dark:text-white"),
+            html.Div(m.label, className="text-xs text-slate-500 dark:text-slate-400 mt-0.5"),
             *(
                 [html.Div(m.change, className=f"text-xs mt-1 {change_cls}")]
                 if m.change else []
             ),
-        ], className="flex flex-col items-center p-3 rounded-lg bg-ink-700/50")
+        ], className="flex flex-col items-center p-3 rounded-lg bg-slate-100 dark:bg-ink-700/50")
 
 
 # =============================================================================

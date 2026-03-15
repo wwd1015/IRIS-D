@@ -51,9 +51,11 @@ def chart_with_detail_layout(
                             "CSV", id=f"{graph_id}-detail-download-btn",
                             className="detail-panel__download", n_clicks=0,
                             title="Download as CSV",
+                            **{"aria-label": "Download as CSV"},
                         ),
                         html.Button("✕", id=f"{graph_id}-detail-close",
-                                    className="detail-panel__close", n_clicks=0),
+                                    className="detail-panel__close", n_clicks=0,
+                                    **{"aria-label": "Close detail panel"}),
                     ], className="flex items-center gap-2"),
                 ], className="detail-panel__header"),
                 dash_table.DataTable(

@@ -165,12 +165,12 @@ def _build_trend_chart(df, portfolios, selected, benchmark, metric, agg):
     dates, vals = _get_timeseries(df, portfolios, selected, metric, agg)
     if dates:
         fig.add_trace(go.Scatter(x=dates, y=vals, mode="lines+markers", name="Selected",
-                                 line=dict(color="#a78bfa", width=3)))
+                                 line=dict(color="#4B6BFB", width=3)))
     if benchmark:
         bd, bv = _get_timeseries(df, portfolios, benchmark, metric, agg)
         if bd:
             fig.add_trace(go.Scatter(x=bd, y=bv, mode="lines+markers", name="Benchmark",
-                                     line=dict(color="#2dd4bf", width=3, dash="dash")))
+                                     line=dict(color="#E8674F", width=3, dash="dash")))
     theme = plotly_theme(
         height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),

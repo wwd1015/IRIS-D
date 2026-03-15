@@ -12,6 +12,7 @@ from dash import callback, dcc, html, Input, Output, no_update
 
 from .registry import BaseTab, ContentLayout, TabContext, register_tab
 from ..components.toolbar import DropdownControl
+from ..utils.helpers import plotly_theme as _plotly_theme
 
 
 class FinancialTrendTab(BaseTab):
@@ -92,12 +93,11 @@ register_tab(FinancialTrendTab())
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-_THEME = dict(
-    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-    font=dict(size=11, color="rgba(255,255,255,0.6)"),
+_THEME = _plotly_theme(
+    font=dict(size=11),
     margin=dict(l=35, r=10, t=10, b=30), height=250, showlegend=False,
-    xaxis=dict(showgrid=False, color="rgba(255,255,255,0.4)"),
-    yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.06)", color="rgba(255,255,255,0.4)"),
+    xaxis=dict(showgrid=False),
+    yaxis=dict(showgrid=True),
 )
 
 
@@ -128,8 +128,8 @@ def _build_sparkline(facilities_df, portfolios, portfolio, metric):
     fig.add_trace(go.Scatter(
         x=ts["reporting_date"].to_list(), y=ts[metric].to_list(),
         mode="lines", fill="tozeroy",
-        line=dict(color="#a78bfa", width=2),
-        fillcolor="rgba(167,139,250,0.1)",
+        line=dict(color="#4B6BFB", width=2),
+        fillcolor="rgba(75,107,251,0.08)",
     ))
     fig.update_layout(**_THEME)
     return fig

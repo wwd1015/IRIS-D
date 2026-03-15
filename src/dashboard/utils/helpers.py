@@ -32,7 +32,7 @@ MODAL_HIDDEN: dict[str, str] = {"display": "none"}
 _PLOTLY_DEFAULTS: dict[str, Any] = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Inter, system-ui, sans-serif", color="rgba(255,255,255,0.85)", size=12),
+    font=dict(family="Plus Jakarta Sans, system-ui, sans-serif", color="rgba(255,255,255,0.85)", size=12),
     margin=dict(l=40, r=20, t=30, b=40),
     xaxis=dict(
         gridcolor="rgba(255,255,255,0.06)",
@@ -52,22 +52,31 @@ _PLOTLY_DEFAULTS: dict[str, Any] = dict(
 def plotly_theme(**overrides: Any) -> dict[str, Any]:
     """Return a Plotly ``update_layout`` dict with the standard IRIS-D theme.
 
+    Text, gridlines, and annotation colors are overridden by CSS custom
+    properties in style.css so they adapt to light/dark mode automatically.
+
     Pass keyword arguments to override any default.
 
     Example::
 
         fig.update_layout(**plotly_theme(height=400, title="My Chart"))
     """
-    merged = {**_PLOTLY_DEFAULTS, **overrides}
-    # Deep-merge nested dicts (xaxis, yaxis, font, margin, legend)
-    for key in ("xaxis", "yaxis", "font", "margin", "legend"):
-        if key in overrides and key in _PLOTLY_DEFAULTS:
-            merged[key] = {**_PLOTLY_DEFAULTS[key], **overrides[key]}
-    return merged
+    # Shallow-copy top level, shallow-copy nested dicts on access
+    base = {k: ({**v} if isinstance(v, dict) else v) for k, v in _PLOTLY_DEFAULTS.items()}
+    for key, val in overrides.items():
+        if key in base and isinstance(base[key], dict) and isinstance(val, dict):
+            base[key] = {**base[key], **val}
+        else:
+            base[key] = val
+    return base
 
 
 def empty_figure(message: str = "No data available", height: int = 300) -> go.Figure:
-    """Return a themed empty Plotly figure with a centered message."""
+    """Return a themed empty Plotly figure with a centered message.
+
+    Annotation color is overridden by CSS (``.annotation-text`` rule)
+    to adapt to light/dark mode automatically.
+    """
     fig = go.Figure()
     fig.add_annotation(
         text=message,
@@ -87,7 +96,8 @@ def empty_figure(message: str = "No data available", height: int = 300) -> go.Fi
 
 _CARD_CSS = (
     "bg-white dark:bg-ink-800 rounded-xl shadow-soft "
-    "border border-slate-200 dark:border-ink-700 overflow-hidden"
+    "border border-slate-200 dark:border-ink-700 overflow-hidden "
+    "w-full min-w-0"
 )
 
 
@@ -161,7 +171,7 @@ def sidebar_wrapper(
 # =============================================================================
 
 _TOOLBAR_CSS = (
-    "flex items-end justify-between gap-4 p-4 mb-4 "
+    "flex items-end justify-between gap-4 p-4 mb-4 flex-wrap "
     "bg-white dark:bg-ink-800 rounded-xl shadow-soft "
     "border border-slate-200 dark:border-ink-700"
 )
