@@ -66,10 +66,12 @@ def _build_rating_distribution(df: pl.DataFrame):
     vals = counts["count"].to_list()
     colors = ["#22c55e" if r <= 13 else "#f59e0b" if r <= 15 else "#ef4444" for r in ratings]
     fig.add_trace(go.Bar(x=[str(r) for r in ratings], y=vals, marker_color=colors))
-    fig.update_layout(**plotly_theme(showlegend=False), height=400,
-                      xaxis=dict(title="Rating", color="rgba(255,255,255,0.5)"),
-                      yaxis=dict(title="Count", showgrid=True, gridcolor="rgba(255,255,255,0.06)",
-                                 color="rgba(255,255,255,0.5)"))
+    fig.update_layout(**plotly_theme(
+        showlegend=False, height=400,
+        xaxis=dict(title="Rating", color="rgba(255,255,255,0.5)"),
+        yaxis=dict(title="Count", showgrid=True, gridcolor="rgba(255,255,255,0.06)",
+                   color="rgba(255,255,255,0.5)"),
+    ))
     return fig
 
 
@@ -205,10 +207,12 @@ def _build_hist_chart(df, portfolios, portfolio, metric):
         x=ts["reporting_date"].to_list(), y=ts[metric].to_list(),
         mode="lines+markers", line=dict(color="#4B6BFB", width=2),
     ))
-    fig.update_layout(**plotly_theme(showlegend=False), height=350,
-                      xaxis=dict(showgrid=False, color="rgba(255,255,255,0.5)"),
-                      yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.06)",
-                                 color="rgba(255,255,255,0.5)"))
+    fig.update_layout(**plotly_theme(
+        showlegend=False, height=350,
+        xaxis=dict(showgrid=False, color="rgba(255,255,255,0.5)"),
+        yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.06)",
+                   color="rgba(255,255,255,0.5)"),
+    ))
     return fig
 
 
@@ -219,12 +223,14 @@ def _build_distribution(df: pl.DataFrame, metric):
         return fig
     vals = df[metric].drop_nulls().to_list()
     fig.add_trace(go.Histogram(x=vals, nbinsx=30, marker_color="#4B6BFB"))
-    fig.update_layout(**plotly_theme(showlegend=False), height=350,
-                      xaxis=dict(title=metric.replace("_", " ").title(),
-                                 color="rgba(255,255,255,0.5)"),
-                      yaxis=dict(title="Count", showgrid=True,
-                                 gridcolor="rgba(255,255,255,0.06)",
-                                 color="rgba(255,255,255,0.5)"))
+    fig.update_layout(**plotly_theme(
+        showlegend=False, height=350,
+        xaxis=dict(title=metric.replace("_", " ").title(),
+                   color="rgba(255,255,255,0.5)"),
+        yaxis=dict(title="Count", showgrid=True,
+                   gridcolor="rgba(255,255,255,0.06)",
+                   color="rgba(255,255,255,0.5)"),
+    ))
     return fig
 
 
@@ -293,11 +299,13 @@ def _build_rating_migration(df: pl.DataFrame):
         x=list(buckets.keys()), y=list(buckets.values()),
         marker_color=colors,
     ))
-    fig.update_layout(**plotly_theme(showlegend=False), height=400,
-                      xaxis=dict(color="rgba(255,255,255,0.5)"),
-                      yaxis=dict(title="Facilities", showgrid=True,
-                                 gridcolor="rgba(255,255,255,0.06)",
-                                 color="rgba(255,255,255,0.5)"))
+    fig.update_layout(**plotly_theme(
+        showlegend=False, height=400,
+        xaxis=dict(color="rgba(255,255,255,0.5)"),
+        yaxis=dict(title="Facilities", showgrid=True,
+                   gridcolor="rgba(255,255,255,0.06)",
+                   color="rgba(255,255,255,0.5)"),
+    ))
     return fig
 
 
