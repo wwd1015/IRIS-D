@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import importlib
 import logging
-import pathlib
+import pkgutil
 
 from .registry import BaseTab, TabContext, register_tab, get_all_tabs, get_tab
 
@@ -25,14 +25,16 @@ __all__ = ["BaseTab", "TabContext", "register_tab", "get_all_tabs", "get_tab"]
 
 logger = logging.getLogger(__name__)
 
-_TABS_DIR = pathlib.Path(__file__).parent
-
 
 def _autodiscover() -> None:
-    """Import every non-private tab module in this package."""
-    package = __name__  # "src.dashboard.tabs" (or whatever it resolves to)
-    for path in sorted(_TABS_DIR.glob("*.py")):
-        name = path.stem
+    """Import every non-private tab module in this package.
+
+    Uses ``pkgutil.iter_modules`` instead of filesystem glob so that
+    auto-discovery works inside PyInstaller bundles where ``.py`` files
+    are not present on disk.
+    """
+    package = __name__
+    for finder, name, ispkg in pkgutil.iter_modules(__path__):
         if name.startswith("_") or name == "registry":
             continue
         module_name = f"{package}.{name}"

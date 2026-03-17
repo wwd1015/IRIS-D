@@ -154,6 +154,85 @@ class SqliteDataSource:
         return pl.from_pandas(pdf)
 
 
+class SnowflakeDataSource:
+    """DataSource backed by a Snowflake connection.
+
+    Requires ``snowflake-connector-python`` (install separately).
+    Connection settings are read from :class:`config.SnowflakeSettings`,
+    which reads from environment variables.  Authentication defaults to
+    SSO (``externalbrowser``).
+
+    Usage::
+
+        # Set env vars, then:
+        from ..data.sources import SnowflakeDataSource, set_default_source
+        set_default_source(SnowflakeDataSource())
+    """
+
+    def __init__(self, sf_settings: object | None = None) -> None:
+        from .. import config
+        self._settings = sf_settings or config.settings.snowflake
+        self._cache: pl.DataFrame | None = None
+        self._cache_ts: float = 0.0
+        self._cache_ttl = _CACHE_TTL
+
+    def load_facilities(self) -> pl.DataFrame:
+        now = time.time()
+        if self._cache is not None and (now - self._cache_ts) < self._cache_ttl:
+            logger.debug("Using cached Snowflake data")
+            return self._cache
+
+        try:
+            import snowflake.connector  # type: ignore[import-untyped]
+        except ImportError:
+            raise ImportError(
+                "snowflake-connector-python is required for Snowflake data source. "
+                "Install with:  pip install 'iris-d[snowflake]'"
+            ) from None
+
+        s = self._settings
+        logger.info(
+            "Connecting to Snowflake account=%s warehouse=%s db=%s schema=%s",
+            s.account, s.warehouse, s.database, s.schema,
+        )
+        conn = snowflake.connector.connect(
+            account=s.account,
+            warehouse=s.warehouse,
+            database=s.database,
+            schema=s.schema,
+            role=s.role or None,
+            authenticator=s.authenticator,
+        )
+
+        try:
+            cursor = conn.cursor()
+            cursor.execute(s.query)
+            pdf = cursor.fetch_pandas_all()
+        finally:
+            conn.close()
+
+        # Same derived columns as SqliteDataSource._load_raw
+        pdf["balance_millions"] = pdf["balance"] / 1_000_000
+        pdf["risk_category"] = pdf["obligor_rating"].apply(
+            lambda x: (
+                "Pass Rated" if x <= 13
+                else "Watch" if x == 14
+                else "Criticized" if x <= 16
+                else "Defaulted"
+            )
+        )
+
+        df = pl.from_pandas(pdf)
+        logger.info("Snowflake load complete — %d records", len(df))
+        self._cache = df
+        self._cache_ts = now
+        return df
+
+    def clear_cache(self) -> None:
+        self._cache = None
+        self._cache_ts = 0.0
+
+
 class InMemoryDataSource:
     """Lightweight in-memory DataSource — primarily for testing.
 
@@ -179,10 +258,18 @@ _default_source: DataSource | None = None
 
 
 def get_default_source() -> DataSource:
-    """Return (creating on first call) the module-level SqliteDataSource."""
+    """Return (creating on first call) the appropriate DataSource.
+
+    Reads ``DATA_SOURCE_TYPE`` from config to choose between SQLite
+    (default / demo) and Snowflake (production).
+    """
     global _default_source
     if _default_source is None:
-        _default_source = SqliteDataSource()
+        from .. import config
+        if config.DATA_SOURCE_TYPE == "snowflake":
+            _default_source = SnowflakeDataSource()
+        else:
+            _default_source = SqliteDataSource()
     return _default_source
 
 

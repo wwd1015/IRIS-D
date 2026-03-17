@@ -1,0 +1,67 @@
+name: Build Desktop App
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      onefile:
+        description: "Single-file executable (slower startup)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-latest
+            artifact: IRIS-D-macOS
+          - os: windows-latest
+            artifact: IRIS-D-Windows
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          pip install -e ".[packaging]"
+
+      - name: Generate placeholder database
+        run: python -m src.dashboard.data.db_data_generator
+
+      - name: Build executable
+        run: python packaging/build.py ${{ inputs.onefile && '--onefile' || '' }}
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: dist/IRIS-D
+          retention-days: 30
+
+      # Attach to GitHub Release when triggered by a tag
+      - name: Zip for release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          cd dist
+          if [ -d IRIS-D ]; then
+            zip -r ../${{ matrix.artifact }}.zip IRIS-D
+          else
+            zip ../${{ matrix.artifact }}.zip IRIS-D*
+          fi
+
+      - name: Upload to release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ matrix.artifact }}.zip

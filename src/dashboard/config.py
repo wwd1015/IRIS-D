@@ -15,7 +15,45 @@ Usage::
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, field
+
+
+# =============================================================================
+# FROZEN-MODE PATH RESOLUTION (PyInstaller)
+# =============================================================================
+
+def _is_frozen() -> bool:
+    """True when running inside a PyInstaller bundle."""
+    return getattr(sys, "frozen", False)
+
+
+def _bundle_dir() -> str:
+    """Root of the PyInstaller bundle (read-only extracted files)."""
+    return getattr(sys, "_MEIPASS", os.path.abspath("."))
+
+
+def _user_data_dir() -> str:
+    """Persistent writable directory for user data in frozen mode."""
+    return os.path.join(os.path.expanduser("~"), ".iris-d")
+
+
+def _default_db_path() -> str:
+    env = os.environ.get("DATABASE_PATH")
+    if env:
+        return env
+    if _is_frozen():
+        return os.path.join(_bundle_dir(), "data", "bank_risk.db")
+    return "data/bank_risk.db"
+
+
+def _default_profiles_path() -> str:
+    env = os.environ.get("PROFILES_FILE")
+    if env:
+        return env
+    if _is_frozen():
+        return os.path.join(_user_data_dir(), "user_profiles.json")
+    return "data/user_profiles.json"
 
 
 # =============================================================================
@@ -26,16 +64,15 @@ from dataclasses import dataclass, field
 @dataclass(frozen=True)
 class DatabaseSettings:
     """Settings that control data persistence."""
-    path: str = field(
-        default_factory=lambda: os.environ.get("DATABASE_PATH", "data/bank_risk.db")
-    )
-    profiles_file: str = field(
-        default_factory=lambda: os.environ.get("PROFILES_FILE", "data/user_profiles.json")
+    path: str = field(default_factory=_default_db_path)
+    profiles_file: str = field(default_factory=_default_profiles_path)
+    source_type: str = field(
+        default_factory=lambda: os.environ.get("DATA_SOURCE_TYPE", "sqlite")
     )
 
     def __post_init__(self) -> None:
         import logging
-        if not os.path.exists(self.path):
+        if self.source_type == "sqlite" and not os.path.exists(self.path):
             logging.getLogger(__name__).warning(
                 "Database not found at '%s'. Run db_data_generator.py first.", self.path
             )
@@ -90,11 +127,41 @@ class UISettings:
 
 
 @dataclass(frozen=True)
+class SnowflakeSettings:
+    """Connection settings for Snowflake data source."""
+    account: str = field(
+        default_factory=lambda: os.environ.get("SNOWFLAKE_ACCOUNT", "")
+    )
+    warehouse: str = field(
+        default_factory=lambda: os.environ.get("SNOWFLAKE_WAREHOUSE", "")
+    )
+    database: str = field(
+        default_factory=lambda: os.environ.get("SNOWFLAKE_DATABASE", "")
+    )
+    schema: str = field(
+        default_factory=lambda: os.environ.get("SNOWFLAKE_SCHEMA", "")
+    )
+    role: str = field(
+        default_factory=lambda: os.environ.get("SNOWFLAKE_ROLE", "")
+    )
+    authenticator: str = field(
+        default_factory=lambda: os.environ.get("SNOWFLAKE_AUTHENTICATOR", "externalbrowser")
+    )
+    query: str = field(
+        default_factory=lambda: os.environ.get(
+            "SNOWFLAKE_QUERY",
+            "SELECT * FROM raw_facilities ORDER BY facility_id, reporting_date",
+        )
+    )
+
+
+@dataclass(frozen=True)
 class Settings:
     """Top-level settings container — one instance at module load time."""
     db: DatabaseSettings = field(default_factory=DatabaseSettings)
     app: AppSettings = field(default_factory=AppSettings)
     ui: UISettings = field(default_factory=UISettings)
+    snowflake: SnowflakeSettings = field(default_factory=SnowflakeSettings)
 
 
 # =============================================================================
@@ -124,3 +191,4 @@ DEFAULT_USER: str = settings.app.default_user
 
 
 ASSETS_FOLDER: str = settings.ui.assets_folder
+DATA_SOURCE_TYPE: str = settings.db.source_type

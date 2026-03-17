@@ -36,7 +36,17 @@ app_state.initialize()
 # DASH APP
 # =============================================================================
 
-app = dash.Dash(__name__, suppress_callback_exceptions=True, assets_folder="../../assets")
+import sys as _sys
+import os as _os
+
+# In frozen (PyInstaller) mode, resolve assets to the bundle directory.
+# In dev mode, keep the relative path from this module → project root/assets.
+if getattr(_sys, "frozen", False):
+    _assets_folder = _os.path.join(_sys._MEIPASS, "assets")
+else:
+    _assets_folder = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "..", "..", "assets")
+
+app = dash.Dash(__name__, suppress_callback_exceptions=True, assets_folder=_assets_folder)
 server = app.server
 
 from .components.layout import get_app_index_string, create_layout
