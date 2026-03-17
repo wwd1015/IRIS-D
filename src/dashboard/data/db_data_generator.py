@@ -402,14 +402,22 @@ class DatabaseRiskDataGenerator:
         return len(df)
 
 
-def generate_database_and_process():
-    """Main function to generate database data."""
+def generate_database_and_process(small: bool = False):
+    """Main function to generate database data.
+
+    Parameters
+    ----------
+    small:
+        If True, generate a minimal dataset (useful for CI builds).
+    """
     os.makedirs('data', exist_ok=True)
 
     generator = DatabaseRiskDataGenerator()
     generator.setup_database()
 
-    total_records = generator.generate_and_store_data(4800, 2050)
+    obligors = 200 if small else 4800
+    cre = 100 if small else 2050
+    total_records = generator.generate_and_store_data(obligors, cre)
 
     print(f"Database generation complete!")
     print(f"Generated {total_records} facility records in database")
@@ -418,4 +426,6 @@ def generate_database_and_process():
 
 
 if __name__ == "__main__":
-    generate_database_and_process()
+    import sys
+    small = "--small" in sys.argv
+    generate_database_and_process(small=small)

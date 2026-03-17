@@ -35,8 +35,9 @@ jobs:
         run: |
           pip install -e ".[packaging]"
 
-      - name: Generate placeholder database
-        run: python -m src.dashboard.data.db_data_generator
+      - name: Generate placeholder database (small for CI)
+        run: python -m src.dashboard.data.db_data_generator --small
+        timeout-minutes: 5
 
       - name: Build executable
         run: python packaging/build.py ${{ inputs.onefile && '--onefile' || '' }}

@@ -120,10 +120,9 @@ def build(*, onefile: bool = False, clean: bool = False) -> None:
     for pkg in COLLECT_DATA:
         cmd.extend(["--collect-data", pkg])
 
-    # macOS: don't create a .app bundle — keep it as a plain executable
-    if platform.system() == "Darwin":
-        cmd.append("--target-architecture")
-        cmd.append("universal2")
+    # macOS: build for native architecture only (universal2 requires fat binaries
+    # which most pip-installed packages don't provide)
+    # No extra flags needed — PyInstaller auto-detects the native arch.
 
     cmd.append(launcher)
 
