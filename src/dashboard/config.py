@@ -95,25 +95,31 @@ class AppSettings:
             raise ValueError(f"PORT must be between 1 and 65535, got {self.port}")
 
 
-# Color palettes — change ``accent_color`` in UISettings to switch.
+# Color palettes — warm editorial tones inspired by Claude design system.
+# Change ``accent_color`` in UISettings to switch.
 COLOR_PALETTES: dict[str, dict[str, str]] = {
-    "blue": {
-        "400": "#6B8AFF", "500": "#4B6BFB", "600": "#3B5BDB", "700": "#2B4BC7",
-        "glow": "75, 107, 251",  # RGB for rgba()
-    },
-    "slate": {
-        "400": "#7C8DB5", "500": "#5B6E9E", "600": "#475985", "700": "#364570",
-        "glow": "91, 110, 158",
+    "terracotta": {
+        "400": "#d97757", "500": "#c96442", "600": "#b85538", "700": "#a0472e",
+        "glow": "201, 100, 66",  # RGB for rgba()
     },
     "sage": {
         "400": "#6DA58B", "500": "#4D8B6F", "600": "#3D7A5F", "700": "#2D6A4F",
         "glow": "77, 139, 111",
     },
-    "coral": {
-        "400": "#F2836B", "500": "#E8674F", "600": "#D15340", "700": "#B94035",
-        "glow": "232, 103, 79",
+    "stone": {
+        "400": "#87867f", "500": "#5e5d59", "600": "#4d4c48", "700": "#3d3d3a",
+        "glow": "94, 93, 89",
+    },
+    "clay": {
+        "400": "#c9856a", "500": "#b5725a", "600": "#a06050", "700": "#8b5045",
+        "glow": "181, 114, 90",
     },
 }
+
+# Legacy alias — keep backward compat for saved user prefs referencing "blue"
+COLOR_PALETTES["blue"] = COLOR_PALETTES["terracotta"]
+COLOR_PALETTES["coral"] = COLOR_PALETTES["terracotta"]
+COLOR_PALETTES["slate"] = COLOR_PALETTES["stone"]
 
 
 @dataclass(frozen=True)
@@ -122,7 +128,7 @@ class UISettings:
     assets_folder: str = "assets"
     default_theme: str = "dark"
     accent_color: str = field(
-        default_factory=lambda: os.environ.get("ACCENT_COLOR", "blue")
+        default_factory=lambda: os.environ.get("ACCENT_COLOR", "terracotta")
     )
 
 

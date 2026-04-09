@@ -32,7 +32,7 @@ MODAL_HIDDEN: dict[str, str] = {"display": "none"}
 _PLOTLY_DEFAULTS: dict[str, Any] = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Plus Jakarta Sans, system-ui, sans-serif", color="rgba(255,255,255,0.85)", size=12),
+    font=dict(family="Inter, system-ui, sans-serif", color="#b0aea5", size=12),
     margin=dict(l=40, r=20, t=30, b=40),
     xaxis=dict(
         gridcolor="rgba(255,255,255,0.06)",
@@ -82,7 +82,7 @@ def empty_figure(message: str = "No data available", height: int = 300) -> go.Fi
         text=message,
         xref="paper", yref="paper",
         x=0.5, y=0.5, xanchor="center", yanchor="middle",
-        showarrow=False, font=dict(size=14, color="rgba(255,255,255,0.4)"),
+        showarrow=False, font=dict(size=14, color="#87867f"),
     )
     fig.update_layout(**plotly_theme(height=height))
     fig.update_xaxes(visible=False)
@@ -95,8 +95,8 @@ def empty_figure(message: str = "No data available", height: int = 300) -> go.Fi
 # =============================================================================
 
 _CARD_CSS = (
-    "bg-white dark:bg-ink-800 rounded-xl shadow-soft "
-    "border border-slate-200 dark:border-ink-700 overflow-hidden "
+    "bg-ink-50 dark:bg-ink-700 rounded-xl shadow-soft "
+    "border border-ink-100 dark:border-ink-600 overflow-hidden "
     "w-full min-w-0"
 )
 
@@ -127,13 +127,13 @@ def card_wrapper(
 def card_header(title: str, subtitle: str = "") -> html.Div:
     """Render a standard card header with title and optional subtitle."""
     parts = [
-        html.H3(title, className="text-sm font-semibold text-slate-800 dark:text-white"),
+        html.H3(title, className="text-sm font-semibold text-ink-900 dark:text-ink-50"),
     ]
     if subtitle:
-        parts.append(html.P(subtitle, className="text-xs text-ink-500 dark:text-slate-400 mt-0.5"))
+        parts.append(html.P(subtitle, className="text-xs text-ink-500 dark:text-ink-500 mt-0.5"))
     return html.Div(
         parts,
-        className="px-4 py-3 border-b border-slate-200 dark:border-ink-700",
+        className="px-4 py-3 border-b border-ink-100 dark:border-ink-600",
     )
 
 
@@ -142,8 +142,8 @@ def card_header(title: str, subtitle: str = "") -> html.Div:
 # =============================================================================
 
 _SIDEBAR_CSS = (
-    "bg-white dark:bg-ink-800 rounded-xl shadow-soft "
-    "border border-slate-200 dark:border-ink-700 overflow-hidden "
+    "bg-ink-50 dark:bg-ink-700 rounded-xl shadow-soft "
+    "border border-ink-100 dark:border-ink-600 overflow-hidden "
     "flex flex-col min-h-[640px]"
 )
 
@@ -157,10 +157,10 @@ def sidebar_wrapper(
     header = html.Header([
         html.H2(title, className="text-sm font-semibold"),
         *(
-            [html.P(subtitle, className="text-xs text-ink-500 dark:text-slate-400")]
+            [html.P(subtitle, className="text-xs text-ink-500 dark:text-ink-500")]
             if subtitle else []
         ),
-    ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700 flex items-center justify-between")
+    ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600 flex items-center justify-between")
 
     body = html.Div(children, className="p-4 flex-1 overflow-auto")
     return html.Section([header, body], className=_SIDEBAR_CSS)
@@ -172,8 +172,8 @@ def sidebar_wrapper(
 
 _TOOLBAR_CSS = (
     "flex items-end justify-between gap-4 p-4 mb-4 flex-wrap "
-    "bg-white dark:bg-ink-800 rounded-xl shadow-soft "
-    "border border-slate-200 dark:border-ink-700"
+    "bg-ink-50 dark:bg-ink-700 rounded-xl shadow-soft "
+    "border border-ink-100 dark:border-ink-600"
 )
 
 
@@ -203,7 +203,7 @@ def dropdown_filter(
     return html.Div([
         html.Label(
             label,
-            className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300",
+            className="block text-xs font-medium mb-1 text-ink-600 dark:text-ink-100",
         ),
         dcc.Dropdown(
             id=id,

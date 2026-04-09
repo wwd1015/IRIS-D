@@ -181,7 +181,7 @@ class BaseTab(ABC):
         if cards:
             from ..components.cards import render_card_grid
             return render_card_grid(cards, ctx)
-        return html.Div("No content defined", className="p-4 text-slate-400")
+        return html.Div("No content defined", className="p-4 text-ink-500")
 
     # ── Full assembly ──────────────────────────────────────────────────────
 

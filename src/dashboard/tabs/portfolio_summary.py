@@ -298,11 +298,11 @@ def _resample(df: pl.DataFrame, freq: str, metric: str, segmentation: str | None
     return result
 
 
-# Palette for stacked segments – warm, distinguishable
+# Palette for stacked segments – warm, earthy, editorial tones
 _COLORS = [
-    "#4B6BFB", "#E8674F", "#4D8B6F", "#F59E0B", "#7C8DB5",
-    "#D15340", "#6DA58B", "#6B8AFF", "#B94035", "#2D6A4F",
-    "#F2836B", "#3B5BDB", "#364570", "#3D7A5F", "#475985",
+    "#c96442", "#4d8b6f", "#d97757", "#87867f", "#6da58b",
+    "#b85538", "#3d7a5f", "#a0472e", "#5e5d59", "#2d6a4f",
+    "#c9856a", "#b5725a", "#4d4c48", "#a06050", "#3d3d3a",
 ]
 
 
@@ -345,7 +345,7 @@ def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
             x=periods_list,
             y=agg[metric].to_list(),
             customdata=[[metric_label] for _ in periods_list],
-            marker_color="#4B6BFB",
+            marker_color="#c96442",
             name=metric_label,
         ))
 
@@ -409,9 +409,9 @@ def _compute_period_changes(df: pl.DataFrame, freq: str, metric: str) -> pl.Data
 
 
 _WATERFALL_COLORS = {
-    "Run-off": "#f87171",
-    "Changes": "#60a5fa",
-    "New Origination": "#34d399",
+    "Run-off": "#b53333",
+    "Changes": "#5e5d59",
+    "New Origination": "#4d8b6f",
 }
 
 

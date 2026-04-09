@@ -96,18 +96,18 @@ register_tab(VintageAnalysisTab())
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
-_COLORS = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#4B6BFB", "#ec4899", "#4D8B6F", "#f97316"]
+_COLORS = ["#b53333", "#d97757", "#4d8b6f", "#5e5d59", "#c96442", "#87867f", "#6da58b", "#a0472e"]
 
 _THEME = dict(
     plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-    font=dict(size=12, color="rgba(255,255,255,0.7)"),
+    font=dict(size=12, color="#b0aea5"),
     margin=dict(l=40, r=20, t=20, b=40), height=400,
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
     hovermode="x unified",
     xaxis=dict(title="Quarters Since Cohort", tickmode="linear", showgrid=False,
-               color="rgba(255,255,255,0.5)"),
-    yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.06)",
-               color="rgba(255,255,255,0.5)"),
+               color="#87867f"),
+    yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)",
+               color="#87867f"),
 )
 
 

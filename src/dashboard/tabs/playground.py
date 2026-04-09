@@ -23,9 +23,9 @@ from ..utils.helpers import (
 _MAX_CARDS = 3
 
 _COLORS = [
-    "#4B6BFB", "#E8674F", "#4D8B6F", "#F59E0B", "#7C8DB5",
-    "#D15340", "#6DA58B", "#6B8AFF", "#B94035", "#2D6A4F",
-    "#F2836B", "#3B5BDB", "#364570", "#3D7A5F", "#475985",
+    "#c96442", "#4d8b6f", "#d97757", "#87867f", "#6da58b",
+    "#b85538", "#3d7a5f", "#a0472e", "#5e5d59", "#2d6a4f",
+    "#c9856a", "#b5725a", "#4d4c48", "#a06050", "#3d3d3a",
 ]
 
 
@@ -81,7 +81,7 @@ class PlaygroundTab(BaseTab):
                 # Filter badge (cards 1-2 only)
                 html.Div(
                     id=f"pg-card-{i}-badge",
-                    className="text-xs text-slate-400 mb-1",
+                    className="text-xs text-ink-500 mb-1",
                     style={"display": "none"} if i == 0 else {},
                 ),
                 # Hidden stores
@@ -105,21 +105,21 @@ class PlaygroundTab(BaseTab):
                             title="Chart settings",
                         ),
                         html.Div([
-                            html.Label("Metric", className="text-xs text-slate-400", style={"marginBottom": "2px"}),
+                            html.Label("Metric", className="text-xs text-ink-500", style={"marginBottom": "2px"}),
                             dcc.Dropdown(
                                 id=f"pg-card-{i}-metric",
                                 options=metric_opts,
                                 value=default_metric, clearable=False,
                                 style={"width": "100%", "fontSize": "12px", "marginBottom": "8px"},
                             ),
-                            html.Label("Segment", className="text-xs text-slate-400", style={"marginBottom": "2px"}),
+                            html.Label("Segment", className="text-xs text-ink-500", style={"marginBottom": "2px"}),
                             dcc.Dropdown(
                                 id=f"pg-card-{i}-seg",
                                 options=seg_opts,
                                 value=None, clearable=True, placeholder="None",
                                 style={"width": "100%", "fontSize": "12px", "marginBottom": "8px"},
                             ),
-                            html.Label("Aggregation", className="text-xs text-slate-400", style={"marginBottom": "2px"}),
+                            html.Label("Aggregation", className="text-xs text-ink-500", style={"marginBottom": "2px"}),
                             dcc.Dropdown(
                                 id=f"pg-card-{i}-agg",
                                 options=[
@@ -661,7 +661,7 @@ def _build_chart(
         if plot_type == "line":
             fig.add_trace(go.Scatter(
                 x=periods, y=y_vals, mode="lines",
-                line=dict(color="#4B6BFB", width=2),
+                line=dict(color="#c96442", width=2),
                 name=metric_label,
                 customdata=[[metric_label] for _ in periods],
             ))
@@ -669,7 +669,7 @@ def _build_chart(
             fig.add_trace(go.Bar(
                 x=periods, y=y_vals,
                 customdata=[[metric_label] for _ in periods],
-                marker_color="#4B6BFB", name=metric_label,
+                marker_color="#c96442", name=metric_label,
             ))
 
     all_periods = agg_df["_period"].unique().sort().to_list()

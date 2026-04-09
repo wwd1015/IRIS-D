@@ -124,7 +124,7 @@ def _build_tab_navigation_callback() -> None:
         content = active.render(tab_ctx) if active else html.Div("Tab not found")
 
         active_class = "px-3 py-1.5 rounded bg-ink-900 text-white"
-        inactive_class = "px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"
+        inactive_class = "px-3 py-1.5 rounded hover:bg-ink-50 dark:hover:bg-ink-600"
         classes = [active_class if tid == active_tab_id else inactive_class for tid in tab_ids]
 
         return [content, active_tab_id] + classes

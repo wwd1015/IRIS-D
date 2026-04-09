@@ -60,7 +60,7 @@ class FinancialTrendTab(BaseTab):
                     html.H3(label, className="text-sm font-semibold"),
                     html.Div(current, className="text-xl font-bold mt-1",
                              id=f"ft-value-{i+1}"),
-                ], className="pb-2 border-b border-slate-100 dark:border-ink-700"),
+                ], className="pb-2 border-b border-ink-100 dark:border-ink-600"),
                 dcc.Graph(id=f"ft-chart-{i+1}", figure=fig,
                           config={"displayModeBar": False}, style={"height": "250px"}),
             ], className="glass-card p-4"))
@@ -128,8 +128,8 @@ def _build_sparkline(facilities_df, portfolios, portfolio, metric):
     fig.add_trace(go.Scatter(
         x=ts["reporting_date"].to_list(), y=ts[metric].to_list(),
         mode="lines", fill="tozeroy",
-        line=dict(color="#4B6BFB", width=2),
-        fillcolor="rgba(75,107,251,0.08)",
+        line=dict(color="#c96442", width=2),
+        fillcolor="rgba(201,100,66,0.08)",
     ))
     fig.update_layout(**_THEME)
     return fig

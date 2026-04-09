@@ -29,7 +29,7 @@ def create_navigation_tabs():
             visible = False
 
         # First tab gets active styling by default
-        cls = "px-3 py-1.5 rounded bg-ink-900 text-white" if i == 0 else "px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700"
+        cls = "px-3 py-1.5 rounded bg-ink-900 text-white" if i == 0 else "px-3 py-1.5 rounded hover:bg-ink-50 dark:hover:bg-ink-700"
         style = {"display": "inline-block"} if visible else {"display": "none"}
 
         btn = html.Button(
@@ -228,15 +228,15 @@ def _profile_switch_modal():
             html.Header([
                 html.Div([
                     html.H2("Switch Profile", id="profile-switch-title",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                     html.Button("✕", id="profile-switch-cancel-x", className="btn btn-ghost text-xl cursor-pointer",
                                 style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
                                 **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
                 html.Div([
-                    html.Label("Select Profile", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-400"),
+                    html.Label("Select Profile", className="block text-xs font-medium mb-1 text-ink-600 dark:text-ink-500"),
                     dcc.Dropdown(id="profile-switch-dropdown", placeholder="Choose a profile...",
                                  className="text-sm", style={"fontSize": "13px"}),
                 ], className="mb-4"),
@@ -255,12 +255,12 @@ def _contact_modal():
     return html.Div([
         html.Div([
             html.H3("Contact & Support", id="contact-title",
-                     className="text-lg font-semibold text-ink-800 dark:text-slate-200 mb-4 text-center"),
+                     className="text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4 text-center"),
             html.Div([
                 html.H4("Contact Information",
-                         className="text-base font-semibold text-ink-700 dark:text-slate-300 mb-3"),
+                         className="text-base font-semibold text-ink-700 dark:text-ink-100 mb-3"),
                 html.P("For technical support and inquiries:",
-                       className="text-sm text-ink-500 dark:text-slate-400 mb-2"),
+                       className="text-sm text-ink-500 dark:text-ink-500 mb-2"),
                 html.Div([html.Strong("Email: "), html.A("support@portfolio-dashboard.com",
                           href="mailto:support@portfolio-dashboard.com",
                           style={"color": "var(--primary-400)", "textDecoration": "none"})],
@@ -270,9 +270,9 @@ def _contact_modal():
             ]),
             html.Div([
                 html.H4("Feedback",
-                         className="text-base font-semibold text-ink-700 dark:text-slate-300 mb-3"),
+                         className="text-base font-semibold text-ink-700 dark:text-ink-100 mb-3"),
                 html.P("Help us improve by sharing your thoughts:",
-                       className="text-sm text-ink-500 dark:text-slate-400 mb-3"),
+                       className="text-sm text-ink-500 dark:text-ink-500 mb-3"),
             ]),
             html.Div([html.Button("Close", id="contact-close", className="btn btn-outline")],
                      className="text-center"),
@@ -288,14 +288,14 @@ def _portfolio_modal():
             html.Header([
                 html.Div([
                     html.H2("Portfolio Management", id="portfolio-modal-title",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                     html.Button("✕", id="portfolio-modal-cancel", className="btn btn-ghost text-xl cursor-pointer",
                                 style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
                                 **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
-                html.Label("Select a portfolio or create a new one:", className="block text-sm font-medium mb-2 text-ink-600 dark:text-slate-300"),
+                html.Label("Select a portfolio or create a new one:", className="block text-sm font-medium mb-2 text-ink-600 dark:text-ink-100"),
                 dcc.Dropdown(id="portfolio-modal-dropdown", placeholder="Choose portfolio...", className="text-sm mb-4", style={"fontSize": "14px"}),
                 html.Div([
                     html.Button("Select", id="portfolio-select-confirm", className="btn btn-primary", style={"fontSize": "13px", "flex": "1"}),
@@ -317,13 +317,13 @@ def _portfolio_delete_confirm_modal():
             html.Header([
                 html.Div([
                     html.H2("Confirm Deletion", id="delete-confirm-title",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
                 html.P(id="delete-confirm-message",
                        children="Are you sure you want to delete this portfolio? This action cannot be undone.",
-                       className="text-sm text-ink-600 dark:text-slate-300 mb-4"),
+                       className="text-sm text-ink-600 dark:text-ink-100 mb-4"),
                 html.Div([
                     html.Button("Delete", id="portfolio-delete-confirm", className="btn btn-danger", style={"fontSize": "13px", "flex": "1"}),
                     html.Button("Cancel", id="portfolio-delete-cancel", className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}),
@@ -342,22 +342,22 @@ def _portfolio_create_modal():
             html.Header([
                 html.Div([
                     html.H2(id="portfolio-wizard-title", children="Create New Portfolio",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                     html.Button("✕", id="portfolio-create-cancel", className="btn btn-ghost text-xl cursor-pointer",
                                 style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
                                 **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
                 # Reference portfolio dropdown
                 html.Div([
-                    html.Label("Reference Portfolio", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    html.Label("Reference Portfolio", className="block text-xs font-medium mb-1 text-ink-600 dark:text-ink-100"),
                     dcc.Dropdown(id="reference-portfolio-dropdown",
                                  placeholder="Start from scratch...",
                                  className="text-sm",
                                  style={"fontSize": "13px"}),
                     html.P("Select an existing portfolio to pre-populate filters, or leave blank to start fresh.",
-                           className="text-xs text-ink-500 dark:text-slate-400 mt-1 mb-3"),
+                           className="text-xs text-ink-500 dark:text-ink-500 mt-1 mb-3"),
                 ]),
                 # Dynamic filter levels container — populated by callback
                 html.Div(id="filter-levels-container", children=[]),
@@ -368,9 +368,9 @@ def _portfolio_create_modal():
                 ], className="text-right"),
                 # Portfolio name input
                 html.Div([
-                    html.Label("Portfolio Name", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-300"),
+                    html.Label("Portfolio Name", className="block text-xs font-medium mb-1 text-ink-600 dark:text-ink-100"),
                     dcc.Input(id="create-portfolio-name-input", type="text", placeholder="Enter portfolio name...",
-                              className="w-full px-3 py-2 text-xs border border-slate-300 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500"),
+                              className="w-full px-3 py-2 text-xs border border-ink-100 dark:border-ink-600 rounded-md focus:ring-2 focus:ring-brand-500"),
                 ], className="mt-4 mb-3"),
                 html.Button("Save Portfolio", id="save-new-portfolio-btn", className="btn btn-primary btn-glow w-full",
                             style={"fontSize": "13px"}),
@@ -426,17 +426,17 @@ def _time_window_modal():
             html.Header([
                 html.Div([
                     html.H2("Time Window", id="time-window-title",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                     html.Button("✕", id="time-window-cancel-x", className="btn btn-ghost text-xl cursor-pointer",
                                 style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
                                 **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
-                html.Label("Select the reporting period range:", className="block text-sm font-medium mb-3 text-ink-600 dark:text-slate-300"),
+                html.Label("Select the reporting period range:", className="block text-sm font-medium mb-3 text-ink-600 dark:text-ink-100"),
                 html.Div([
                     html.Div([
-                        html.Label("Start Month", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-400"),
+                        html.Label("Start Month", className="block text-xs font-medium mb-1 text-ink-600 dark:text-ink-500"),
                         dcc.Dropdown(
                             id="time-window-start-dropdown",
                             options=options,
@@ -447,7 +447,7 @@ def _time_window_modal():
                         ),
                     ], style={"flex": "1"}),
                     html.Div([
-                        html.Label("End Month", className="block text-xs font-medium mb-1 text-ink-600 dark:text-slate-400"),
+                        html.Label("End Month", className="block text-xs font-medium mb-1 text-ink-600 dark:text-ink-500"),
                         dcc.Dropdown(
                             id="time-window-end-dropdown",
                             options=options,
@@ -480,14 +480,14 @@ def _performance_warning_modal():
             html.Header([
                 html.Div([
                     html.H2("Performance Warning", id="perf-warning-title",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
                 html.P(
                     "Loading the full portfolio over all time periods may cause "
                     "the app to slow down significantly.",
-                    className="text-sm text-ink-600 dark:text-slate-300 mb-4",
+                    className="text-sm text-ink-600 dark:text-ink-100 mb-4",
                 ),
                 html.Div([
                     html.Button("Continue Anyway", id="perf-warning-confirm",
@@ -510,14 +510,14 @@ def _power_user_confirm_modal():
             html.Header([
                 html.Div([
                     html.H2("Enable Power User Mode", id="power-user-confirm-title",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
                 html.P(
                     "Power User mode enables advanced controls (custom metrics, etc.) "
                     "that can modify data and may produce unexpected results.",
-                    className="text-sm text-ink-600 dark:text-slate-300 mb-4",
+                    className="text-sm text-ink-600 dark:text-ink-100 mb-4",
                 ),
                 html.Div([
                     html.Button("Enable", id="power-user-confirm",
@@ -555,12 +555,12 @@ def _custom_metric_modal():
             html.Header([
                 html.Div([
                     html.H2("Custom Metrics", id="custom-metric-title",
-                            className="text-lg font-semibold text-ink-800 dark:text-slate-200"),
+                            className="text-lg font-semibold text-ink-900 dark:text-ink-50"),
                     html.Button("✕", id="custom-metric-close-x", className="btn btn-ghost text-xl cursor-pointer",
                                 style={"padding": "4px 8px", "minWidth": "auto", "minHeight": "auto"},
                                 **{"aria-label": "Close"}),
                 ], className="flex items-center justify-between"),
-            ], className="px-4 py-3 border-b border-slate-200 dark:border-ink-700"),
+            ], className="px-4 py-3 border-b border-ink-100 dark:border-ink-600"),
             html.Div([
                 # Dataset selector
                 html.Div([
@@ -719,12 +719,16 @@ def get_app_index_string():
         darkMode: 'class',
         theme: {{ extend: {{
           colors: {{
-            ink: {{ 900:'#111118',800:'#18181f',700:'#1e1e28',600:'#232330',500:'#64748b',100:'#e2e8f0',50:'#f5f5f0' }},
+            ink: {{ 900:'#141413',800:'#1c1c1a',700:'#242422',600:'#30302e',500:'#87867f',100:'#e8e6dc',50:'#f5f4ed' }},
             brand: {{500:'{p500}',400:'{p400}',300:'{p400}'}}
           }},
           boxShadow: {{
-            soft: '0 1px 6px rgba(0,0,0,.08)',
+            soft: '0px 0px 0px 1px rgba(0,0,0,0.05)',
             glow: 'none'
+          }},
+          fontFamily: {{
+            serif: ['Georgia', 'Times New Roman', 'serif'],
+            sans: ['Inter', 'system-ui', 'sans-serif']
           }}
         }}}}
       }};
@@ -747,7 +751,7 @@ def get_app_index_string():
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.tailwindcss.com">
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     {{%metas%}}
     {{%favicon%}}
     {{%css%}}
