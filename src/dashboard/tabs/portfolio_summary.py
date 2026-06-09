@@ -9,14 +9,16 @@ Right card: period-over-period waterfall (run-off / changes / new origination).
 
 from __future__ import annotations
 
+import json
+from datetime import datetime
+
 import plotly.graph_objs as go
 import polars as pl
 from dash import callback, dcc, html, Input, Output, no_update
 
 from .registry import BaseTab, ContentLayout, TabContext, register_tab
-from ..components.toolbar import DropdownControl
 from ..components.mixins.click_detail import chart_with_detail_layout, register_detail_callback
-from ..utils.helpers import plotly_theme, empty_figure, add_period_column, format_period
+from ..utils.helpers import plotly_theme, empty_figure, add_period_column, format_period, SEGMENT_COLORS
 
 
 class PortfolioSummaryTab(BaseTab):
@@ -27,57 +29,115 @@ class PortfolioSummaryTab(BaseTab):
     tier_tooltip = "Gold tier — set tier='gold' in your BaseTab subclass"
     content_layout = ContentLayout.TWO_COL
 
-    def get_toolbar_controls(self, ctx: TabContext):
+    def render(self, ctx: TabContext):
+        """Custom layout: KPI strip · composition (bar + waterfall) · top movers."""
+        from ..app_state import app_state
+
         metric_opts = _get_metric_options(ctx.facilities_df)
         default_metric = "balance" if any(o["value"] == "balance" for o in metric_opts) else (metric_opts[0]["value"] if metric_opts else "balance")
-        return [
-            DropdownControl(
-                id="ps-metric", label="Metric",
-                options=metric_opts,
-                value=default_metric,
-                order=10,
-            ),
-            DropdownControl(
-                id="ps-freq", label="Frequency",
-                options=[
-                    {"label": "Monthly", "value": "monthly"},
-                    {"label": "Quarterly", "value": "quarterly"},
-                    {"label": "Annually", "value": "annually"},
-                ],
-                value="monthly", order=20,
-            ),
-        ]
-
-    def render_content(self, ctx: TabContext):
-        from ..app_state import app_state
         seg_opts = _get_segmentation_options(ctx.facilities_df)
         app_state.register_control("ps-segmentation", preserve=True)
         current_seg = app_state.get_control_value("ps-segmentation")
-        fig = _build_bar_chart(ctx.facilities_df, ctx.portfolios,
-                               ctx.selected_portfolio, "balance", "monthly", current_seg)
-        fig_right = _build_waterfall_chart(ctx.facilities_df, ctx.portfolios,
-                                           ctx.selected_portfolio, "balance", "monthly")
+
+        # Portfolio-filtered, time-windowed frame (all periods) for KPIs + movers
+        if ctx.selected_portfolio in ctx.portfolios:
+            pf = _apply_filters(ctx.facilities_df, ctx.portfolios[ctx.selected_portfolio])
+        else:
+            pf = ctx.facilities_df
+
+        kpis = _compute_kpis(pf)
+        movers = _top_movers(pf)
+
+        # Timeline scrubber — a draggable sub-window over the available periods.
+        scrub_dates, _scrub_totals = _scrubber_periods(pf)
+        n = len(scrub_dates)
+        s_idx = max(0, n - 12)
+        e_idx = n - 1 if n else 0
+        scrub_val = f"{scrub_dates[s_idx]},{scrub_dates[e_idx]}" if n >= 2 else ""
+        scoped = _apply_scrubber(ctx.facilities_df, scrub_val)
+
+        fig = _build_bar_chart(scoped, ctx.portfolios,
+                               ctx.selected_portfolio, default_metric, "monthly", current_seg)
+        fig_right = _build_waterfall_chart(scoped, ctx.portfolios,
+                                           ctx.selected_portfolio, default_metric, "monthly")
+
+        _dd = {"fontSize": "13px"}
+        # Middle-level controls (apply to BOTH charts): metric + frequency.
+        controls = html.Div([
+            dcc.Dropdown(id="ps-metric", options=metric_opts, value=default_metric,
+                         clearable=False, style={**_dd, "width": "170px"}),
+            dcc.Dropdown(id="ps-freq", options=[
+                {"label": "Monthly", "value": "monthly"},
+                {"label": "Quarterly", "value": "quarterly"},
+                {"label": "Annually", "value": "annually"},
+            ], value="monthly", clearable=False, style={**_dd, "width": "130px"}),
+        ], className="gc-group", style={"gap": "10px"})
+
+        # Segmentation applies only to the Exposure-over-time bar chart.
+        segmentation_ctrl = dcc.Dropdown(
+            id="ps-segmentation", options=seg_opts, value=current_seg,
+            placeholder="No segmentation", clearable=True,
+            style={**_dd, "width": "190px"})
+
         return html.Div([
+            _kpi_strip(kpis),
+
+            # Control row: status dot (left) · metric · frequency · slider (right-aligned).
+            html.Div([
+                html.Span(className=f"tier-dot tier-badge--{self.tier}",
+                          title=self.tier_tooltip or f"{self.tier.capitalize()} tier"),
+                html.Div([
+                    controls,
+                    _scrubber(scrub_dates, s_idx, e_idx),
+                ], className="gc-group", style={"gap": "12px", "justifyContent": "flex-end"}),
+                dcc.Input(id="ps-scrubber-input", type="text", value=scrub_val,
+                          style={"display": "none"}),
+            ], className="section-head", style={"gap": "12px", "flexWrap": "wrap",
+                                                "justifyContent": "space-between"}),
+
+            html.Div([
+
+                html.Div([
+                    html.Div([
+                        html.Div([
+                            html.H3("Exposure over time"),
+                            segmentation_ctrl,
+                        ], className="card-head", style={"alignItems": "center"}),
+                        html.Div(chart_with_detail_layout("ps-bar-chart", figure=fig, height=400),
+                                 className="card-body pad-tight"),
+                    ], className="card"),
+                    html.Div([
+                        html.Div([html.H3("Period-over-period change")], className="card-head"),
+                        html.Div([
+                            html.Div([
+                                html.Span([html.Span(className="legend-swatch",
+                                                     style={"background": _WATERFALL_COLORS["Run-off"]}), "Run-off"],
+                                          className="legend-item"),
+                                html.Span([html.Span(className="legend-swatch",
+                                                     style={"background": _WATERFALL_COLORS["Changes"]}), "Changes"],
+                                          className="legend-item"),
+                                html.Span([html.Span(className="legend-swatch",
+                                                     style={"background": _WATERFALL_COLORS["New Origination"]}), "New origination"],
+                                          className="legend-item"),
+                            ], className="legend", style={"marginBottom": "8px"}),
+                            chart_with_detail_layout("ps-waterfall-chart", figure=fig_right, height=360),
+                            html.Div(
+                                _waterfall_stats(ctx.facilities_df, ctx.portfolios,
+                                                 ctx.selected_portfolio, default_metric, "monthly"),
+                                id="ps-waterfall-stats",
+                            ),
+                        ], className="card-body"),
+                    ], className="card"),
+                ], className="chart-row"),
+            ], className="section"),
+
             html.Div([
                 html.Div([
-                    html.Div(style={"flex": "1"}),
-                    html.Div([
-                        html.Span("Segmentation", className="control-label"),
-                        dcc.Dropdown(
-                            id="ps-segmentation",
-                            options=seg_opts,
-                            value=current_seg,
-                            placeholder="None",
-                            clearable=True,
-                            style={"width": "160px", "fontSize": "13px"},
-                        ),
-                    ]),
-                ], className="flex items-end gap-3 mb-2"),
-                chart_with_detail_layout("ps-bar-chart", figure=fig, height=400),
-            ], className="glass-card p-4"),
-            html.Div([
-                chart_with_detail_layout("ps-waterfall-chart", figure=fig_right, height=400),
-            ], className="glass-card p-4"),
+                    html.Div("Top movers", className="section-title"),
+                    html.Span(f"{len(movers)} shown · by Δ exposure", className="section-sub"),
+                ], className="section-head"),
+                html.Div([_facility_card(m) for m in movers], className="facility-grid"),
+            ], className="section"),
         ])
 
     def register_callbacks(self, app):
@@ -90,17 +150,19 @@ class PortfolioSummaryTab(BaseTab):
              Input("custom-metric-store", "data"),
              Input("ps-metric", "value"),
              Input("ps-freq", "value"),
-             Input("ps-segmentation", "value")],
+             Input("ps-segmentation", "value"),
+             Input("ps-scrubber-input", "value")],
             prevent_initial_call=True,
         )
-        def update_chart(portfolio, _tw, _cm, metric, freq, segmentation):
+        def update_chart(portfolio, _tw, _cm, metric, freq, segmentation, scrub):
             if not portfolio:
                 return no_update
             app_state.set_control_value("ps-segmentation", segmentation)
             metric = metric or "balance"
             freq = freq or "monthly"
             windowed = app_state._apply_time_window(app_state.facilities_df)
-            return _build_bar_chart(windowed, app_state.portfolios,
+            scoped = _apply_scrubber(windowed, scrub)
+            return _build_bar_chart(scoped, app_state.portfolios,
                                     portfolio, metric, freq, segmentation)
 
         def _get_bar_detail(click_point, curve_name, x_value, portfolio):
@@ -171,22 +233,27 @@ class PortfolioSummaryTab(BaseTab):
         )
 
         @callback(
-            Output("ps-waterfall-chart", "figure"),
+            [Output("ps-waterfall-chart", "figure"),
+             Output("ps-waterfall-stats", "children")],
             [Input("universal-portfolio-dropdown", "value"),
              Input("time-window-store", "data"),
              Input("custom-metric-store", "data"),
              Input("ps-metric", "value"),
-             Input("ps-freq", "value")],
+             Input("ps-freq", "value"),
+             Input("ps-scrubber-input", "value")],
             prevent_initial_call=True,
         )
-        def update_waterfall_chart(portfolio, _tw, _cm, metric, freq):
+        def update_waterfall_chart(portfolio, _tw, _cm, metric, freq, scrub):
             if not portfolio:
-                return no_update
+                return no_update, no_update
             metric = metric or "balance"
             freq = freq or "monthly"
             windowed = app_state._apply_time_window(app_state.facilities_df)
-            return _build_waterfall_chart(windowed, app_state.portfolios,
-                                          portfolio, metric, freq)
+            scoped = _apply_scrubber(windowed, scrub)
+            fig = _build_waterfall_chart(scoped, app_state.portfolios,
+                                         portfolio, metric, freq)
+            stats = _waterfall_stats(scoped, app_state.portfolios, portfolio, metric, freq)
+            return fig, stats
 
         def _get_waterfall_detail(click_point, curve_name, x_value, portfolio, freq):
             """Return facility rows for the clicked waterfall bar category."""
@@ -298,12 +365,8 @@ def _resample(df: pl.DataFrame, freq: str, metric: str, segmentation: str | None
     return result
 
 
-# Palette for stacked segments – warm, earthy, editorial tones
-_COLORS = [
-    "#c96442", "#4d8b6f", "#d97757", "#87867f", "#6da58b",
-    "#b85538", "#3d7a5f", "#a0472e", "#5e5d59", "#2d6a4f",
-    "#c9856a", "#b5725a", "#4d4c48", "#a06050", "#3d3d3a",
-]
+# Palette for stacked segments — IRIS-D Redesign categorical colors
+_COLORS = SEGMENT_COLORS
 
 
 _format_period = format_period  # backward compat alias
@@ -345,7 +408,7 @@ def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
             x=periods_list,
             y=agg[metric].to_list(),
             customdata=[[metric_label] for _ in periods_list],
-            marker_color="#c96442",
+            marker_color="#4B6BFB",
             name=metric_label,
         ))
 
@@ -409,9 +472,9 @@ def _compute_period_changes(df: pl.DataFrame, freq: str, metric: str) -> pl.Data
 
 
 _WATERFALL_COLORS = {
-    "Run-off": "#b53333",
-    "Changes": "#5e5d59",
-    "New Origination": "#4d8b6f",
+    "Run-off": "#F87171",
+    "Changes": "#60A5FA",
+    "New Origination": "#34D399",
 }
 
 
@@ -469,3 +532,264 @@ def _x_value_to_period(x_value: str, periods: list[str], freq: str) -> str | Non
         if _format_period(p, freq) == x_value:
             return p
     return None
+
+
+# ── KPI strip ─────────────────────────────────────────────────────────────────
+
+def _fmt_m(v) -> str:
+    """Format raw dollars as an abbreviated string (52.54B / 384M)."""
+    v = v or 0
+    if abs(v) >= 1e9:
+        return f"{v / 1e9:.2f}B"
+    if abs(v) >= 1e6:
+        return f"{v / 1e6:.0f}M"
+    if abs(v) >= 1e3:
+        return f"{v / 1e3:.0f}K"
+    return f"{v:,.0f}"
+
+
+def _fmt_kpi(v, fmt: str) -> str:
+    if fmt == "currency":
+        return "$" + _fmt_m(v)
+    if fmt == "rating":
+        return f"{v:.1f}"
+    return f"{int(round(v or 0)):,}"
+
+
+def _spark_img(points, color: str):
+    """Build a tiny sparkline as an inline data-URI ``<img>`` (no Plotly needed)."""
+    pts = [p for p in (points or []) if p is not None]
+    if len(pts) < 2:
+        return html.Span()
+    w, h, pad = 80, 28, 2
+    lo, hi = min(pts), max(pts)
+    rng = (hi - lo) or 1
+    n = len(pts)
+    xs = [pad + i * (w - 2 * pad) / (n - 1) for i in range(n)]
+    ys = [h - pad - ((p - lo) * (h - 2 * pad) / rng) for p in pts]
+    line = " ".join(f"{'M' if i == 0 else 'L'}{xs[i]:.1f},{ys[i]:.1f}" for i in range(n))
+    area = f"{line} L{xs[-1]:.1f},{h - pad:.1f} L{xs[0]:.1f},{h - pad:.1f} Z"
+    c = color.replace("#", "%23")
+    svg = (
+        f"%3Csvg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}'%3E"
+        f"%3Cpath d='{area}' fill='{c}' opacity='0.18'/%3E"
+        f"%3Cpath d='{line}' fill='none' stroke='{c}' stroke-width='1.5'/%3E"
+        f"%3C/svg%3E"
+    )
+    return html.Img(src="data:image/svg+xml," + svg, width=w, height=h, style={"display": "block"})
+
+
+def _compute_kpis(df: pl.DataFrame) -> list[dict]:
+    """Compute the 4 headline KPIs (time series + delta) from real facility data."""
+    if df is None or df.is_empty() or "reporting_date" not in df.columns:
+        return []
+    dates = df["reporting_date"].unique().sort().to_list()
+    if not dates:
+        return []
+
+    def smap(sub):
+        return dict(zip(sub["reporting_date"].to_list(), sub["v"].to_list()))
+
+    exp = smap(df.group_by("reporting_date").agg(pl.col("balance").sum().alias("v")))
+    cnt = smap(df.group_by("reporting_date").agg(pl.col("facility_id").n_unique().alias("v")))
+    watch_df = df.filter(pl.col("obligor_rating") >= 14)
+    watch = smap(watch_df.group_by("reporting_date").agg(pl.col("facility_id").n_unique().alias("v"))) if not watch_df.is_empty() else {}
+    rating = smap(df.group_by("reporting_date").agg(pl.col("obligor_rating").mean().alias("v")))
+
+    def vals(m):
+        return [m.get(d, 0) or 0 for d in dates]
+
+    specs = [
+        ("Total Exposure", vals(exp), "currency", False),
+        ("Active Facilities", vals(cnt), "count", False),
+        ("Watchlist", vals(watch), "count", True),
+        ("Avg Risk Rating", vals(rating), "rating", True),
+    ]
+    out = []
+    for label, series, fmt, inverse in specs:
+        cur = series[-1] if series else 0
+        prev = series[-2] if len(series) > 1 else cur
+        dp = ((cur - prev) / prev * 100) if prev else 0.0
+        up = cur >= prev
+        good = (not up) if inverse else up
+        out.append({
+            "label": label, "raw": cur, "delta_pct": dp, "good": good, "up": up,
+            "value_str": _fmt_kpi(cur, fmt), "spark": series[-12:],
+        })
+    return out
+
+
+def _kpi_latest(kpis: list[dict], label: str):
+    return next((k["raw"] for k in kpis if k["label"] == label), 0)
+
+
+def _kpi_card(k: dict):
+    arrow = "↑" if k["up"] else "↓"
+    cls = "up" if k["good"] else "down"
+    spark_color = "#22c55e" if k["good"] else "#ef4444"
+    return html.Div([
+        html.Div(k["label"], className="kpi-label"),
+        html.Div(k["value_str"], className="kpi-value"),
+        html.Div([
+            html.Span(f"{arrow} {abs(k['delta_pct']):.1f}%", className=f"kpi-delta {cls}"),
+            html.Span("vs prev period", className="kpi-subtext"),
+        ], className="kpi-sub"),
+        html.Div(_spark_img(k["spark"], spark_color), className="kpi-spark"),
+    ], className="kpi rise")
+
+
+def _kpi_strip(kpis: list[dict]):
+    if not kpis:
+        return html.Div()
+    return html.Div([_kpi_card(k) for k in kpis], className="kpi-strip")
+
+
+# ── Top movers facility grid ───────────────────────────────────────────────────
+
+def _top_movers(df: pl.DataFrame, n: int = 8) -> list[dict]:
+    """Top facilities by period-over-period change in balance."""
+    if df is None or df.is_empty() or "reporting_date" not in df.columns:
+        return []
+    dates = df["reporting_date"].unique().sort().to_list()
+    if not dates:
+        return []
+    cols = [c for c in ["facility_id", "obligor_name", "obligor_rating", "balance"] if c in df.columns]
+    curr = df.filter(pl.col("reporting_date") == dates[-1]).select(cols)
+    if curr.is_empty():
+        return []
+    if len(dates) >= 2:
+        prev = (df.filter(pl.col("reporting_date") == dates[-2])
+                  .select(["facility_id", "balance"]).rename({"balance": "prev_balance"}))
+        joined = curr.join(prev, on="facility_id", how="left").with_columns(
+            (pl.col("balance") - pl.col("prev_balance").fill_null(pl.col("balance"))).alias("delta"))
+    else:
+        joined = curr.with_columns(
+            pl.col("balance").alias("prev_balance"), pl.lit(0.0).alias("delta"))
+    joined = joined.sort(pl.col("delta").abs(), descending=True).head(n)
+    return joined.to_dicts()
+
+
+def _facility_card(m: dict):
+    rating = m.get("obligor_rating") or 0
+    status = "ok" if rating <= 13 else "watch" if rating == 14 else "risk"
+    ead = (m.get("balance") or 0) / 1e6
+    prev = (m.get("prev_balance") or 0) / 1e6
+    delta = (m.get("delta") or 0) / 1e6
+    dcls = "up" if delta > 0 else "down" if delta < 0 else "flat"
+    sign = "+" if delta > 0 else ""
+    return html.Div([
+        html.Div([
+            html.Div([
+                html.Span(className=f"status-dot {status}"),
+                html.Span(str(m.get("facility_id", "")), className="facility-mini-name"),
+            ], style={"display": "flex", "alignItems": "center", "gap": "8px"}),
+            html.Span(str(rating), style={"fontFamily": "var(--font-mono)",
+                                          "fontSize": "10px", "color": "var(--text-muted)"}),
+        ], className="facility-mini-head"),
+        html.Div(str(m.get("obligor_name", "")),
+                 style={"fontSize": "var(--fs-xs)", "color": "var(--text-secondary)",
+                        "overflow": "hidden", "textOverflow": "ellipsis", "whiteSpace": "nowrap"}),
+        html.Div([
+            html.Div([html.Div("EAD", className="lbl"), html.Div(html.B(f"${ead:,.0f}M"))]),
+            html.Div([html.Div("Prev", className="lbl"), html.Div(f"${prev:,.0f}M")]),
+            html.Div([html.Div("Δ", className="lbl"),
+                      html.Div(html.Span(f"{sign}{delta:,.0f}", className=f"chip-delta {dcls}"))]),
+        ], className="facility-mini-meta"),
+    ], className="facility-mini rise")
+
+
+# ── Timeline scrubber ───────────────────────────────────────────────────────────
+
+def _short_label(d: str) -> str:
+    try:
+        return datetime.fromisoformat(d[:10]).strftime("%b %y")
+    except Exception:
+        return str(d)
+
+
+def _scrubber_periods(df: pl.DataFrame):
+    """Return (date strings, total-exposure values) per reporting period."""
+    if df is None or df.is_empty() or "reporting_date" not in df.columns:
+        return [], []
+    g = (df.group_by("reporting_date").agg(pl.col("balance").sum().alias("v"))
+           .sort("reporting_date"))
+    return g["reporting_date"].to_list(), g["v"].to_list()
+
+
+def _apply_scrubber(df: pl.DataFrame, scrub: str | None) -> pl.DataFrame:
+    """Filter rows whose reporting_date falls in the scrubber 'start,end' window."""
+    if not scrub or df is None or df.is_empty() or "reporting_date" not in df.columns:
+        return df
+    parts = scrub.split(",")
+    if len(parts) != 2 or not parts[0] or not parts[1]:
+        return df
+    start, end = parts
+    col = pl.col("reporting_date").cast(pl.Utf8)
+    return df.filter((col >= start) & (col <= end))
+
+
+def _scrubber(dates: list[str], s_idx: int, e_idx: int):
+    """Draggable range selector beneath the composition chart (see scrubber.js)."""
+    n = len(dates)
+    if n < 2:
+        return html.Div()
+    labels = [_short_label(d) for d in dates]
+
+    def pct(i):
+        return f"{(i / (n - 1)) * 100:.2f}%"
+
+    stride = max(1, (n + 5) // 6)  # ~6 ticks so labels don't crowd the narrow slider
+    ticks = [
+        html.Span(labels[i], className="scrubber-tick", style={"left": pct(i)})
+        for i in range(n) if i % stride == 0 or i == n - 1
+    ]
+
+    # Inline slider only: date-range label + draggable track (no presets, no month count).
+    return html.Div([
+        html.Div([html.B(labels[s_idx]), " → ", html.B(labels[e_idx])], className="range"),
+        html.Div([
+            html.Div(className="scrubber-track"),
+            html.Div(className="scrubber-range",
+                     style={"left": pct(s_idx), "width": f"{(e_idx - s_idx) / (n - 1) * 100:.2f}%"}),
+            html.Div(className="scrubber-handle", style={"left": pct(s_idx)}, **{"data-handle": "start"}),
+            html.Div(className="scrubber-handle", style={"left": pct(e_idx)}, **{"data-handle": "end"}),
+            html.Div(ticks, className="scrubber-ticks"),
+        ], className="scrubber-track-wrap", id="ps-scrubber-trackwrap",
+           **{"data-dates": json.dumps(dates), "data-labels": json.dumps(labels),
+              "data-start": str(s_idx), "data-end": str(e_idx)}),
+    ], className="scrubber", id="ps-scrubber")
+
+
+# ── Waterfall summary stats ─────────────────────────────────────────────────────
+
+def _waterfall_stats(df, portfolios, portfolio, metric, freq):
+    """Build the Run-off / Changes / New summary row beneath the waterfall."""
+    if portfolio not in portfolios:
+        return []
+    filtered = _apply_filters(df, portfolios[portfolio])
+    if filtered.is_empty() or metric not in filtered.columns:
+        return []
+    changes = _compute_period_changes(filtered, freq, metric)
+    if changes.is_empty():
+        return []
+    sums = {"Run-off": 0.0, "Changes": 0.0, "New Origination": 0.0}
+    for row in changes.group_by("category").agg(pl.col("value").sum()).iter_rows(named=True):
+        sums[row["category"]] = row["value"]
+    items = [
+        ("Run-off", sums["Run-off"], _WATERFALL_COLORS["Run-off"], "−"),
+        ("Changes", sums["Changes"], _WATERFALL_COLORS["Changes"], "+" if sums["Changes"] >= 0 else "−"),
+        ("New", sums["New Origination"], _WATERFALL_COLORS["New Origination"], "+"),
+    ]
+    cells = [
+        html.Div([
+            html.Div(label, style={"fontSize": "10px", "color": "var(--text-muted)",
+                                   "textTransform": "uppercase", "letterSpacing": "0.06em", "fontWeight": "600"}),
+            html.Div(f"{sign}${_fmt_m(abs(val))}", className="mono tabular",
+                     style={"fontSize": "var(--fs-lg)", "fontWeight": "600", "color": color, "marginTop": "2px"}),
+        ])
+        for label, val, color, sign in items
+    ]
+    return [html.Div(cells, style={
+        "marginTop": "10px", "paddingTop": "10px", "borderTop": "1px solid var(--border-hair)",
+        "display": "grid", "gridTemplateColumns": "1fr 1fr 1fr", "gap": "12px",
+    })]

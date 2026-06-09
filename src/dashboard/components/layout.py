@@ -29,15 +29,15 @@ def create_navigation_tabs():
             visible = False
 
         # First tab gets active styling by default
-        cls = "px-3 py-1.5 rounded bg-ink-900 text-white" if i == 0 else "px-3 py-1.5 rounded hover:bg-ink-50 dark:hover:bg-ink-700"
-        style = {"display": "inline-block"} if visible else {"display": "none"}
+        cls = "navtab active" if i == 0 else "navtab"
+        style = {} if visible else {"display": "none"}
 
         btn = html.Button(
-            tab.label,
+            [html.Span(f"{i + 1:02d}", className="tab-badge"), tab.label],
             id=f"tab-{tab.id}",
             n_clicks=0,
             className=cls,
-            style=style if tab.required_roles else {},
+            style=style,
             role="tab",
             **{"aria-selected": "true" if i == 0 else "false"},
         )
@@ -48,8 +48,55 @@ def create_navigation_tabs():
             left_buttons.append(btn)
 
     if right_buttons:
-        return left_buttons + [html.Div(style={"flex": "1"})] + right_buttons
+        return left_buttons + [html.Div(className="nav-spacer")] + right_buttons
     return left_buttons
+
+
+def create_command_palette():
+    """Static markup for the ⌘K command palette (driven by command_palette.js)."""
+    from .controls import icon
+
+    def item(icon_name, title, sub, action, kbd=""):
+        return html.Div([
+            html.Div(icon(icon_name, 13), className="cmd-icon"),
+            html.Div(title, className="cmd-title"),
+            html.Div(sub, className="cmd-sub"),
+            html.Span(kbd, className="cmd-kbd kbd") if kbd else html.Span(),
+        ], className="cmd-item",
+           **{"data-action": action, "data-search": f"{title} {sub}".lower()})
+
+    def group(label, items):
+        return html.Div(
+            [html.Div(label, className="cmd-group-label"), *items],
+            className="cmd-group",
+        )
+
+    tabs = get_all_tabs()
+    jump = [item("chart", t.label, "Tab", f"tab:{t.id}", kbd=f"⌘{i + 1}" if i < 9 else "")
+            for i, t in enumerate(tabs)]
+    actions = [
+        item("filter", "Change portfolio…", "Global filter", "click:#portfolio-selector-btn"),
+        item("search", "Set time window…", "Reporting period range", "click:#time-window-btn"),
+        item("sparkles", "Build custom metric…", "Power user · formula builder", "click:#custom-metric-btn"),
+        item("help", "Contact & support", "Help", "click:#contact-btn"),
+    ]
+
+    return html.Div([
+        html.Div([
+            html.Div([
+                icon("search", 16),
+                dcc.Input(id="cmd-palette-input", className="cmd-input", type="text",
+                          placeholder="Search or run command…", autoComplete="off"),
+                html.Span("ESC", className="kbd"),
+            ], className="cmd-input-wrap"),
+            html.Div([group("Jump to", jump), group("Actions", actions)],
+                     className="cmd-groups", id="cmd-palette-groups"),
+            html.Div([
+                html.Span("↑↓ Navigate   ↵ Select   ESC Close"),
+                html.Span("✦ IRIS-D"),
+            ], className="cmd-foot"),
+        ], className="cmd-modal"),
+    ], className="cmd-overlay", id="cmd-palette")
 
 
 def create_layout(selected_portfolio, app_index_string, available_portfolios=None):
@@ -79,29 +126,29 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
 
     # Modal IDs for focus trap and Escape key handling
     _modal_ids = [
-        "profile-switch-modal", "contact-modal", "portfolio-modal",
         "portfolio-delete-confirm-modal", "portfolio-create-modal",
-        "time-window-modal", "perf-warning-modal", "power-user-confirm-modal",
-        "custom-metric-modal",
+        "perf-warning-modal", "power-user-confirm-modal",
     ]
     _modal_ids_js = ", ".join(f'"{mid}"' for mid in _modal_ids)
 
-    return html.Div(className="min-h-screen", children=[
+    return html.Div(className="min-h-screen app", children=[
         # ── Header ──────────────────────────────────────────────────────────
         html.Header([
+            # Row 1 — brand · global controls · role · actions
             html.Div([
                 html.Div([
-                    html.Div("Portfolio Dashboard", className="dashboard-title"),
-                    *left_controls,
-                ], className="flex items-center gap-3"),
-                html.Div([
-                    *right_controls,
-                ], className="flex items-center gap-2 text-sm"),
-            ], className="flex h-14 items-center justify-between gap-3 flex-wrap"),
+                    html.Div("I", className="brand-mark"),
+                    html.Div(["IRIS-D", html.Small("v2.5")], className="brand-name"),
+                ], className="brand"),
+                *left_controls,
+                html.Div(className="gc-spacer"),
+                *right_controls,
+            ], className="header-row-1"),
+            # Row 2 — navigation tabs
             html.Nav(
                 id="navigation-tabs-container",
                 children=create_navigation_tabs(),
-                className="flex items-center gap-2 overflow-x-auto py-2 text-sm",
+                className="header-row-2",
                 role="tablist",
                 **{"aria-label": "Dashboard tabs"},
             ),
@@ -116,17 +163,20 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
                     html.Div("Refreshing", className="tab-loading-text"),
                 ], id="tab-loading-overlay"),
             ], id="tab-content-wrapper", className="tab-content-wrapper"),
-        ], className="px-5 py-4"),
+        ], className="main-scroll"),
 
         # ── Modals ──────────────────────────────────────────────────────────
-        _profile_switch_modal(),
-        _contact_modal(),
-        _portfolio_modal(),
+        # These are now anchored dropdown popovers rendered in their header
+        # controls: profile-switch (ProfileAvatar), portfolio selector
+        # (PortfolioSelector), time window (TimeWindowButton), custom metrics
+        # (CustomMetricButton), contact & support (ContactButton). Only the
+        # wizard + confirm/warning dialogs stay here.
         _portfolio_delete_confirm_modal(),
         _portfolio_create_modal(),
-        _time_window_modal(),
         _performance_warning_modal(),
-        _custom_metric_modal(),
+
+        # ── Command palette (⌘K) ──────────────────────────────────────────────
+        create_command_palette(),
 
         # ── Power User ────────────────────────────────────────────────────────
         _power_user_confirm_modal(),
@@ -200,18 +250,19 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
 
 # ── Modal helpers (keep layout.py clean) ────────────────────────────────────
 
+# Modal chrome mirrors the Time Window dropdown popover (.tw-menu): raised
+# surface, default border, large radius + shadow — one popover look app-wide.
 _MODAL_BG = {
     "background": "var(--bg-raised)",
-    "backdropFilter": "none",
-    "WebkitBackdropFilter": "none",
-    "borderRadius": "14px",
-    "border": "1px solid var(--glass-border)",
+    "borderRadius": "var(--r-lg)",
+    "border": "1px solid var(--border-default)",
     "boxShadow": "var(--shadow-lg)",
 }
 
 _MODAL_OVERLAY = {
     "position": "fixed", "top": "0", "left": "0", "width": "100%",
-    "height": "100%", "backgroundColor": "rgba(0,0,0,0.5)",
+    "height": "100%", "backgroundColor": "rgba(0,0,0,0.45)",
+    "backdropFilter": "blur(4px)", "WebkitBackdropFilter": "blur(4px)",
     "zIndex": "1000", "display": "none",
 }
 
@@ -224,6 +275,7 @@ _MODAL_CENTER = {
 
 def _profile_switch_modal():
     return html.Div([
+        html.Div(id="profile-backdrop", className="tw-backdrop", n_clicks=0),
         html.Div([
             html.Header([
                 html.Div([
@@ -245,40 +297,44 @@ def _profile_switch_modal():
                     html.Button("Cancel", id="profile-switch-cancel", className="btn btn-outline", style={"fontSize": "13px", "flex": "1"}),
                 ], className="flex gap-2"),
             ], className="p-4"),
-        ], className="flex flex-col",
-           style={**_MODAL_BG, **_MODAL_CENTER, "width": "380px", "maxWidth": "90vw"}),
-    ], id="profile-switch-modal", role="dialog", **{"aria-modal": "true", "aria-labelledby": "profile-switch-title"},
-       style=_MODAL_OVERLAY)
+        ], className="tw-menu right flex flex-col",
+           style={"width": "300px", "maxWidth": "calc(100vw - 32px)"}),
+    ], id="profile-switch-modal", role="dialog", **{"aria-label": "Switch Profile"},
+       style={"display": "none"})
 
 
 def _contact_modal():
+    """Contact & Support — anchored dropdown popover from the help icon."""
+    from .controls import icon
     return html.Div([
+        html.Div(id="contact-backdrop", className="tw-backdrop", n_clicks=0),
         html.Div([
-            html.H3("Contact & Support", id="contact-title",
-                     className="text-lg font-semibold text-ink-900 dark:text-ink-50 mb-4 text-center"),
+            html.Div([
+                html.H3("Contact & Support", id="contact-title"),
+                html.Button(icon("x", 13), id="contact-cancel-x",
+                            className="icon-btn", style={"width": "26px", "height": "26px"},
+                            **{"aria-label": "Close"}),
+            ], className="tw-head"),
             html.Div([
                 html.H4("Contact Information",
-                         className="text-base font-semibold text-ink-700 dark:text-ink-100 mb-3"),
-                html.P("For technical support and inquiries:",
-                       className="text-sm text-ink-500 dark:text-ink-500 mb-2"),
+                         className="text-sm font-semibold text-ink-700 dark:text-ink-100 mb-2"),
                 html.Div([html.Strong("Email: "), html.A("support@portfolio-dashboard.com",
                           href="mailto:support@portfolio-dashboard.com",
                           style={"color": "var(--primary-400)", "textDecoration": "none"})],
-                         className="mb-2"),
+                         className="text-sm mb-1"),
                 html.Div([html.Strong("Phone: "), html.Span("+1 (555) 123-4567")],
-                         className="mb-4"),
-            ]),
-            html.Div([
-                html.H4("Feedback",
-                         className="text-base font-semibold text-ink-700 dark:text-ink-100 mb-3"),
-                html.P("Help us improve by sharing your thoughts:",
-                       className="text-sm text-ink-500 dark:text-ink-500 mb-3"),
-            ]),
-            html.Div([html.Button("Close", id="contact-close", className="btn btn-outline")],
-                     className="text-center"),
-        ], style={**_MODAL_BG, **_MODAL_CENTER, "padding": "30px", "width": "420px", "maxWidth": "90vw"}),
-    ], id="contact-modal", role="dialog", **{"aria-modal": "true", "aria-labelledby": "contact-title"},
-       style=_MODAL_OVERLAY)
+                         className="text-sm mb-3"),
+                html.P("Help us improve by sharing your thoughts.",
+                       className="text-xs text-ink-500 dark:text-ink-500 mb-3"),
+                html.Div([
+                    html.Button("Close", id="contact-close", className="btn btn-outline",
+                                style={"fontSize": "13px", "flex": "1"}),
+                ], className="tw-actions"),
+            ], className="tw-body"),
+        ], className="tw-menu right flex flex-col",
+           style={"width": "320px", "maxWidth": "calc(100vw - 32px)"}),
+    ], id="contact-modal", role="dialog", **{"aria-label": "Contact & Support"},
+       style={"display": "none"})
 
 
 def _portfolio_modal():
@@ -551,6 +607,7 @@ def _custom_metric_modal():
     }
 
     return html.Div([
+        html.Div(id="custom-metric-backdrop", className="tw-backdrop", n_clicks=0),
         html.Div([
             html.Header([
                 html.Div([
@@ -681,13 +738,14 @@ def _custom_metric_modal():
                     html.Div(id="custom-metric-saved-list"),
                 ], className="mt-4 pt-3", style={"borderTop": "1px solid var(--border-default)"}),
             ], className="p-4 flex-1 overflow-auto"),
-        ], className="flex flex-col",
-           style={**_MODAL_BG, **_MODAL_CENTER, "width": "500px", "maxWidth": "90vw", "maxHeight": "85vh", "overflow": "auto"}),
+        ], className="tw-menu right flex flex-col",
+           style={"width": "480px", "maxWidth": "calc(100vw - 32px)",
+                  "maxHeight": "calc(100vh - 110px)", "overflowY": "auto"}),
         # Store for editing mode (metric name being edited, None = new)
         dcc.Store(id="custom-metric-edit-name", data=None),
     ], id="custom-metric-modal", role="dialog",
-       **{"aria-modal": "true", "aria-labelledby": "custom-metric-title"},
-       style=_MODAL_OVERLAY)
+       **{"aria-label": "Custom Metrics"},
+       style={"display": "none"})
 
 
 def get_app_index_string():
@@ -719,16 +777,17 @@ def get_app_index_string():
         darkMode: 'class',
         theme: {{ extend: {{
           colors: {{
-            ink: {{ 900:'#141413',800:'#1c1c1a',700:'#242422',600:'#30302e',500:'#87867f',100:'#e8e6dc',50:'#f5f4ed' }},
+            ink: {{ 900:'#11131a',800:'#15171e',700:'#1c1f29',600:'#2a2e3a',500:'#8a92a3',100:'#e6e8ec',50:'#ffffff' }},
             brand: {{500:'{p500}',400:'{p400}',300:'{p400}'}}
           }},
           boxShadow: {{
-            soft: '0px 0px 0px 1px rgba(0,0,0,0.05)',
+            soft: '0 1px 2px rgba(0,0,0,0.04)',
             glow: 'none'
           }},
           fontFamily: {{
-            serif: ['Georgia', 'Times New Roman', 'serif'],
-            sans: ['Inter', 'system-ui', 'sans-serif']
+            serif: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
+            sans: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
+            mono: ['IBM Plex Mono', 'ui-monospace', 'monospace']
           }}
         }}}}
       }};
@@ -743,6 +802,9 @@ def get_app_index_string():
         --primary-600: {p600};
         --primary-700: {p700};
         --primary-glow: rgba({glow_rgb}, 0.12);
+        --primary-glow-rgb: {glow_rgb};
+        --primary-tint: rgba({glow_rgb}, 0.08);
+        --primary-border: rgba({glow_rgb}, 0.28);
       }}
       html.dark {{
         --primary-glow: rgba({glow_rgb}, 0.15);
@@ -751,7 +813,7 @@ def get_app_index_string():
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.tailwindcss.com">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     {{%metas%}}
     {{%favicon%}}
     {{%css%}}
@@ -771,17 +833,9 @@ def get_app_index_string():
         }} else {{
           document.documentElement.classList.add('dark');
         }}
-        // Restore saved accent color
-        var ac = localStorage.getItem('accent_color');
-        var p = ac && window.__IRIS_PALETTES && window.__IRIS_PALETTES[ac];
-        if (p) {{
-          var r = document.documentElement.style;
-          r.setProperty('--primary-400', p['400']);
-          r.setProperty('--primary-500', p['500']);
-          r.setProperty('--primary-600', p['600']);
-          r.setProperty('--primary-700', p['700']);
-          r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.12)');
-        }}
+        // Single fixed accent (matches the chart colors). Clear any stale
+        // runtime accent so the whole app stays one consistent blue.
+        localStorage.removeItem('accent_color');
       }})();
     </script>
   </body>

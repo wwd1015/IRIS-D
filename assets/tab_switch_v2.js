@@ -7,8 +7,8 @@
  *      that targets tab-content-container, hides when response arrives
  */
 (function () {
-    var ACTIVE = "px-3 py-1.5 rounded bg-ink-900 text-white";
-    var INACTIVE = "px-3 py-1.5 rounded hover:bg-slate-100 dark:hover:bg-ink-700";
+    var ACTIVE = "navtab active";
+    var INACTIVE = "navtab";
     var MIN_SHOW_MS = 300;
     var loadingStartedAt = 0;
     var hideTimer = null;

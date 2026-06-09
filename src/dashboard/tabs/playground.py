@@ -23,8 +23,8 @@ from ..utils.helpers import (
 _MAX_CARDS = 3
 
 _COLORS = [
-    "#c96442", "#4d8b6f", "#d97757", "#87867f", "#6da58b",
-    "#b85538", "#3d7a5f", "#a0472e", "#5e5d59", "#2d6a4f",
+    "#6B8AFF", "#A78BFA", "#34D399", "#F59E0B", "#FB7185", "#60A5FA",
+    "#0D9488", "#7C3AED", "#F97316", "#22D3EE", "#A3E635", "#E879F9",
     "#c9856a", "#b5725a", "#4d4c48", "#a06050", "#3d3d3a",
 ]
 
@@ -661,7 +661,7 @@ def _build_chart(
         if plot_type == "line":
             fig.add_trace(go.Scatter(
                 x=periods, y=y_vals, mode="lines",
-                line=dict(color="#c96442", width=2),
+                line=dict(color="#4B6BFB", width=2),
                 name=metric_label,
                 customdata=[[metric_label] for _ in periods],
             ))
@@ -669,7 +669,7 @@ def _build_chart(
             fig.add_trace(go.Bar(
                 x=periods, y=y_vals,
                 customdata=[[metric_label] for _ in periods],
-                marker_color="#c96442", name=metric_label,
+                marker_color="#4B6BFB", name=metric_label,
             ))
 
     all_periods = agg_df["_period"].unique().sort().to_list()

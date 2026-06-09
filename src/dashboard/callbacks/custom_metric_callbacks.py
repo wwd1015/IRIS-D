@@ -50,15 +50,17 @@ def register(app) -> None:
         [Output("custom-metric-modal", "style"),
          Output("custom-metric-save-status", "children", allow_duplicate=True)],
         [Input("custom-metric-btn", "n_clicks"),
-         Input("custom-metric-close-x", "n_clicks")],
+         Input("custom-metric-close-x", "n_clicks"),
+         Input("custom-metric-backdrop", "n_clicks")],
         State("custom-metric-modal", "style"),
         prevent_initial_call=True,
     )
-    def toggle_modal(open_clicks, close_clicks, current_style):
+    def toggle_modal(open_clicks, close_clicks, backdrop_clicks, current_style):
         trigger = ctx.triggered_id
+        style = dict(current_style) if current_style else {}
         if trigger == "custom-metric-btn":
-            return {**current_style, "display": "block"}, ""
-        return {**current_style, "display": "none"}, no_update
+            return {**style, "display": "block"}, ""
+        return {**style, "display": "none"}, no_update
 
     # ── Populate column dropdown on modal open or dataset change ──────────
 

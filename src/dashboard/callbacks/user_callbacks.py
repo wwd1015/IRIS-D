@@ -12,7 +12,10 @@ from dash import Input, Output, State, callback, callback_context, no_update
 
 from ..app_state import app_state
 from ..auth import user_management
-from ..utils.helpers import MODAL_SHOWN, MODAL_HIDDEN
+
+# Profile switch & contact are anchored dropdown popovers (display-toggled, not overlay):
+_POP_OPEN = {"display": "block"}
+_POP_CLOSE = {"display": "none"}
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +37,12 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
         [Input("profile-avatar-btn", "n_clicks"),
          Input("profile-switch-confirm", "n_clicks"),
          Input("profile-switch-cancel", "n_clicks"),
-         Input("profile-switch-cancel-x", "n_clicks")],
+         Input("profile-switch-cancel-x", "n_clicks"),
+         Input("profile-backdrop", "n_clicks")],
         [State("profile-switch-dropdown", "value")],
         prevent_initial_call=True,
     )
-    def handle_profile_switch_modal(avatar_clicks, confirm_clicks, cancel_clicks, cancel_x_clicks, selected_profile):
+    def handle_profile_switch_modal(avatar_clicks, confirm_clicks, cancel_clicks, cancel_x_clicks, backdrop_clicks, selected_profile):
         ctx = callback_context
         if not ctx.triggered:
             return no_update, no_update, no_update
@@ -48,27 +52,28 @@ def register(app) -> None:  # noqa: ARG001  (app kept for signature consistency)
         opts = [{"label": f"{u['name']} ({u['role']})", "value": u["name"]} for u in roster]
 
         if trigger == "profile-avatar-btn":
-            return MODAL_SHOWN, opts, user_management.get_current_user()
+            return _POP_OPEN, opts, user_management.get_current_user()
         if trigger in ("profile-switch-cancel", "profile-switch-cancel-x"):
-            return MODAL_HIDDEN, opts, user_management.get_current_user()
+            return _POP_CLOSE, opts, user_management.get_current_user()
         if trigger == "profile-switch-confirm" and selected_profile:
-            return MODAL_HIDDEN, opts, selected_profile
+            return _POP_CLOSE, opts, selected_profile
 
-        return MODAL_HIDDEN, opts, user_management.get_current_user()
+        return _POP_CLOSE, opts, user_management.get_current_user()
 
     @callback(
         Output("contact-modal", "style"),
-        [Input("contact-btn", "n_clicks"), Input("contact-close", "n_clicks")],
+        [Input("contact-btn", "n_clicks"), Input("contact-close", "n_clicks"),
+         Input("contact-cancel-x", "n_clicks"), Input("contact-backdrop", "n_clicks")],
         prevent_initial_call=True,
     )
-    def handle_contact_modal(contact_clicks, close_clicks):
+    def handle_contact_modal(contact_clicks, close_clicks, cancel_x_clicks, backdrop_clicks):
         ctx = callback_context
         if not ctx.triggered:
             return no_update
         trigger = ctx.triggered[0]["prop_id"].split(".")[0]
         if trigger == "contact-btn":
-            return MODAL_SHOWN
-        return MODAL_HIDDEN
+            return _POP_OPEN
+        return _POP_CLOSE
 
     @callback(
         [Output("current-user-store", "data"),

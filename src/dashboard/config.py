@@ -95,31 +95,50 @@ class AppSettings:
             raise ValueError(f"PORT must be between 1 and 65535, got {self.port}")
 
 
-# Color palettes — warm editorial tones inspired by Claude design system.
-# Change ``accent_color`` in UISettings to switch.
+# Color palettes — accents from the IRIS-D Redesign design system.
+# ``warmBlue`` is the default; the design's alternates + the legacy warm
+# editorial tones remain selectable via the runtime accent picker.
+# Change ``accent_color`` in UISettings to switch the default.
 COLOR_PALETTES: dict[str, dict[str, str]] = {
+    "warmBlue": {
+        "400": "#6B8AFF", "500": "#4B6BFB", "600": "#3B5BDB", "700": "#2B4BC7",
+        "glow": "75, 107, 251",  # RGB for rgba()
+    },
+    "emerald": {
+        "400": "#34D399", "500": "#10B981", "600": "#059669", "700": "#047857",
+        "glow": "16, 185, 129",
+    },
+    "amber": {
+        "400": "#FBBF24", "500": "#F59E0B", "600": "#D97706", "700": "#B45309",
+        "glow": "245, 158, 11",
+    },
+    "rose": {
+        "400": "#FB7185", "500": "#E11D48", "600": "#BE123C", "700": "#9F1239",
+        "glow": "225, 29, 72",
+    },
+    "violet": {
+        "400": "#A78BFA", "500": "#7C3AED", "600": "#6D28D9", "700": "#5B21B6",
+        "glow": "124, 58, 237",
+    },
+    "slate": {
+        "400": "#94A3B8", "500": "#64748B", "600": "#475569", "700": "#334155",
+        "glow": "100, 116, 139",
+    },
+    # Warm editorial tones (previous redesign) — still selectable
     "terracotta": {
         "400": "#d97757", "500": "#c96442", "600": "#b85538", "700": "#a0472e",
-        "glow": "201, 100, 66",  # RGB for rgba()
+        "glow": "201, 100, 66",
     },
     "sage": {
         "400": "#6DA58B", "500": "#4D8B6F", "600": "#3D7A5F", "700": "#2D6A4F",
         "glow": "77, 139, 111",
     },
-    "stone": {
-        "400": "#87867f", "500": "#5e5d59", "600": "#4d4c48", "700": "#3d3d3a",
-        "glow": "94, 93, 89",
-    },
-    "clay": {
-        "400": "#c9856a", "500": "#b5725a", "600": "#a06050", "700": "#8b5045",
-        "glow": "181, 114, 90",
-    },
 }
 
-# Legacy alias — keep backward compat for saved user prefs referencing "blue"
-COLOR_PALETTES["blue"] = COLOR_PALETTES["terracotta"]
+# Legacy aliases — keep backward compat for saved user prefs
+COLOR_PALETTES["blue"] = COLOR_PALETTES["warmBlue"]
 COLOR_PALETTES["coral"] = COLOR_PALETTES["terracotta"]
-COLOR_PALETTES["slate"] = COLOR_PALETTES["stone"]
+COLOR_PALETTES["stone"] = COLOR_PALETTES["slate"]
 
 
 @dataclass(frozen=True)
@@ -128,7 +147,7 @@ class UISettings:
     assets_folder: str = "assets"
     default_theme: str = "dark"
     accent_color: str = field(
-        default_factory=lambda: os.environ.get("ACCENT_COLOR", "terracotta")
+        default_factory=lambda: os.environ.get("ACCENT_COLOR", "warmBlue")
     )
 
 

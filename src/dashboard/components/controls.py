@@ -31,6 +31,18 @@ from .cards import CallbackSpec
 from .signals import Signal
 
 
+def icon(name: str, size: int = 16) -> html.Span:
+    """Return a monochrome mask-icon span that inherits ``currentColor``.
+
+    Icon glyphs are defined as CSS ``mask-image`` rules (``.ic-<name>``) in
+    ``assets/style.css`` so they adapt to theme and hover automatically.
+    """
+    return html.Span(
+        className=f"ic ic-{name}",
+        style={"width": f"{size}px", "height": f"{size}px"},
+    )
+
+
 # =============================================================================
 # REGISTRY
 # =============================================================================
@@ -120,13 +132,17 @@ class PortfolioSelector(GlobalControl):
     def render(self, **kwargs) -> html.Div:
         selected = kwargs.get("selected_portfolio", self._selected)
         options = kwargs.get("available_portfolios", self._options)
+        _btn = {"fontSize": "12px", "flex": "1"}
         return html.Div([
-            html.Span("Portfolio", className="control-label"),
             html.Button(
                 id="portfolio-selector-btn",
-                children=selected or "Select Portfolio",
+                children=[
+                    html.Span(className="portfolio-pill-dot"),
+                    html.Span(selected or "Select Portfolio"),
+                    html.Span("▾", className="portfolio-pill-caret"),
+                ],
                 n_clicks=0,
-                className="header-btn portfolio-selector-btn",
+                className="portfolio-pill",
                 title="Click to change portfolio",
             ),
             dcc.Dropdown(
@@ -135,7 +151,33 @@ class PortfolioSelector(GlobalControl):
                 value=selected,
                 style={"display": "none"},
             ),
-        ], className="ml-4")
+            html.Div([
+                html.Div(id="portfolio-backdrop", className="tw-backdrop", n_clicks=0),
+                html.Div([
+                    html.Div([
+                        html.H3("Portfolio"),
+                        html.Button(icon("x", 13), id="portfolio-modal-cancel",
+                                    className="icon-btn", style={"width": "26px", "height": "26px"},
+                                    **{"aria-label": "Close"}),
+                    ], className="tw-head"),
+                    html.Div([
+                        html.Label("Select a portfolio or create a new one", className="tw-label"),
+                        dcc.Dropdown(id="portfolio-modal-dropdown", placeholder="Choose portfolio…",
+                                     className="text-xs", style={"fontSize": "12px", "marginBottom": "12px"}),
+                        html.Div([
+                            html.Button("Select", id="portfolio-select-confirm",
+                                        className="btn btn-primary", style=_btn),
+                            html.Button("Update", id="portfolio-update-btn",
+                                        className="btn btn-outline", style=_btn, disabled=True),
+                            html.Button("Delete", id="portfolio-delete-btn",
+                                        className="btn btn-danger", style=_btn, disabled=True),
+                        ], className="tw-actions"),
+                        html.Div(id="portfolio-delete-error", className="text-red-500 text-xs mt-2",
+                                 style={"textAlign": "center"}),
+                    ], className="tw-body"),
+                ], className="tw-menu", role="dialog", **{"aria-label": "Portfolio"}),
+            ], id="portfolio-modal", style={"display": "none"}),
+        ], className="tw-wrap")
 
     def callback_specs(self) -> list[CallbackSpec]:
         # The portfolio dropdown callback is handled by the tab navigation
@@ -150,28 +192,24 @@ class ProfileAvatar(GlobalControl):
     id = "profile-avatar"
     label = "Profile"
     position = ControlPosition.RIGHT
-    order = 20
+    order = 30
 
     def render(self, **kwargs) -> html.Button:
         from ..auth import user_management
         name = user_management.get_current_user()
         words = name.split() if name else []
         initials = (words[0][0] + words[-1][0]).upper() if len(words) >= 2 else (name[0].upper() if name else "?")
-        return html.Button(
-            id="profile-avatar-btn",
-            children=initials,
-            n_clicks=0,
-            className=(
-                "ml-2 h-8 w-8 rounded-full text-white text-sm font-semibold "
-                "flex items-center justify-center cursor-pointer "
-                "transition-all duration-200"
+        from .layout import _profile_switch_modal
+        return html.Div([
+            html.Button(
+                id="profile-avatar-btn",
+                children=initials,
+                n_clicks=0,
+                className="avatar",
+                title="Switch Profile",
             ),
-            style={
-                "background": "var(--primary-500)",
-                "boxShadow": "none",
-            },
-            title="Switch Profile",
-        )
+            _profile_switch_modal(),
+        ], className="tw-wrap")
 
 
 class ThemeToggle(GlobalControl):
@@ -180,19 +218,21 @@ class ThemeToggle(GlobalControl):
     id = "theme-toggle"
     label = "Theme"
     position = ControlPosition.RIGHT
-    order = 30
+    order = 20
 
     def render(self, **kwargs) -> html.Button:
         return html.Button(
-            "🌙",
+            html.Span(id="theme-toggle-icon", className="ic ic-moon",
+                      style={"width": "15px", "height": "15px"}),
             id="theme-toggle",
             n_clicks=0,
-            className="header-btn theme-toggle-btn",
+            className="icon-btn theme-toggle-btn",
+            title="Toggle theme",
         )
 
     def callback_specs(self) -> list[CallbackSpec]:
         return [CallbackSpec(
-            outputs=[("theme-toggle", "children"), (Signal.THEME, "data")],
+            outputs=[("theme-toggle-icon", "className"), (Signal.THEME, "data")],
             inputs=[("theme-toggle", "n_clicks")],
             client_side="""\
             function(n_clicks){
@@ -206,11 +246,12 @@ class ThemeToggle(GlobalControl):
               }
               if (n_clicks && n_clicks > 0){
                 const isDark = root.classList.toggle('dark');
-                localStorage.setItem('theme', isDark ? 'dark' : 'light');
-                return [isDark ? '🌙' : '☀️', isDark ? 'dark' : 'light'];
+                const mode = isDark ? 'dark' : 'light';
+                localStorage.setItem('theme', mode);
+                return ['ic ' + (isDark ? 'ic-moon' : 'ic-sun'), mode];
               }
               var mode = root.classList.contains('dark') ? 'dark' : 'light';
-              return [mode === 'dark' ? '🌙' : '☀️', mode];
+              return ['ic ' + (mode === 'dark' ? 'ic-moon' : 'ic-sun'), mode];
             }
             """,
         )]
@@ -222,14 +263,14 @@ class AccentColorPicker(GlobalControl):
     id = "accent-color-picker"
     label = "Accent Color"
     position = ControlPosition.RIGHT
-    order = 31  # right after theme toggle
+    order = 22  # right after theme toggle
 
     def render(self, **kwargs) -> html.Button:
         return html.Button(
-            "🎨",
+            icon("sliders", 15),
             id="accent-color-btn",
             n_clicks=0,
-            className="header-btn",
+            className="icon-btn",
             title="Change accent color",
         )
 
@@ -256,6 +297,9 @@ class AccentColorPicker(GlobalControl):
                 r.setProperty('--primary-600', p['600']);
                 r.setProperty('--primary-700', p['700']);
                 r.setProperty('--primary-glow', 'rgba(' + p.glow + ', 0.12)');
+                r.setProperty('--primary-glow-rgb', p.glow);
+                r.setProperty('--primary-tint', 'rgba(' + p.glow + ', 0.08)');
+                r.setProperty('--primary-border', 'rgba(' + p.glow + ', 0.28)');
               }
               return 'Accent: ' + cur;
             }
@@ -272,19 +316,65 @@ class TimeWindowButton(GlobalControl):
     order = 15  # right after portfolio selector
 
     def render(self, **kwargs) -> html.Div:
+        from datetime import datetime as _dt
+        import polars as pl
         from ..app_state import app_state
+
         start, end = app_state.get_time_window()
         label = _format_time_label(start, end)
+
+        all_dates = (
+            app_state.facilities_df["reporting_date"].unique().sort().cast(pl.Utf8).to_list()
+            if not app_state.facilities_df.is_empty() else []
+        )
+        options = [
+            {"label": _dt.fromisoformat(d[:10]).strftime("%b %Y"), "value": d[:10]}
+            for d in all_dates
+        ]
+        start_val = start[:10] if start else (all_dates[0][:10] if all_dates else None)
+        end_val = end[:10] if end else (all_dates[-1][:10] if all_dates else None)
+
         return html.Div([
-            html.Span("Time Window", className="control-label"),
             html.Button(
-                label,
-                id="time-window-btn",
-                n_clicks=0,
-                className="header-btn portfolio-selector-btn",
+                [html.Span(className="dot"), html.Span(label),
+                 html.Span("▾", className="portfolio-pill-caret", style={"marginLeft": "4px"})],
+                id="time-window-btn", n_clicks=0, className="time-pill",
                 title="Change time window",
             ),
-        ])
+            html.Div([
+                html.Div(id="time-window-backdrop", className="tw-backdrop", n_clicks=0),
+                html.Div([
+                    html.Div([
+                        html.H3("Time Window"),
+                        html.Button(icon("x", 13), id="time-window-cancel-x",
+                                    className="icon-btn", style={"width": "26px", "height": "26px"},
+                                    **{"aria-label": "Close"}),
+                    ], className="tw-head"),
+                    html.Div([
+                        html.Div([
+                            html.Div([
+                                html.Label("Start month", className="tw-label"),
+                                dcc.Dropdown(id="time-window-start-dropdown", options=options,
+                                             value=start_val, clearable=False,
+                                             className="text-xs", style={"fontSize": "12px"}),
+                            ], className="tw-field"),
+                            html.Div([
+                                html.Label("End month", className="tw-label"),
+                                dcc.Dropdown(id="time-window-end-dropdown", options=options,
+                                             value=end_val, clearable=False,
+                                             className="text-xs", style={"fontSize": "12px"}),
+                            ], className="tw-field"),
+                        ], className="tw-fields"),
+                        html.Div([
+                            html.Button("Apply", id="time-window-apply", n_clicks=0, className="tw-btn primary"),
+                            html.Button("Show All", id="time-window-reset", n_clicks=0, className="tw-btn outline"),
+                        ], className="tw-actions"),
+                        dcc.Store(id="time-window-dates", data=all_dates),
+                        html.Div(id="time-window-cancel", style={"display": "none"}),
+                    ], className="tw-body"),
+                ], className="tw-menu", role="dialog", **{"aria-label": "Time window"}),
+            ], id="time-window-modal", style={"display": "none"}),
+        ], className="tw-wrap")
 
 
 def _format_time_label(start: str | None, end: str | None) -> str:
@@ -307,17 +397,17 @@ class CustomMetricButton(GlobalControl):
     power_user = True
 
     def render(self, **kwargs) -> html.Div:
+        from .layout import _custom_metric_modal
         return html.Div([
-            html.Span("Metrics", className="control-label"),
             html.Button(
-                "fx",
+                icon("sparkles", 15),
                 id="custom-metric-btn",
                 n_clicks=0,
-                className="header-btn portfolio-selector-btn",
+                className="icon-btn",
                 title="Custom Metrics",
-                style={"fontStyle": "italic"},
             ),
-        ])
+            _custom_metric_modal(),
+        ], className="tw-wrap")
 
 
 class PowerUserToggle(GlobalControl):
@@ -326,16 +416,16 @@ class PowerUserToggle(GlobalControl):
     id = "power-user-toggle"
     label = "Power User"
     position = ControlPosition.RIGHT
-    order = 25
+    order = 24
 
     def render(self, **kwargs) -> html.Button:
         return html.Button(
-            "\u2699\ufe0f",
+            icon("bolt", 15),
             id="power-user-toggle-btn",
             n_clicks=0,
-            className="header-btn power-user-toggle-btn",
+            className="icon-btn power-user-toggle-btn",
             title="Power User Mode",
-            style={"fontSize": "16px", "opacity": "0.6"},
+            style={"opacity": "0.6"},
         )
 
     def callback_specs(self) -> list[CallbackSpec]:
@@ -352,12 +442,12 @@ class PowerUserToggle(GlobalControl):
               });
               if (active){
                 return {
-                  "fontSize": "16px", "opacity": "1",
-                  "border": "1px solid var(--primary-500)",
-                  "boxShadow": "none"
+                  "opacity": "1",
+                  "background": "var(--primary-tint)",
+                  "color": "var(--primary-400)"
                 };
               }
-              return {"fontSize": "16px", "opacity": "0.6"};
+              return {"opacity": "0.6"};
             }
             """,
         ))
@@ -407,14 +497,41 @@ class ContactButton(GlobalControl):
     id = "contact-btn"
     label = "Contact"
     position = ControlPosition.RIGHT
-    order = 40
+    order = 26
+
+    def render(self, **kwargs) -> html.Div:
+        from .layout import _contact_modal
+        return html.Div([
+            html.Button(
+                icon("help", 15),
+                id="contact-btn",
+                n_clicks=0,
+                className="icon-btn",
+                title="Contact & Support",
+            ),
+            _contact_modal(),
+        ], className="tw-wrap")
+
+
+class CommandPaletteButton(GlobalControl):
+    """Search-style trigger that opens the ⌘K command palette."""
+
+    id = "command-palette"
+    label = "Search"
+    position = ControlPosition.LEFT
+    order = 17  # after the time-window pill
 
     def render(self, **kwargs) -> html.Button:
         return html.Button(
-            "Contact",
-            id="contact-btn",
+            [
+                icon("search", 13),
+                html.Span("Search facilities, metrics, portfolios…"),
+                html.Span("⌘K", className="kbd"),
+            ],
+            id="command-palette-trigger",
             n_clicks=0,
-            className="header-btn",
+            className="cmd-hint",
+            title="Open command palette (⌘K)",
         )
 
 
@@ -424,9 +541,12 @@ class ContactButton(GlobalControl):
 
 register_global_control(PortfolioSelector())
 register_global_control(TimeWindowButton())
+register_global_control(CommandPaletteButton())
 register_global_control(ProfileAvatar())
 register_global_control(ThemeToggle())
-register_global_control(AccentColorPicker())
+# AccentColorPicker intentionally NOT registered: runtime accent switching
+# desynced the CSS chrome from the (fixed-color) chart series. The app uses a
+# single accent (config.settings.ui.accent_color → injected --primary-*).
 register_global_control(CustomMetricButton())
 register_global_control(PowerUserToggle())
 register_global_control(ContactButton())

@@ -175,3 +175,11 @@ Thumbs.db
 # Temporary files
 *.tmp
 *.temp
+.gstack/
+
+# Generated / runtime data (not source)
+data/bank_risk.db
+data/market_insight.json
+
+# Unrelated nested repo
+/impeccable/

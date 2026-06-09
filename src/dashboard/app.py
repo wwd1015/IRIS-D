@@ -49,6 +49,22 @@ else:
 app = dash.Dash(__name__, suppress_callback_exceptions=True, assets_folder=_assets_folder)
 server = app.server
 
+
+# Force browsers to revalidate the index + assets (style.css, JS) on every load
+# so design/CSS changes always show. This is an internal tool, so disabling the
+# asset cache is the right trade — it prevents stale cached stylesheets.
+from flask import request as _flask_request
+
+
+@server.after_request
+def _no_asset_cache(resp):
+    path = _flask_request.path or ""
+    if path == "/" or path.startswith("/assets/") or path.startswith("/_dash-"):
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        resp.headers["Pragma"] = "no-cache"
+        resp.headers["Expires"] = "0"
+    return resp
+
 from .components.layout import get_app_index_string, create_layout
 app.index_string = get_app_index_string()
 
@@ -123,8 +139,8 @@ def _build_tab_navigation_callback() -> None:
         active = get_tab(active_tab_id)
         content = active.render(tab_ctx) if active else html.Div("Tab not found")
 
-        active_class = "px-3 py-1.5 rounded bg-ink-900 text-white"
-        inactive_class = "px-3 py-1.5 rounded hover:bg-ink-50 dark:hover:bg-ink-600"
+        active_class = "navtab active"
+        inactive_class = "navtab"
         classes = [active_class if tid == active_tab_id else inactive_class for tid in tab_ids]
 
         return [content, active_tab_id] + classes

@@ -2,9 +2,18 @@
 Time Window callbacks — modal open/close, apply, and global state update.
 """
 
-from dash import Input, Output, State, callback, no_update, callback_context
+from dash import Input, Output, State, callback, html, no_update, callback_context
 
 from ..utils.helpers import MODAL_SHOWN, MODAL_HIDDEN
+
+
+def _pill_children(label: str):
+    """Pill content matching TimeWindowButton.render (dot + label + caret)."""
+    return [
+        html.Span(className="dot"),
+        html.Span(label),
+        html.Span("▾", className="portfolio-pill-caret", style={"marginLeft": "4px"}),
+    ]
 
 
 def register(app):
@@ -14,6 +23,7 @@ def register(app):
     @callback(
         Output("time-window-modal", "style"),
         [Input("time-window-btn", "n_clicks"),
+         Input("time-window-backdrop", "n_clicks"),
          Input("time-window-cancel", "n_clicks"),
          Input("time-window-cancel-x", "n_clicks"),
          Input("time-window-apply", "n_clicks"),
@@ -22,17 +32,16 @@ def register(app):
         State("time-window-modal", "style"),
         prevent_initial_call=True,
     )
-    def toggle_modal(open_clicks, cancel_clicks, cancel_x_clicks,
+    def toggle_modal(open_clicks, backdrop_clicks, cancel_clicks, cancel_x_clicks,
                      apply_clicks, reset_clicks, confirm_clicks, current_style):
+        # Anchored dropdown popover: time-window-btn opens it; everything else
+        # (backdrop click, close, apply, reset, perf-confirm) closes it.
         ctx = callback_context
         if not ctx.triggered:
             return no_update
         trigger = ctx.triggered[0]["prop_id"].split(".")[0]
         style = dict(current_style) if current_style else {}
-        if trigger == "time-window-btn":
-            style["display"] = "block"
-        else:
-            style["display"] = "none"
+        style["display"] = "block" if trigger == "time-window-btn" else "none"
         return style
 
     # Apply button → update store + button label + app_state
@@ -72,7 +81,7 @@ def register(app):
                 label = _format_time_label(all_dates[0][:10], all_dates[-1][:10])
             else:
                 label = _format_time_label(None, None)
-            return None, label, no_update
+            return None, _pill_children(label), no_update
 
         if trigger == "perf-warning-confirm":
             # User confirmed — apply Show All
@@ -81,7 +90,7 @@ def register(app):
                 label = _format_time_label(all_dates[0][:10], all_dates[-1][:10])
             else:
                 label = _format_time_label(None, None)
-            return None, label, MODAL_HIDDEN
+            return None, _pill_children(label), MODAL_HIDDEN
 
         # Apply button
         if not start_val or not end_val:
@@ -89,7 +98,7 @@ def register(app):
 
         app_state.set_time_window(start_val, end_val)
         label = _format_time_label(start_val, end_val)
-        return {"start": start_val, "end": end_val}, label, no_update
+        return {"start": start_val, "end": end_val}, _pill_children(label), no_update
 
     # Cancel warning modal
     @callback(

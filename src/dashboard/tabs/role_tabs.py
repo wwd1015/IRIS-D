@@ -64,7 +64,7 @@ def _build_rating_distribution(df: pl.DataFrame):
     counts = df["obligor_rating"].value_counts().sort("obligor_rating")
     ratings = counts["obligor_rating"].to_list()
     vals = counts["count"].to_list()
-    colors = ["#4d8b6f" if r <= 13 else "#d97757" if r <= 15 else "#b53333" for r in ratings]
+    colors = ["#22c55e" if r <= 13 else "#f59e0b" if r <= 15 else "#ef4444" for r in ratings]
     fig.add_trace(go.Bar(x=[str(r) for r in ratings], y=vals, marker_color=colors))
     fig.update_layout(**plotly_theme(
         showlegend=False, height=400,
@@ -205,7 +205,7 @@ def _build_hist_chart(df, portfolios, portfolio, metric):
     ts = filtered.group_by("reporting_date").agg(pl.col(metric).mean()).sort("reporting_date")
     fig.add_trace(go.Scatter(
         x=ts["reporting_date"].to_list(), y=ts[metric].to_list(),
-        mode="lines+markers", line=dict(color="#c96442", width=2),
+        mode="lines+markers", line=dict(color="#4B6BFB", width=2),
     ))
     fig.update_layout(**plotly_theme(
         showlegend=False, height=350,
@@ -222,7 +222,7 @@ def _build_distribution(df: pl.DataFrame, metric):
         fig.update_layout(**plotly_theme(showlegend=False), height=350)
         return fig
     vals = df[metric].drop_nulls().to_list()
-    fig.add_trace(go.Histogram(x=vals, nbinsx=30, marker_color="#c96442"))
+    fig.add_trace(go.Histogram(x=vals, nbinsx=30, marker_color="#4B6BFB"))
     fig.update_layout(**plotly_theme(
         showlegend=False, height=350,
         xaxis=dict(title=metric.replace("_", " ").title(),
@@ -337,7 +337,8 @@ def _build_backtest_summary(df: pl.DataFrame):
 
 # ── Register all ─────────────────────────────────────────────────────────────
 
-register_tab(SIRAnalysisTab())
+# SIR Analysis tab retired — class kept for reference but not registered.
+# register_tab(SIRAnalysisTab())
 register_tab(LocationAnalysisTab())
 register_tab(FinancialProjectionTab())
 register_tab(ModelBacktestingTab())

@@ -128,7 +128,9 @@ class PortfolioTrendTab(BaseTab):
                                    filename=f"portfolio_trend_{metric}.csv")
 
 
-register_tab(PortfolioTrendTab())
+# Portfolio Trend tab retired — implementation kept for reference but not
+# registered, so it no longer appears in the nav. Re-enable by uncommenting.
+# register_tab(PortfolioTrendTab())
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
@@ -165,12 +167,12 @@ def _build_trend_chart(df, portfolios, selected, benchmark, metric, agg):
     dates, vals = _get_timeseries(df, portfolios, selected, metric, agg)
     if dates:
         fig.add_trace(go.Scatter(x=dates, y=vals, mode="lines+markers", name="Selected",
-                                 line=dict(color="#c96442", width=3)))
+                                 line=dict(color="#4B6BFB", width=3)))
     if benchmark:
         bd, bv = _get_timeseries(df, portfolios, benchmark, metric, agg)
         if bd:
             fig.add_trace(go.Scatter(x=bd, y=bv, mode="lines+markers", name="Benchmark",
-                                     line=dict(color="#4d8b6f", width=3, dash="dash")))
+                                     line=dict(color="#34D399", width=3, dash="dash")))
     theme = plotly_theme(
         height=400,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),

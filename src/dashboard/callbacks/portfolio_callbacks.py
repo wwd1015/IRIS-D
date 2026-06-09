@@ -18,6 +18,10 @@ from ..app_state import app_state, AppState
 from ..auth import user_management
 from ..data.registry import DatasetRegistry
 from ..utils.helpers import MODAL_SHOWN, MODAL_HIDDEN
+
+# Portfolio selector is an anchored dropdown popover (not a center modal):
+_POP_OPEN = {"display": "block"}
+_POP_CLOSE = {"display": "none"}
 from .. import config
 
 logger = logging.getLogger(__name__)
@@ -98,17 +102,18 @@ def register(app) -> None:  # noqa: ARG001
          Output("portfolio-modal-dropdown", "value"),
          Output("portfolio-delete-error", "children")],
         [Input("portfolio-selector-btn", "n_clicks"),
-         Input("portfolio-modal-cancel", "n_clicks")],
+         Input("portfolio-modal-cancel", "n_clicks"),
+         Input("portfolio-backdrop", "n_clicks")],
         prevent_initial_call=True,
     )
-    def toggle_portfolio_modal(btn_clicks, cancel_clicks):
+    def toggle_portfolio_modal(btn_clicks, cancel_clicks, backdrop_clicks):
         ctx = callback_context
         if not ctx.triggered:
             return no_update, no_update, no_update, no_update
         trigger = ctx.triggered[0]["prop_id"].split(".")[0]
         if trigger == "portfolio-selector-btn":
-            return MODAL_SHOWN, _build_modal_opts(), None, ""
-        return MODAL_HIDDEN, no_update, no_update, ""
+            return _POP_OPEN, _build_modal_opts(), None, ""
+        return _POP_CLOSE, no_update, no_update, ""
 
     @callback(
         [Output("portfolio-update-btn", "disabled"),
@@ -149,7 +154,7 @@ def register(app) -> None:  # noqa: ARG001
         if selected == _CREATE_NEW:
             initial_state = [{"column": None, "values": []}]
             ref_opts = [{"label": p, "value": p} for p in app_state.available_portfolios]
-            return (no_update, no_update, no_update, MODAL_HIDDEN, MODAL_SHOWN,
+            return (no_update, no_update, no_update, _POP_CLOSE, MODAL_SHOWN,
                     initial_state, _render_filter_levels(initial_state),
                     None, "Create New Portfolio", "", False,
                     ref_opts, None)
@@ -157,7 +162,7 @@ def register(app) -> None:  # noqa: ARG001
         user_management.set_last_active_portfolio(
             user_management.get_current_user(), selected,
         )
-        return (selected, selected, _build_portfolio_opts(), MODAL_HIDDEN,
+        return (selected, selected, _build_portfolio_opts(), _POP_CLOSE,
                 no_update, no_update, no_update,
                 no_update, no_update, no_update, no_update,
                 no_update, no_update)
@@ -188,7 +193,7 @@ def register(app) -> None:  # noqa: ARG001
         existing_filters = criteria.get("filters", [])
         state = existing_filters if existing_filters else [{"column": None, "values": []}]
 
-        return (MODAL_HIDDEN, MODAL_SHOWN,
+        return (_POP_CLOSE, MODAL_SHOWN,
                 state, _render_filter_levels(state),
                 selected, f"Update Portfolio: {selected}",
                 selected, False)

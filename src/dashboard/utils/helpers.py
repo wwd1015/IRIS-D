@@ -17,9 +17,11 @@ import plotly.graph_objects as go
 # MODAL OVERLAY STYLES
 # =============================================================================
 
+# Blurred backdrop matches the command-palette overlay so all popups feel consistent.
 MODAL_SHOWN: dict[str, str] = {
     "position": "fixed", "top": "0", "left": "0", "width": "100%",
-    "height": "100%", "backgroundColor": "rgba(0,0,0,0.5)",
+    "height": "100%", "backgroundColor": "rgba(0,0,0,0.45)",
+    "backdropFilter": "blur(4px)", "WebkitBackdropFilter": "blur(4px)",
     "zIndex": "1000", "display": "block",
 }
 MODAL_HIDDEN: dict[str, str] = {"display": "none"}
@@ -29,11 +31,18 @@ MODAL_HIDDEN: dict[str, str] = {"display": "none"}
 # PLOTLY THEME
 # =============================================================================
 
+# Shared categorical palette for segmented charts (from the IRIS-D Redesign).
+# Text/gridline colors are overridden by CSS so they adapt to light/dark mode.
+SEGMENT_COLORS: list[str] = [
+    "#6B8AFF", "#A78BFA", "#34D399", "#F59E0B", "#FB7185", "#60A5FA",
+    "#0D9488", "#7C3AED", "#F97316", "#22D3EE", "#A3E635", "#E879F9",
+]
+
 _PLOTLY_DEFAULTS: dict[str, Any] = dict(
     paper_bgcolor="rgba(0,0,0,0)",
     plot_bgcolor="rgba(0,0,0,0)",
-    font=dict(family="Inter, system-ui, sans-serif", color="#b0aea5", size=12),
-    margin=dict(l=40, r=20, t=30, b=40),
+    font=dict(family="'IBM Plex Mono', ui-monospace, monospace", color="#8a92a3", size=11),
+    margin=dict(l=44, r=16, t=24, b=36),
     xaxis=dict(
         gridcolor="rgba(255,255,255,0.06)",
         zerolinecolor="rgba(255,255,255,0.06)",
