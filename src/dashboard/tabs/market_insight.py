@@ -45,6 +45,40 @@ class MarketInsightTab(BaseTab):
     tier = "gold"
     tier_tooltip = "Live macro / market-risk monitor"
 
+    # ── Overview digest contribution (market risk pulse) ──
+    def overview_summary(self, ctx: TabContext):
+        from ..utils.helpers import sparkline_svg
+        snap = market.get_snapshot()
+        inds = snap.get("indicators", [])
+        if not inds:
+            return None
+        verdict_color = _VERDICT_COLOR.get(snap.get("verdict"), "var(--amber-500)")
+        rank = {"red": 0, "yellow": 1, "green": 2}
+        top = sorted(inds, key=lambda i: rank.get(i.get("status"), 3))[:4]
+        spark = history.composite_history()
+
+        rows = [html.Div([
+            html.Span(i.get("status", ""), className=f"mkt-status-pill {i.get('status', 'green')}"),
+            html.Span(i.get("name", ""), className="ov-pulse-name"),
+            html.Span(str(i.get("value_display", "—")).split(" ")[0], className="ov-pulse-val"),
+        ], className="ov-pulse-row" + (" first" if k == 0 else "")) for k, i in enumerate(top)]
+
+        body = html.Div([
+            html.Div([
+                html.Span(f"{snap.get('weighted_risk_score', 0):.1f}",
+                          className="ov-pulse-score", style={"color": verdict_color}),
+                html.Span(["composite · ",
+                           html.Span(snap.get("verdict_label", ""),
+                                     style={"color": verdict_color, "fontWeight": "600"})],
+                          className="ov-pulse-verdict"),
+            ], style={"display": "flex", "alignItems": "baseline", "gap": "10px", "flexWrap": "wrap"}),
+            html.Div(sparkline_svg(spark, color="#b08415", h=40, fill=False),
+                     className="ov-pulse-spark"),
+            html.Div(rows, className="ov-pulse-list"),
+        ])
+        return {"title": "Market risk", "body": body, "span": 1,
+                "link_label": "Full monitor", "order": 30}
+
     def render(self, ctx: TabContext):
         snap = market.get_snapshot()
         return html.Div([
@@ -108,8 +142,7 @@ def _meta_text(snap: dict) -> list:
             f" of {total}",
         ], className="mkt-dist", style={"fontSize": "11px"}),
         html.Span(
-            f"Issue #{snap.get('issue_number', 1)} · {snap.get('as_of_date', '')} "
-            "· click any card for history",
+            f"As of {snap.get('as_of_date', '')} · click any card for history",
             className="mkt-eyebrow", style={"textTransform": "none",
                                             "letterSpacing": "0.02em"},
         ),

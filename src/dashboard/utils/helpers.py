@@ -60,6 +60,34 @@ _PLOTLY_DEFAULTS: dict[str, Any] = dict(
 )
 
 
+def sparkline_svg(values, color: str = "#9d3a4a", w: int = 240, h: int = 44,
+                  fill: bool = True):
+    """Return a compact inline-SVG line as an ``html.Img`` (no Plotly needed).
+
+    Colors are passed as hex (use mid-tones that read on both Ledger themes).
+    Used by the Overview digest panels and KPI sparklines.
+    """
+    from dash import html
+    pts = [v for v in (values or []) if v is not None]
+    if len(pts) < 2:
+        return html.Span()
+    pad = 3
+    lo, hi = min(pts), max(pts)
+    rng = (hi - lo) or 1
+    n = len(pts)
+    xs = [pad + i * (w - 2 * pad) / (n - 1) for i in range(n)]
+    ys = [h - pad - ((p - lo) * (h - 2 * pad) / rng) for p in pts]
+    line = " ".join(f"{'M' if i == 0 else 'L'}{xs[i]:.1f},{ys[i]:.1f}" for i in range(n))
+    c = color.replace("#", "%23")
+    parts = f"%3Csvg xmlns='http://www.w3.org/2000/svg' width='{w}' height='{h}'%3E"
+    if fill:
+        area = f"{line} L{xs[-1]:.1f},{h - pad:.1f} L{xs[0]:.1f},{h - pad:.1f} Z"
+        parts += f"%3Cpath d='{area}' fill='{c}' opacity='0.10'/%3E"
+    parts += f"%3Cpath d='{line}' fill='none' stroke='{c}' stroke-width='1.5'/%3E%3C/svg%3E"
+    return html.Img(src="data:image/svg+xml," + parts, width=w, height=h,
+                    style={"display": "block", "width": "100%", "height": "auto"})
+
+
 def plotly_theme(**overrides: Any) -> dict[str, Any]:
     """Return a Plotly ``update_layout`` dict with the standard IRIS-D theme.
 

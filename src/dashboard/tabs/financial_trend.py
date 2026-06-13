@@ -47,6 +47,44 @@ class FinancialTrendTab(BaseTab):
     tier = "silver"
     tier_tooltip = "Borrower credit fundamentals vs. covenants"
 
+    # ── Overview digest contribution (borrower credit health) ──
+    def overview_summary(self, ctx: TabContext):
+        from ..utils.helpers import sparkline_svg
+        if ctx.selected_portfolio in ctx.portfolios:
+            pf = _filter(ctx.facilities_df, ctx.portfolios[ctx.selected_portfolio])
+        else:
+            pf = ctx.facilities_df
+        if pf is None or pf.is_empty() or "reporting_date" not in pf.columns:
+            return None
+
+        m = FIN_METRICS["dscr"]
+        _, vals = _period_series(pf, "dscr", "monthly")
+        vals = [v for v in vals if v is not None]
+        if len(vals) < 2:
+            return None
+        cur = vals[-1]
+        healthy = not _breached(cur, m["covenant"], m["dir"])
+        nbreach = _count_breaches(pf)
+
+        body = html.Div([
+            html.Div([
+                html.Div([
+                    html.Div(_fmt(cur, m["fmt"]), className="ov-stat-value",
+                             style={"color": "var(--text-primary)" if healthy else "var(--red-500)"}),
+                    html.Div("DSCR · vs 1.25x covenant", className="ov-stat-cap"),
+                ]),
+                html.Div([
+                    html.Div(str(nbreach), className="ov-stat-value",
+                             style={"color": "var(--red-500)" if nbreach else "var(--green-500)"}),
+                    html.Div("covenant breaches", className="ov-stat-cap"),
+                ], style={"textAlign": "right"}),
+            ], className="ov-stat-row"),
+            sparkline_svg(vals, color=("#2e8063" if healthy else "#b4434e"), h=44),
+            html.Div("Healthy" if healthy else "Below covenant",
+                     className="ov-tag", style={"color": "var(--green-500)" if healthy else "var(--red-500)"}),
+        ])
+        return {"title": "Borrower credit", "body": body, "span": 1, "order": 40}
+
     # ── Full custom layout (KPI strip · trend + covenant · per-segment table) ──
     def render(self, ctx: TabContext):
         if ctx.selected_portfolio in ctx.portfolios:
@@ -473,22 +511,27 @@ def _kpi(label, value, improving, higher_good, spark, dp=0.0, sub="vs prev perio
     ], className="kpi rise")
 
 
+def _count_breaches(df) -> int:
+    """Distinct facilities breaching ANY covenant at the latest period."""
+    if df is None or df.is_empty() or "reporting_date" not in df.columns:
+        return 0
+    last = df["reporting_date"].max()
+    cur = df.filter(pl.col("reporting_date") == last)
+    ids: set = set()
+    for metric, m in FIN_METRICS.items():
+        if metric not in cur.columns:
+            continue
+        cov, direction = m["covenant"], m["dir"]
+        breached = cur.filter(
+            pl.col(metric).is_not_null() &
+            ((pl.col(metric) < cov) if direction == "high" else (pl.col(metric) > cov))
+        )
+        ids |= set(breached["facility_id"].to_list())
+    return len(ids)
+
+
 def _breaches_card(df):
-    total = 0
-    if not df.is_empty() and "reporting_date" in df.columns:
-        last = df["reporting_date"].max()
-        cur = df.filter(pl.col("reporting_date") == last)
-        ids: set = set()
-        for metric, m in FIN_METRICS.items():
-            if metric not in cur.columns:
-                continue
-            cov, direction = m["covenant"], m["dir"]
-            breached = cur.filter(
-                pl.col(metric).is_not_null() &
-                ((pl.col(metric) < cov) if direction == "high" else (pl.col(metric) > cov))
-            )
-            ids |= set(breached["facility_id"].to_list())
-        total = len(ids)
+    total = _count_breaches(df)
     return html.Div([
         html.Div("Covenant Breaches", className="kpi-label"),
         html.Div(str(total), className="kpi-value", style={"color": "var(--red-500)"}),

@@ -29,6 +29,64 @@ class PortfolioSummaryTab(BaseTab):
     tier_tooltip = "Gold tier — set tier='gold' in your BaseTab subclass"
     content_layout = ContentLayout.TWO_COL
 
+    # ── Overview digest contribution (full-width hero panel) ──
+    def overview_summary(self, ctx: TabContext):
+        import plotly.graph_objects as go
+        from ..utils.helpers import plotly_theme
+        if ctx.selected_portfolio in ctx.portfolios:
+            pf = _apply_filters(ctx.facilities_df, ctx.portfolios[ctx.selected_portfolio])
+        else:
+            pf = ctx.facilities_df
+        if pf is None or pf.is_empty() or "reporting_date" not in pf.columns:
+            return None
+
+        agg = (pf.group_by("reporting_date")
+                 .agg(pl.col("balance").sum().alias("total"))
+                 .sort("reporting_date"))
+        dates = agg["reporting_date"].to_list()
+        totals = agg["total"].to_list()
+        if len(totals) < 2:
+            return None
+        xs = [format_period(d, "monthly") for d in dates]
+        fig = go.Figure(go.Scatter(
+            x=xs, y=totals, mode="lines",
+            line=dict(color="#9d3a4a", width=1.75),
+            fill="tozeroy", fillcolor="rgba(157,58,74,0.06)",
+            hovertemplate="%{x} · $%{y:,.0f}M<extra></extra>",
+        ))
+        fig.update_layout(**plotly_theme(showlegend=False, height=200,
+                                         margin=dict(l=40, r=8, t=6, b=24)))
+        fig.update_yaxes(visible=False)
+
+        # Latest composition by LOB — top shares
+        latest = dates[-1]
+        comp_col = "lob" if "lob" in pf.columns else None
+        comp_rows = []
+        if comp_col:
+            comp = (pf.filter(pl.col("reporting_date") == latest)
+                      .group_by(comp_col).agg(pl.col("balance").sum().alias("v"))
+                      .sort("v", descending=True))
+            grand = comp["v"].sum() or 1
+            for r in comp.head(4).iter_rows(named=True):
+                share = r["v"] / grand * 100
+                comp_rows.append(html.Div([
+                    html.Span(str(r[comp_col]), className="ov-comp-name"),
+                    html.Span(className="ov-comp-bar",
+                              style={"width": f"{share:.0f}%"}),
+                    html.Span(f"{share:.0f}%", className="ov-comp-pct"),
+                ], className="ov-comp-row"))
+
+        body = html.Div([
+            html.Div(dcc.Graph(figure=fig, config={"displayModeBar": False},
+                               style={"height": "200px"}), className="ov-sum-chart"),
+            html.Div([
+                html.Div("Composition by line of business", className="ov-sum-cap"),
+                *comp_rows,
+            ], className="ov-comp"),
+        ], className="ov-sum-split")
+        return {"title": "Exposure & composition", "body": body,
+                "span": 2, "link_label": "Open summary", "order": 10}
+
     def render(self, ctx: TabContext):
         """Custom layout: KPI strip · composition (bar + waterfall) · top movers."""
         from ..app_state import app_state
@@ -134,7 +192,14 @@ class PortfolioSummaryTab(BaseTab):
             html.Div([
                 html.Div([
                     html.Div("Top movers", className="section-title"),
-                    html.Span(f"{len(movers)} shown · by Δ exposure", className="section-sub"),
+                    html.Div([
+                        html.Span(f"{len(movers)} shown", className="section-sub"),
+                        # Static sort indicator styled like a control (not interactive).
+                        html.Span([
+                            html.Span("Sort", className="static-control__label"),
+                            html.Span("Δ exposure", className="static-control__value"),
+                        ], className="static-control", **{"aria-disabled": "true"}),
+                    ], style={"display": "flex", "alignItems": "center", "gap": "12px"}),
                 ], className="section-head"),
                 html.Div([_facility_card(m) for m in movers], className="facility-grid"),
             ], className="section"),

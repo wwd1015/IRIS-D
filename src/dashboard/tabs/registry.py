@@ -137,6 +137,28 @@ class BaseTab(ABC):
             ),
         ], className="tier-badge-wrapper")
 
+    # ── Overview digest (optional) ─────────────────────────────────────────
+
+    def overview_summary(self, ctx: TabContext) -> Optional[dict]:
+        """Contribute a compact summary panel to the Overview landing page.
+
+        Return ``None`` (the default) to stay off the Overview. Otherwise return::
+
+            {
+              "title": str,          # panel heading (serif)
+              "body":  component,    # the visualization / stats
+              "link_label": str,     # optional, defaults to "View"
+              "span": 1 | 2,         # grid width (default 1; 2 = full row)
+              "order": int,          # optional sort key (defaults to tab order)
+            }
+
+        The Overview tab auto-discovers every tab implementing this, so a new
+        tab appears on the landing page just by defining the method — no edits
+        to the Overview tab itself. The panel links back to this tab via
+        ``self.id``.
+        """
+        return None
+
     # ── Layer 2: Toolbar ───────────────────────────────────────────────────
 
     def get_toolbar_controls(self, ctx: TabContext) -> list:
