@@ -31,11 +31,13 @@ MODAL_HIDDEN: dict[str, str] = {"display": "none"}
 # PLOTLY THEME
 # =============================================================================
 
-# Shared categorical palette for segmented charts (from the IRIS-D Redesign).
-# Text/gridline colors are overridden by CSS so they adapt to light/dark mode.
+# Shared categorical palette — the Ledger ramp (oxblood, terracotta, amber,
+# green, blue, warm grays), tuned to mid-tones that read on both the paper
+# light theme and the warm-black dark theme. Text/gridline colors are
+# overridden by CSS so they adapt to light/dark mode.
 SEGMENT_COLORS: list[str] = [
-    "#6B8AFF", "#A78BFA", "#34D399", "#F59E0B", "#FB7185", "#60A5FA",
-    "#0D9488", "#7C3AED", "#F97316", "#22D3EE", "#A3E635", "#E879F9",
+    "#9d3a4a", "#b0673f", "#b08415", "#2e8063", "#41719a", "#8d8775",
+    "#5b4a8a", "#2a6a62", "#c2333b", "#6e6856", "#7da06b", "#a36a8e",
 ]
 
 _PLOTLY_DEFAULTS: dict[str, Any] = dict(

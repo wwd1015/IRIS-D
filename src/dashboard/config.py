@@ -100,6 +100,10 @@ class AppSettings:
 # editorial tones remain selectable via the runtime accent picker.
 # Change ``accent_color`` in UISettings to switch the default.
 COLOR_PALETTES: dict[str, dict[str, str]] = {
+    "ledger": {  # Ledger oxblood — IRIS Redesign v2 default
+        "400": "#96384a", "500": "#7d2230", "600": "#6a1c29", "700": "#581723",
+        "glow": "125, 34, 48",
+    },
     "warmBlue": {
         "400": "#6B8AFF", "500": "#4B6BFB", "600": "#3B5BDB", "700": "#2B4BC7",
         "glow": "75, 107, 251",  # RGB for rgba()
@@ -145,9 +149,9 @@ COLOR_PALETTES["stone"] = COLOR_PALETTES["slate"]
 class UISettings:
     """UI and asset configuration."""
     assets_folder: str = "assets"
-    default_theme: str = "dark"
+    default_theme: str = "light"  # Ledger is paper-first
     accent_color: str = field(
-        default_factory=lambda: os.environ.get("ACCENT_COLOR", "warmBlue")
+        default_factory=lambda: os.environ.get("ACCENT_COLOR", "ledger")
     )
 
 

@@ -90,7 +90,8 @@ def _build_tab_navigation_callback() -> None:
     tab_ids = [t.id for t in all_tabs]
 
     outputs = [Output("tab-content-container", "children"),
-               Output("active-tab-store", "data")]
+               Output("active-tab-store", "data"),
+               Output("nav-breadcrumb", "children")]
     outputs += [Output(f"tab-{tid}", "className") for tid in tab_ids]
 
     inputs = [Input(f"tab-{tid}", "n_clicks") for tid in tab_ids]
@@ -139,11 +140,17 @@ def _build_tab_navigation_callback() -> None:
         active = get_tab(active_tab_id)
         content = active.render(tab_ctx) if active else html.Div("Tab not found")
 
+        from .components.layout import _breadcrumb_children
+        crumb = _breadcrumb_children(
+            getattr(active, "nav_group", "Portfolio") if active else "",
+            active.label if active else "",
+        )
+
         active_class = "navtab active"
         inactive_class = "navtab"
         classes = [active_class if tid == active_tab_id else inactive_class for tid in tab_ids]
 
-        return [content, active_tab_id] + classes
+        return [content, active_tab_id, crumb] + classes
 
 
 # =============================================================================

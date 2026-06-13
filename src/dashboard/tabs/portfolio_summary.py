@@ -408,7 +408,7 @@ def _build_bar_chart(df, portfolios, portfolio, metric, freq, segmentation):
             x=periods_list,
             y=agg[metric].to_list(),
             customdata=[[metric_label] for _ in periods_list],
-            marker_color="#4B6BFB",
+            marker_color="#9d3a4a",
             name=metric_label,
         ))
 
@@ -471,10 +471,11 @@ def _compute_period_changes(df: pl.DataFrame, freq: str, metric: str) -> pl.Data
     return pl.DataFrame(rows)
 
 
+# Ledger waterfall: red run-off, blue changes, green new (mid-tones for both themes)
 _WATERFALL_COLORS = {
-    "Run-off": "#F87171",
-    "Changes": "#60A5FA",
-    "New Origination": "#34D399",
+    "Run-off": "#b4434e",
+    "Changes": "#4a7396",
+    "New Origination": "#2e8063",
 }
 
 
@@ -626,7 +627,7 @@ def _kpi_latest(kpis: list[dict], label: str):
 def _kpi_card(k: dict):
     arrow = "↑" if k["up"] else "↓"
     cls = "up" if k["good"] else "down"
-    spark_color = "#22c55e" if k["good"] else "#ef4444"
+    spark_color = "#2e8063" if k["good"] else "#b4434e"
     return html.Div([
         html.Div(k["label"], className="kpi-label"),
         html.Div(k["value_str"], className="kpi-value"),

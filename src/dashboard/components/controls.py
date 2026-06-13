@@ -241,7 +241,8 @@ class ThemeToggle(GlobalControl):
               document.body.style.removeProperty('background');
               if (!window._themeInit){
                 const s = localStorage.getItem('theme');
-                if (s === 'light') root.classList.remove('dark');
+                if (s === 'dark') root.classList.add('dark');
+                else root.classList.remove('dark');
                 window._themeInit = true;
               }
               if (n_clicks && n_clicks > 0){
@@ -352,6 +353,13 @@ class TimeWindowButton(GlobalControl):
                     ], className="tw-head"),
                     html.Div([
                         html.Div([
+                            html.Button("3M", id="tw-preset-3m", n_clicks=0, className="tw-preset"),
+                            html.Button("6M", id="tw-preset-6m", n_clicks=0, className="tw-preset"),
+                            html.Button("1Y", id="tw-preset-1y", n_clicks=0, className="tw-preset"),
+                            html.Button("2Y", id="tw-preset-2y", n_clicks=0, className="tw-preset"),
+                            html.Button("ALL", id="tw-preset-all", n_clicks=0, className="tw-preset"),
+                        ], className="tw-presets"),
+                        html.Div([
                             html.Div([
                                 html.Label("Start month", className="tw-label"),
                                 dcc.Dropdown(id="time-window-start-dropdown", options=options,
@@ -378,12 +386,12 @@ class TimeWindowButton(GlobalControl):
 
 
 def _format_time_label(start: str | None, end: str | None) -> str:
-    """Format ISO dates as 'Jan 2025 – Jan 2026'."""
+    """Format ISO dates as "Mar '24 → Mar '26" (Ledger pill style)."""
     from datetime import datetime
     if start and end:
         s = datetime.fromisoformat(start[:10])
         e = datetime.fromisoformat(end[:10])
-        return f"{s.strftime('%b %Y')} – {e.strftime('%b %Y')}"
+        return f"{s.strftime('%b')} '{s.strftime('%y')} → {e.strftime('%b')} '{e.strftime('%y')}"
     return "All Time"
 
 
@@ -522,16 +530,16 @@ class CommandPaletteButton(GlobalControl):
     order = 17  # after the time-window pill
 
     def render(self, **kwargs) -> html.Button:
+        # Compact trigger — the Ledger masthead keeps controls quiet.
         return html.Button(
             [
                 icon("search", 13),
-                html.Span("Search facilities, metrics, portfolios…"),
                 html.Span("⌘K", className="kbd"),
             ],
             id="command-palette-trigger",
             n_clicks=0,
             className="cmd-hint",
-            title="Open command palette (⌘K)",
+            title="Search facilities, metrics, portfolios (⌘K)",
         )
 
 

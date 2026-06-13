@@ -125,3 +125,38 @@ def format_value(v: float, prefix: str = "", suffix: str = "") -> str:
     a = abs(v)
     dp = 0 if a >= 100 else 1 if a >= 10 else 2
     return f"{prefix}{v:.{dp}f}{suffix}"
+
+
+def _classify(v: float, bands: list[dict]) -> str:
+    """Status of a value against ascending {max, status} bands (max=None → +inf)."""
+    for b in bands:
+        if b["max"] is None or v <= b["max"]:
+            return b["status"]
+    return bands[-1]["status"]
+
+
+def composite_history(end: date | None = None) -> list[float]:
+    """Monthly composite risk score derived from the banded indicator histories.
+
+    For each month, classify every banded indicator's series value against its
+    thresholds and roll up exactly like the live snapshot:
+    ``(red + 0.5*yellow) / n * 100``. Deterministic (same seeds as the cards).
+    """
+    end = end or date.today()
+    banded = {iid: cfg for iid, cfg in HIST_CFG.items() if cfg.get("bands")}
+    if not banded:
+        return []
+    series = {iid: _gen_series(cfg["n"], cfg["vol"], cfg["seed"])
+              for iid, cfg in banded.items()}
+    out: list[float] = []
+    n = len(banded)
+    for i in range(N_POINTS):
+        red = yellow = 0
+        for iid, cfg in banded.items():
+            s = _classify(series[iid][i], cfg["bands"])
+            if s == "red":
+                red += 1
+            elif s == "yellow":
+                yellow += 1
+        out.append(round((red + 0.5 * yellow) / n * 100.0, 1))
+    return out

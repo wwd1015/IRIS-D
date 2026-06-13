@@ -110,3 +110,31 @@ def register(app):
         if not n_clicks:
             return no_update
         return MODAL_HIDDEN
+
+    # Preset chips (3M/6M/1Y/2Y/ALL) → set the start/end dropdowns.
+    # Pure draft state — Apply still commits, so behavior is unchanged.
+    _PRESET_MONTHS = {"tw-preset-3m": 3, "tw-preset-6m": 6,
+                      "tw-preset-1y": 12, "tw-preset-2y": 24}
+
+    @callback(
+        [Output("time-window-start-dropdown", "value"),
+         Output("time-window-end-dropdown", "value")],
+        [Input("tw-preset-3m", "n_clicks"), Input("tw-preset-6m", "n_clicks"),
+         Input("tw-preset-1y", "n_clicks"), Input("tw-preset-2y", "n_clicks"),
+         Input("tw-preset-all", "n_clicks")],
+        State("time-window-dates", "data"),
+        prevent_initial_call=True,
+    )
+    def apply_preset(n3, n6, n1y, n2y, nall, all_dates):
+        ctx = callback_context
+        if not ctx.triggered or not all_dates:
+            return no_update, no_update
+        trigger = ctx.triggered[0]["prop_id"].split(".")[0]
+        end = all_dates[-1][:10]
+        if trigger == "tw-preset-all":
+            return all_dates[0][:10], end
+        months = _PRESET_MONTHS.get(trigger)
+        if not months:
+            return no_update, no_update
+        start_ix = max(0, len(all_dates) - 1 - months)
+        return all_dates[start_ix][:10], end

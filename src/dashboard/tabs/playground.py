@@ -17,16 +17,12 @@ from dash import callback_context, dash_table, dcc, html, Input, Output, State, 
 
 from .registry import BaseTab, ContentLayout, TabContext, register_tab
 from ..utils.helpers import (
-    plotly_theme, empty_figure, add_period_column, format_period,
+    plotly_theme, empty_figure, add_period_column, format_period, SEGMENT_COLORS,
 )
 
 _MAX_CARDS = 3
 
-_COLORS = [
-    "#6B8AFF", "#A78BFA", "#34D399", "#F59E0B", "#FB7185", "#60A5FA",
-    "#0D9488", "#7C3AED", "#F97316", "#22D3EE", "#A3E635", "#E879F9",
-    "#c9856a", "#b5725a", "#4d4c48", "#a06050", "#3d3d3a",
-]
+_COLORS = SEGMENT_COLORS + ["#b0673f", "#6e6856", "#3d3a30"]  # Ledger ramp + extras
 
 
 class PlaygroundTab(BaseTab):
@@ -36,6 +32,7 @@ class PlaygroundTab(BaseTab):
     tier = "gold"
     content_layout = ContentLayout.FULL
     nav_align = "right"
+    nav_group = "Tools"
 
     def get_toolbar_controls(self, ctx: TabContext):
         from ..components.toolbar import RawControl, ToolbarAlign
@@ -661,7 +658,7 @@ def _build_chart(
         if plot_type == "line":
             fig.add_trace(go.Scatter(
                 x=periods, y=y_vals, mode="lines",
-                line=dict(color="#4B6BFB", width=2),
+                line=dict(color="#9d3a4a", width=2),
                 name=metric_label,
                 customdata=[[metric_label] for _ in periods],
             ))
@@ -669,7 +666,7 @@ def _build_chart(
             fig.add_trace(go.Bar(
                 x=periods, y=y_vals,
                 customdata=[[metric_label] for _ in periods],
-                marker_color="#4B6BFB", name=metric_label,
+                marker_color="#9d3a4a", name=metric_label,
             ))
 
     all_periods = agg_df["_period"].unique().sort().to_list()

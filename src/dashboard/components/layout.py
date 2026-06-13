@@ -10,46 +10,90 @@ from ..auth import user_management
 from ..tabs.registry import get_all_tabs
 
 
+# Index-menu section order (Ledger nav directory). Unknown groups append last.
+NAV_GROUP_ORDER = ["Home", "Portfolio", "Risk", "Analysis", "Tools"]
+
+
 def create_navigation_tabs():
     """
-    Build navigation buttons from the tab registry.
+    Build the Ledger "Index" navigation from the tab registry.
 
-    Tabs with required_roles are hidden unless the current user's role is in the list.
-    Adding a new tab to the registry automatically adds it to navigation.
+    A ☰ Index dropdown holds a grouped page directory (the tab buttons keep
+    their ``tab-{id}`` ids so ``route_tabs`` wiring is unchanged), with a
+    Group / Page breadcrumb beside it. Role-gated tabs are hidden via
+    display:none (buttons must exist for callbacks).
     """
     user_role = user_management.get_current_user_role()
     tabs = get_all_tabs()
 
-    left_buttons = []
-    right_buttons = []
-    for i, tab in enumerate(tabs):
-        # Determine visibility: hide if tab requires specific roles and user doesn't have one
-        visible = True
-        if tab.required_roles and user_role not in tab.required_roles:
-            visible = False
+    def _visible(tab) -> bool:
+        return not tab.required_roles or user_role in tab.required_roles
 
-        # First tab gets active styling by default
-        cls = "navtab active" if i == 0 else "navtab"
-        style = {} if visible else {"display": "none"}
+    # Active = first accessible tab (matches route_tabs' initial render)
+    accessible = [t for t in tabs if _visible(t)]
+    active = accessible[0] if accessible else (tabs[0] if tabs else None)
+    active_id = active.id if active else None
 
-        btn = html.Button(
-            [html.Span(f"{i + 1:02d}", className="tab-badge"), tab.label],
-            id=f"tab-{tab.id}",
-            n_clicks=0,
-            className=cls,
-            style=style,
-            role="tab",
-            **{"aria-selected": "true" if i == 0 else "false"},
-        )
+    # Group tabs into Index sections
+    group_names = list(NAV_GROUP_ORDER)
+    for t in tabs:
+        g = getattr(t, "nav_group", "Portfolio")
+        if g not in group_names:
+            group_names.append(g)
 
-        if getattr(tab, "nav_align", "left") == "right":
-            right_buttons.append(btn)
-        else:
-            left_buttons.append(btn)
+    sections = []
+    for gname in group_names:
+        gtabs = [t for t in tabs if getattr(t, "nav_group", "Portfolio") == gname]
+        if not gtabs:
+            continue
+        rows = []
+        for tab in gtabs:
+            is_active = tab.id == active_id
+            rows.append(html.Button(
+                [html.Span(tab.label), html.Span("●", className="navtab-dot")],
+                id=f"tab-{tab.id}",
+                n_clicks=0,
+                className="navtab active" if is_active else "navtab",
+                style={} if _visible(tab) else {"display": "none"},
+                role="tab",
+                **{"aria-selected": "true" if is_active else "false",
+                   "data-group": gname},
+            ))
+        sections.append(html.Div(
+            [html.Div(gname, className="idx-group-label"), *rows],
+            className="idx-group",
+            style={} if any(_visible(t) for t in gtabs) else {"display": "none"},
+        ))
 
-    if right_buttons:
-        return left_buttons + [html.Div(className="nav-spacer")] + right_buttons
-    return left_buttons
+    crumb = html.Span(
+        _breadcrumb_children(active.nav_group if active else "", active.label if active else ""),
+        id="nav-breadcrumb", className="idx-crumb",
+    )
+
+    return [
+        html.Div([
+            html.Button(
+                [html.Span("☰", className="idx-glyph"), html.Span("Index")],
+                id="index-menu-btn", n_clicks=0, className="idx-trigger",
+                **{"aria-haspopup": "menu"},
+            ),
+            html.Div([
+                html.Div(id="index-menu-backdrop", className="tw-backdrop"),
+                html.Div(sections, className="tw-menu idx-menu", role="menu",
+                         **{"aria-label": "Page index"}),
+            ], id="index-menu-pop", style={"display": "none"}),
+        ], className="tw-wrap"),
+        crumb,
+    ]
+
+
+def _breadcrumb_children(group: str, label: str) -> list:
+    """Group / Page breadcrumb fragments (ids let JS update them instantly)."""
+    return [
+        html.Span(group, id="crumb-group"),
+        html.Span(" / ", className="idx-crumb-sep"),
+        html.Span(label, id="crumb-label", className="idx-crumb-page"),
+    ]
 
 
 def create_command_palette():
@@ -132,25 +176,27 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
     _modal_ids_js = ", ".join(f'"{mid}"' for mid in _modal_ids)
 
     return html.Div(className="min-h-screen app", children=[
-        # ── Header ──────────────────────────────────────────────────────────
+        # ── Header — Ledger masthead ────────────────────────────────────────
         html.Header([
-            # Row 1 — brand · global controls · role · actions
+            # Row 1 — serif brand + eyebrow · controls right
             html.Div([
                 html.Div([
-                    html.Div("I", className="brand-mark"),
-                    html.Div(["IRIS-D", html.Small("v2.5")], className="brand-name"),
-                ], className="brand"),
-                *left_controls,
+                    html.Span("IRIS", className="masthead-title"),
+                    html.Span("Portfolio Intelligence", className="masthead-eyebrow"),
+                ], className="masthead-brand"),
                 html.Div(className="gc-spacer"),
+                *left_controls,
                 *right_controls,
             ], className="header-row-1"),
-            # Row 2 — navigation tabs
+            # Double rule (2px over 1px — the Ledger signature)
+            html.Div(className="masthead-rule"),
+            # Row 2 — ☰ Index directory + breadcrumb
             html.Nav(
                 id="navigation-tabs-container",
                 children=create_navigation_tabs(),
                 className="header-row-2",
-                role="tablist",
-                **{"aria-label": "Dashboard tabs"},
+                role="navigation",
+                **{"aria-label": "Page index"},
             ),
         ], className="header sticky top-0 z-40"),
 
@@ -766,27 +812,27 @@ def get_app_index_string():
 
     return f'''
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"/>
-    <title>Portfolio Dashboard</title>
+    <title>IRIS — Portfolio Intelligence</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {{
         darkMode: 'class',
         theme: {{ extend: {{
           colors: {{
-            ink: {{ 900:'#11131a',800:'#15171e',700:'#1c1f29',600:'#2a2e3a',500:'#8a92a3',100:'#e6e8ec',50:'#ffffff' }},
+            ink: {{ 900:'#16140f',800:'#1d1a13',700:'#2a261d',600:'#3d3a30',500:'#8d8775',100:'#e8e4d8',50:'#faf9f6' }},
             brand: {{500:'{p500}',400:'{p400}',300:'{p400}'}}
           }},
           boxShadow: {{
-            soft: '0 1px 2px rgba(0,0,0,0.04)',
+            soft: '0 1px 2px rgba(22,20,15,0.06)',
             glow: 'none'
           }},
           fontFamily: {{
-            serif: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
-            sans: ['IBM Plex Sans', 'system-ui', 'sans-serif'],
+            serif: ['Source Serif 4', 'Georgia', 'serif'],
+            sans: ['Instrument Sans', 'system-ui', 'sans-serif'],
             mono: ['IBM Plex Mono', 'ui-monospace', 'monospace']
           }}
         }}}}
@@ -801,19 +847,16 @@ def get_app_index_string():
         --primary-500: {p500};
         --primary-600: {p600};
         --primary-700: {p700};
-        --primary-glow: rgba({glow_rgb}, 0.12);
+        --primary-glow: rgba({glow_rgb}, 0.10);
         --primary-glow-rgb: {glow_rgb};
-        --primary-tint: rgba({glow_rgb}, 0.08);
-        --primary-border: rgba({glow_rgb}, 0.28);
-      }}
-      html.dark {{
-        --primary-glow: rgba({glow_rgb}, 0.15);
+        --primary-tint: rgba({glow_rgb}, 0.07);
+        --primary-border: rgba({glow_rgb}, 0.30);
       }}
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="preconnect" href="https://cdn.tailwindcss.com">
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400..700&family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     {{%metas%}}
     {{%favicon%}}
     {{%css%}}
@@ -827,14 +870,15 @@ def get_app_index_string():
     </footer>
     <script>
       (function(){{
+        // Ledger defaults to light (paper); dark only when explicitly chosen.
         var t = localStorage.getItem('theme');
-        if (t === 'light') {{
-          document.documentElement.classList.remove('dark');
-        }} else {{
+        if (t === 'dark') {{
           document.documentElement.classList.add('dark');
+        }} else {{
+          document.documentElement.classList.remove('dark');
         }}
         // Single fixed accent (matches the chart colors). Clear any stale
-        // runtime accent so the whole app stays one consistent blue.
+        // runtime accent so the whole app stays one consistent oxblood.
         localStorage.removeItem('accent_color');
       }})();
     </script>

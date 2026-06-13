@@ -118,6 +118,7 @@ class BaseTab(ABC):
     content_layout: ContentLayout = ContentLayout.FULL
     primary_column: int = 0
     nav_align: str = "left"
+    nav_group: str = "Portfolio"  # Index-menu section (Ledger nav directory)
 
     # ── Tier badge ────────────────────────────────────────────────────────
 

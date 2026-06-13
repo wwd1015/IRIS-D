@@ -81,6 +81,7 @@ class LocationAnalysisTab(BaseTab):
     id = "location-analysis"
     label = "Location Analysis"
     order = 70
+    nav_group = "Analysis"
     required_roles = ["CRE SCO"]
     tier = "bronze"
     tier_tooltip = "Bronze tier — set tier='bronze' in your BaseTab subclass"
@@ -136,6 +137,7 @@ class FinancialProjectionTab(BaseTab):
     id = "financial-projection"
     label = "Financial Projection"
     order = 80
+    nav_group = "Analysis"
     required_roles = ["Corp SCO"]
     tier = "bronze"
     tier_tooltip = "Bronze tier — set tier='bronze' in your BaseTab subclass"
@@ -240,6 +242,7 @@ class ModelBacktestingTab(BaseTab):
     id = "model-backtesting"
     label = "Model Backtesting"
     order = 90
+    nav_group = "Analysis"
     required_roles = ["BA"]
     tier = "bronze"
     tier_tooltip = "Bronze tier — set tier='bronze' in your BaseTab subclass"

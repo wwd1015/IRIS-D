@@ -11,7 +11,7 @@
 - **Data**: Polars (primary), Pandas (SQL boundary only), NumPy, SQLAlchemy (SQLite backend at `data/bank_risk.db`)
 - **Validation**: Pydantic
 - **Config**: PyYAML
-- **Styling**: Custom CSS (`assets/style.css`) — warm-blue IBM Plex dashboard system (light + dark), Tailwind utility classes. See `DESIGN.md`.
+- **Styling**: Custom CSS (`assets/style.css`) — "Ledger" editorial design system (paper light default + warm-black dark): Source Serif 4 display, Instrument Sans body, IBM Plex Mono numerals, oxblood accent, hairline-ruled panels, ☰ Index dropdown nav. Tailwind utility classes. See `DESIGN.md`.
 - **Production Server**: Gunicorn
 - **Build System**: setuptools via `pyproject.toml`
 

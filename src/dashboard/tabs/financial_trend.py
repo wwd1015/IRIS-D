@@ -19,7 +19,7 @@ from dash import callback, dcc, html, Input, Output, no_update
 
 from .registry import BaseTab, TabContext, register_tab
 from ..utils.helpers import (
-    plotly_theme, empty_figure, add_period_column, format_period,
+    plotly_theme, empty_figure, add_period_column, format_period, SEGMENT_COLORS,
 )
 
 
@@ -37,7 +37,7 @@ FIN_METRICS: dict[str, dict] = {
     "growth":                {"label": "Revenue Growth",        "short": "Growth",    "fmt": "pct1",   "dir": "high", "covenant": 0.0,  "dim": "industry"},
 }
 HEADLINE = ["dscr", "cash_flow_leverage", "liquidity"]
-PRIMARY = "#4B6BFB"
+PRIMARY = "#9d3a4a"  # Ledger oxblood mid-tone (reads on both themes)
 
 
 class FinancialTrendTab(BaseTab):
@@ -248,7 +248,7 @@ def _build_chart(df, metric, freq):
     if any(p is not None for p in prior):
         fig.add_trace(go.Scatter(
             x=labels, y=prior, mode="lines",
-            line=dict(color="#9aa1ad", width=1.5, dash="dot"),
+            line=dict(color="#8d8775", width=1.5, dash="dot"),
             name="Prior yr", hoverinfo="skip", connectgaps=False,
         ))
 
@@ -258,7 +258,7 @@ def _build_chart(df, metric, freq):
         line=dict(color=PRIMARY, width=2.5),
         fillcolor="rgba(75,107,251,0.12)", name="Latest",
     ))
-    marker_colors = ["#ef4444" if _breached(v, cov, direction) else PRIMARY for v in vals]
+    marker_colors = ["#b4434e" if _breached(v, cov, direction) else PRIMARY for v in vals]
     fig.add_trace(go.Scatter(
         x=labels, y=vals, mode="markers",
         marker=dict(color=marker_colors, size=6),
@@ -266,10 +266,10 @@ def _build_chart(df, metric, freq):
     ))
 
     # Covenant threshold line
-    fig.add_hline(y=cov, line=dict(color="#ef4444", width=1.6, dash="dash"),
+    fig.add_hline(y=cov, line=dict(color="#b4434e", width=1.6, dash="dash"),
                   annotation_text=f"covenant {_fmt(cov, m['fmt'])}",
                   annotation_position="top right",
-                  annotation_font=dict(color="#ef4444", size=10))
+                  annotation_font=dict(color="#b4434e", size=10))
 
     fig.update_layout(**plotly_theme(height=340, showlegend=False))
     fig.update_yaxes(range=[ymin, ymax])
@@ -326,7 +326,7 @@ def _table_sub(df, metric, freq):
     return m["label"]
 
 
-_SEG_COLORS = ["#6B8AFF", "#A78BFA", "#34D399", "#F59E0B", "#FB7185", "#60A5FA", "#0D9488", "#7C3AED"]
+_SEG_COLORS = SEGMENT_COLORS[:8]  # Ledger ramp
 
 
 def _lob_table(df, metric, freq):
@@ -464,7 +464,7 @@ def _kpi(label, value, improving, higher_good, spark, dp=0.0, sub="vs prev perio
         cls = "up" if improving else "down"
         arrow = "↑" if dp >= 0 else "↓"
         delta_el = html.Span(f"{arrow} {abs(dp):.1f}%", className=f"kpi-delta {cls}")
-        color = "#22c55e" if improving else "#ef4444"
+        color = "#2e8063" if improving else "#b4434e"
     return html.Div([
         html.Div(label, className="kpi-label"),
         html.Div(value, className="kpi-value"),

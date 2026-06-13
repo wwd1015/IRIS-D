@@ -1,101 +1,95 @@
-# IRIS-D Design System
+# IRIS Design System — "Ledger"
 
-Implemented from the **"IRIS-D Redesign"** Claude Design handoff. A data-dense,
-warm-blue dashboard aesthetic with IBM Plex typography, mono numerals, and
-border-disciplined surfaces. Both light and dark themes are first-class.
-
-> The previous "warm editorial / terracotta" direction is retained only as a
-> selectable accent (`terracotta`, `sage`) via the runtime accent picker.
+Implemented from the **"IRIS Redesign v2"** Claude Design handoff (Ledger skin
+only; the Quartz alternative was not adopted). An editorial, print-inspired
+aesthetic: warm paper surfaces, serif display type, oxblood accent, hairline
+rules instead of boxed cards. Light (paper) is the default theme; dark (warm
+black) is a full variant via the header toggle.
 
 ## 1. Themes & atmosphere
 
-- **Default accent:** warm blue `#4B6BFB` (`--primary-500`). The brand mark, nav
-  underline, KPI accent bars, drill panels, chart highlights, and pills all key
-  off the primary ramp + its derived `--primary-tint` / `--primary-border`.
-- **Light:** near-white surfaces (`--bg-base #ffffff` on `--bg-deep #f7f7f3`),
-  cool-neutral text (`#1a1c24` → `#8a92a3`).
-- **Dark:** deep slate surfaces (`--bg-base #111217` on `#0b0c10`) with a faint
-  radial primary glow on the body; text in white at 94/62/40% opacity.
-- **Accents (swappable):** warmBlue (default), emerald, amber, rose, violet,
-  slate, terracotta, sage. Defined in `src/dashboard/config.py::COLOR_PALETTES`;
-  cycled by the header sliders icon (persists to `localStorage`).
+- **Light (default):** flat warm paper `#faf9f6`, ink text `#16140f`,
+  oxblood accent `#7d2230`. No shadows or gradients on the page — separation
+  comes from hairline rules.
+- **Dark:** warm black `#171510`, bone text `#f0ede4`, rose accent `#d98b96`
+  (note: text **on** the accent flips to dark — use `--primary-ink`).
+- Theme persists to `localStorage('theme')`; pre-paint script in
+  `get_app_index_string()` applies it before first render. Default is light.
+- Single fixed accent (no runtime accent picker); `config.py::COLOR_PALETTES`
+  keeps `ledger` as the default entry.
 
 ## 2. Color tokens (`assets/style.css`)
 
 | Role | Token | Light | Dark |
 |---|---|---|---|
-| Page / base / raised | `--bg-deep/base/raised` | `#f7f7f3` / `#ffffff` | `#0b0c10` / `#111217` / `#16181f` |
-| Surface / sunken | `--bg-surface/sunken` | `#fafaf6` / `#f1f1ec` | `#1a1c24` / `#0a0b0f` |
-| Text | `--text-primary/secondary/muted` | `#1a1c24` / `#5a6271` / `#8a92a3` | white 94% / 62% / 40% |
-| Borders (4 tiers) | `--border-hair/subtle/default/strong` | black 5/7/12/22% | white 4/7/11/20% |
-| Primary ramp | `--primary-400..700` | `#6B8AFF #4B6BFB #3B5BDB #2B4BC7` | — |
-| Status | `--green/amber/red/blue-500` | `#16a34a #d97706 #dc2626 #2563eb` | `#22c55e #f59e0b #ef4444 #3b82f6` |
-| Viz categorical | `SEGMENT_COLORS` (`utils/helpers.py`) | `#6B8AFF #A78BFA #34D399 #F59E0B #FB7185 #60A5FA …` | same |
-| Waterfall | run-off `#F87171` · changes `#60A5FA` · new `#34D399` | | |
+| Page / raised (menus) | `--bg-base` / `--bg-raised` | `#faf9f6` / `#fffefb` | `#171510` / `#201d16` |
+| Surface / sunken | `--bg-surface/sunken` | `#f5f3ee` / `#f1efe8` | `#1d1a13` / `#121009` |
+| Text | `--text-primary/secondary/muted` | `#16140f` / `#6b6557` / `#8d8775` | `#f0ede4` / `#9a937f` / bone 42% |
+| Borders (4 tiers) | `--border-hair/subtle/default/strong` | ink 7/10/16/32% | bone 9/13/20/34% |
+| Panel rules | `--rule-ink` | = `--text-primary` | = `--text-primary` |
+| Accent ramp | `--primary-400..700` | `#96384a #7d2230 #6a1c29 #581723` | `#e3a3ac #d98b96 #c97783 #b86471` |
+| Ink on accent | `--primary-ink` | `#ffffff` | `#171510` |
+| Status | `--green/amber/red/blue-500` | `#1a5e45 #9a6b00 #a8232f #27506e` | `#7fc8a9 #d9b35c #e07a82 #8fb6d4` |
+| Viz categorical | `SEGMENT_COLORS` (`utils/helpers.py`) | `#9d3a4a #b0673f #b08415 #2e8063 #41719a #8d8775 …` (mid-tones, read on both themes) | same |
+| Waterfall | run-off `#b4434e` · changes `#4a7396` · new `#2e8063` | | |
 
-Accent swaps also set `--primary-glow-rgb`, `--primary-tint` (8%), and
-`--primary-border` (28%) so tints/borders track the chosen accent.
+Radii are tight (`--r-sm 2 / md 3 / lg 4 / xl 6`); shadows only on menus
+(`--shadow-lg`).
 
 ## 3. Typography
 
-- **Sans / display:** `IBM Plex Sans` (`--font-sans`, `--font-display`). Loaded
-  in `get_app_index_string()`; mirrored in the Tailwind `fontFamily`.
-- **Mono:** `IBM Plex Mono` (`--font-mono`) — used for **all numeric/tabular
-  figures**: KPI values, table cells, axis labels, badges, pills, chips.
-- **Scale:** `--fs-3xs 10` · `2xs 11` · `xs 12` · `sm 13` · `base 14` · `lg 16` ·
-  `xl 20` · `2xl 28` · `3xl 38` (px).
-- Headings use tight letter-spacing (`-0.02em`); labels use mono uppercase with
-  `0.1em` tracking.
+- **Display / serif:** `Source Serif 4` (`--font-display`) — masthead, panel
+  titles, KPI values, market composite scores, category heads.
+- **Body:** `Instrument Sans` (`--font`) — UI labels, buttons, menus, tables.
+- **Mono:** `IBM Plex Mono` (`--font-mono`) — numerals, axis labels, meta
+  captions (uppercase, letterspaced).
+- KPI labels: 10px uppercase `0.12em` tracking in body font (not mono).
 
 ## 4. Layout & shell
 
-- **Header (two rows)** — `components/layout.py::create_layout`:
-  - Row 1 (`.header-row-1`): brand mark + `IRIS-D v2.4`, portfolio pill, time
-    pill, ⌘K search (`.cmd-hint`), spacer, role chip, bell, theme/accent/power/
-    contact icon-buttons, avatar.
-  - Row 2 (`.header-row-2`): numbered nav tabs (`.navtab` + `.tab-badge`), active
-    tab underlined in primary.
-- **Content** lives in `.main-scroll` (padding `24px 32px`).
-- **Sections** (`.section` / `.section-head` / `.section-title`) group content;
-  controls sit in the section head.
-- **Cards** (`.card` / `.card-head` / `.card-body`) and the KPI strip
-  (`.kpi-strip` of `.kpi`) are the primary containers.
+- **Masthead** (`components/layout.py::create_layout`):
+  - Row 1: serif `IRIS` (26px) + "PORTFOLIO INTELLIGENCE" eyebrow, spacer,
+    then controls — portfolio + time-window underline pills, ⌘K trigger,
+    custom-metric (power-gated), theme ☾/☀, power bolt, contact, avatar.
+    Pills are quiet underline buttons (`border-bottom` hairline → ink on hover).
+  - **Double rule** (`.masthead-rule`): 2px over 1px ink — the Ledger signature.
+  - Row 2: **☰ Index** dropdown (grouped page directory) + `Group / Page`
+    breadcrumb (`#nav-breadcrumb`, updated instantly by `tab_switch_v2.js` and
+    confirmed by `route_tabs`).
+- **Index navigation**: tabs keep their `tab-{id}` button ids (all `route_tabs`
+  wiring unchanged) but render as menu rows inside `.idx-menu`, grouped by
+  `BaseTab.nav_group` — order: Home, Portfolio, Risk, Analysis, Tools
+  (`NAV_GROUP_ORDER` in layout.py). Role-gated tabs stay `display:none`.
+- **Panels**: `.card` = transparent section with a 1px ink top rule
+  (`--rule-ink`) and serif 16px title — no boxes, no borders, no radius.
+  `.drill-panel` opens with a 2px ink rule.
+- **KPI strip**: hairline-divided columns (no boxes) — uppercase label, serif
+  30px value, colored delta sub-line.
+- **Segmented controls**: bordered strip, active = ink fill with paper text.
+  Financial-trend metric chips (`.chip-radio`) are underline tabs.
 
-Icons are monochrome CSS `mask-image` glyphs (`.ic .ic-<name>`) that inherit
-`currentColor`, so they adapt to theme + hover. Helper: `controls.py::icon()`.
+## 5. Pages (Index directory)
 
-## 5. Signature components
+| Group | Page | Notes |
+|---|---|---|
+| Home | **Overview** (`tabs/overview.py`) | Editorial landing: KPI figures, total-exposure line (2/3), Market-pulse digest (1/3, composite score + sparkline + top-5 severity indicators + "Full monitor →" jump), footer rule. |
+| Portfolio | Portfolio Summary | Stacked bars + waterfall + drill-down + scrubber (unchanged functionality). |
+| Portfolio | Financial Trend | Covenant chart + underline metric tabs + LOB table. |
+| Risk | Market Insight | Ledger rollup strip (serif composite), serif category heads, flip cards: status-tinted front with 2px status top rule, back = raised surface with **status-colored** line chart + CSV download. |
+| Analysis | role-gated tabs | Location / Projection / Backtesting. |
+| Tools | Playground | Custom card builder. |
 
-- **KPI card** (`.kpi`): mono label, large display value, delta chip (`.kpi-delta
-  up/down`), inline data-URI sparkline, left accent bar.
-- **Stacked composition chart** + **draggable timeline scrubber** (`.scrubber`,
-  `assets/scrubber.js`) + **click-to-detail drill panel** (`.detail-panel`).
-- **Period-over-period waterfall** with run-off/changes/new + summary stats.
-- **Facility grid** (`.facility-grid` / `.facility-mini`) — top movers with
-  status dots + delta chips.
-- **Borrower-credit trend** (Financial Trends): metric chips (`.chip-radio`),
-  covenant threshold line + shaded breach zone + prior-year ghost, comparison
-  strip, per-segment breach table (`.drill-table`).
-- **⌘K command palette** (`.cmd-overlay` / `assets/command_palette.js`) — jump to
-  tabs, run actions; client-side filter + keyboard nav.
+## 6. Popovers & dialogs
 
-## 6. Charts (Plotly)
+All anchored dropdowns (`.tw-wrap`/`.tw-menu`) inherit the raised menu surface
+(`--bg-raised`, hairline border, 4px radius, `--shadow-lg`). The time-window
+popover gains Ledger preset chips (3M/6M/1Y/2Y/ALL) that set the start/end
+month dropdowns — Apply still commits, so behavior is unchanged. Center modals
+(create-portfolio wizard, confirms) share the same chrome.
 
-Transparent backgrounds; text + gridlines are overridden by CSS to follow the
-theme. Font is IBM Plex Mono. Categorical series use `SEGMENT_COLORS`. Status and
-covenant cues use the status palette. See `utils/helpers.py::plotly_theme`.
+## 7. Charts
 
-## 7. Motion
-
-- `--ease cubic-bezier(0.2,0.7,0.2,1)`, `--ease-out cubic-bezier(0,0,0.2,1)`.
-- `.rise` entrance (transform only — always visible), `.drill-panel` slide-in,
-  `.cmd-modal` pop, pulsing accent dots. Respects `prefers-reduced-motion`.
-
-## 8. Don'ts
-
-- Don't hardcode warm terracotta tones in new charts — use `SEGMENT_COLORS` /
-  status tokens / `#4B6BFB`.
-- Don't use sans for numerals — tabular figures use `--font-mono`.
-- Don't add a 5th border weight or new shadow — reuse the 4 border tiers + 3
-  shadow tiers.
-- Keep element IDs stable — header controls and callbacks bind by ID.
+`utils/helpers.py::plotly_theme()` — transparent backgrounds, IBM Plex Mono,
+text/grid colors overridden by CSS so they track the theme. Series colors come
+from the Ledger `SEGMENT_COLORS` ramp (mid-tones chosen to read on paper and
+warm black alike). Accent series use `#9d3a4a`.

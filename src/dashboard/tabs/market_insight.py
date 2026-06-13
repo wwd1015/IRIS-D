@@ -41,6 +41,7 @@ class MarketInsightTab(BaseTab):
     id = "market-insight"
     label = "Market Insight"
     order = 30
+    nav_group = "Risk"
     tier = "gold"
     tier_tooltip = "Live macro / market-risk monitor"
 
@@ -82,32 +83,47 @@ def _fmt_time(iso: str) -> str:
 
 
 def _meta_text(snap: dict) -> list:
+    """Ledger rollup strip — serif composite score · R/Y/G counts · issue meta."""
     roll_color = _VERDICT_COLOR.get(snap.get("verdict"), "var(--text-primary)")
+    total = (snap.get("red_count", 0) + snap.get("yellow_count", 0)
+             + snap.get("green_count", 0))
     return [
-        html.Span(f"Issue #{snap.get('issue_number', 1)} · as of {snap.get('as_of_date', '')}",
-                  className="mkt-eyebrow"),
-        html.Span(snap.get("verdict_label", ""), className="mkt-pill",
-                  style={"color": roll_color, "background": "color-mix(in srgb, "
-                         + roll_color + " 14%, transparent)"}),
         html.Span([
-            html.Span(f"R {snap.get('red_count', 0)}", style={"color": "var(--red-500)"}),
+            html.Span(f"{snap.get('weighted_risk_score', 0):.1f}",
+                      className="mkt-roll-score", style={"color": roll_color}),
+            html.Span(["composite risk · ",
+                       html.Span(snap.get("verdict_label", ""),
+                                 style={"color": roll_color, "fontWeight": "600"})],
+                      className="mkt-roll-verdict"),
+        ], style={"display": "inline-flex", "alignItems": "baseline", "gap": "10px"}),
+        html.Span([
+            html.Span(f"R {snap.get('red_count', 0)}",
+                      style={"color": "var(--red-500)", "fontWeight": "700"}),
             " · ",
-            html.Span(f"Y {snap.get('yellow_count', 0)}", style={"color": "var(--amber-500)"}),
+            html.Span(f"Y {snap.get('yellow_count', 0)}",
+                      style={"color": "var(--amber-500)", "fontWeight": "700"}),
             " · ",
-            html.Span(f"G {snap.get('green_count', 0)}", style={"color": "var(--green-500)"}),
-            html.Span(f"  ·  risk {snap.get('weighted_risk_score', 0):.0f}",
-                      style={"color": "var(--text-muted)"}),
-        ], className="mkt-dist", style={"fontSize": "var(--fs-xs)"}),
+            html.Span(f"G {snap.get('green_count', 0)}",
+                      style={"color": "var(--green-500)", "fontWeight": "700"}),
+            f" of {total}",
+        ], className="mkt-dist", style={"fontSize": "11px"}),
+        html.Span(
+            f"Issue #{snap.get('issue_number', 1)} · {snap.get('as_of_date', '')} "
+            "· click any card for history",
+            className="mkt-eyebrow", style={"textTransform": "none",
+                                            "letterSpacing": "0.02em"},
+        ),
     ]
 
 
 def _toolbar(snap: dict) -> html.Div:
     return html.Div([
         html.Div(_meta_text(snap), id="mkt-meta",
-                 style={"display": "flex", "alignItems": "center", "gap": "12px", "flexWrap": "wrap"}),
+                 style={"display": "flex", "alignItems": "baseline", "gap": "26px",
+                        "flexWrap": "wrap"}),
         html.Button([html.Span(className="ic ic-refresh", style={"width": "13px", "height": "13px"}),
                      "Refresh"], id="mkt-refresh", n_clicks=0, className="mkt-btn"),
-    ], className="section-head", style={"justifyContent": "space-between"})
+    ], className="mkt-rollup")
 
 
 def _indicator_card(ind: dict) -> html.Div:
@@ -171,7 +187,8 @@ def _indicator_card(ind: dict) -> html.Div:
             html.Span(cur_txt, className="mkt-back-current",
                       style={"color": _BAND_FILL.get(status, "var(--text-primary)")}),
         ], className="mkt-back-head"),
-        html.Div(f"Full history · {pts[0]['label']} – {pts[-1]['label']}", className="mkt-back-sub"),
+        html.Div(f"{pts[0]['label']} – {pts[-1]['label']} · click to flip back",
+                 className="mkt-back-sub"),
         html.Div(className="mkt-hist-wrap"),
         html.Span([_icon("arrow-left", 11), " Back"], className="mkt-flip-hint back"),
     ], className="mkt-face mkt-back", **{"data-hist": json.dumps(payload, separators=(",", ":"))})

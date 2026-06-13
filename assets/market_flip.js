@@ -21,52 +21,29 @@
     return (h.prefix || "") + v.toFixed(dp) + (h.suffix || "");
   }
 
-  // Banded time-series plot for one indicator's full history (port of MktHistoryChart).
+  // Time-series plot for one indicator's history (IRIS Redesign v2 / Ledger:
+  // status-colored line + soft area fill + axis labels + end dot).
   function buildSvg(h) {
     var W = 320, H = 132, padL = 40, padR = 12, padT = 10, padB = 20;
+    var c = BAND_FILL[h.status] || "var(--primary-500)";
     var pts = h.points;
     var n = pts.length;
     var vals = pts.map(function (p) { return p.v; });
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
-    var bands = (h.bands || []).map(function (b) {
-      return { max: (b.max === null || b.max === undefined) ? Infinity : b.max, status: b.status };
-    });
-    bands.forEach(function (b) {
-      if (b.max !== Infinity && b.max >= lo - (hi - lo) && b.max <= hi + (hi - lo)) {
-        lo = Math.min(lo, b.max); hi = Math.max(hi, b.max);
-      }
-    });
     var span = (hi - lo) || 1;
-    lo -= span * 0.12; hi += span * 0.12;
+    lo -= span * 0.1; hi += span * 0.1;
     var x = function (i) { return padL + (i / (n - 1)) * (W - padL - padR); };
     var y = function (v) { return padT + (1 - (v - lo) / (hi - lo)) * (H - padT - padB); };
     var line = pts.map(function (p, i) { return (i ? "L" : "M") + x(i).toFixed(1) + "," + y(p.v).toFixed(1); }).join(" ");
     var area = line + " L" + x(n - 1).toFixed(1) + "," + y(lo).toFixed(1) + " L" + x(0).toFixed(1) + "," + y(lo).toFixed(1) + " Z";
 
-    var zones = [];
-    var prev = -Infinity;
-    bands.forEach(function (b) {
-      var zLo = Math.max(prev, lo), zHi = Math.min(b.max, hi);
-      if (zHi > zLo) zones.push({ yTop: y(zHi), yBot: y(zLo), c: BAND_FILL[b.status] });
-      prev = b.max;
-    });
-
     var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" class="mkt-hist-svg" preserveAspectRatio="xMidYMid meet">';
-    zones.forEach(function (z) {
-      svg += '<rect x="' + padL + '" y="' + z.yTop.toFixed(1) + '" width="' + (W - padL - padR) +
-             '" height="' + Math.max(0, z.yBot - z.yTop).toFixed(1) + '" fill="' + z.c + '" opacity="0.12"/>';
-    });
-    bands.filter(function (b) { return b.max !== Infinity && b.max > lo && b.max < hi; }).forEach(function (b) {
-      svg += '<line x1="' + padL + '" x2="' + (W - padR) + '" y1="' + y(b.max).toFixed(1) +
-             '" y2="' + y(b.max).toFixed(1) + '" stroke="' + BAND_FILL[b.status] +
-             '" stroke-width="1" stroke-dasharray="2 4" opacity="0.5"/>';
-    });
     svg += '<text x="' + (padL - 6) + '" y="' + (y(hi) + 8).toFixed(1) + '" text-anchor="end" class="mkt-hist-axis">' + fmt(hi, h) + '</text>';
     svg += '<text x="' + (padL - 6) + '" y="' + y(lo).toFixed(1) + '" text-anchor="end" class="mkt-hist-axis">' + fmt(lo, h) + '</text>';
-    svg += '<path d="' + area + '" fill="var(--primary-500)" opacity="0.08"/>';
-    svg += '<path d="' + line + '" fill="none" stroke="var(--primary-500)" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"/>';
+    svg += '<path d="' + area + '" fill="' + c + '" opacity="0.07"/>';
+    svg += '<path d="' + line + '" fill="none" stroke="' + c + '" stroke-width="1.75" stroke-linejoin="round" stroke-linecap="round"/>';
     svg += '<circle cx="' + x(n - 1).toFixed(1) + '" cy="' + y(pts[n - 1].v).toFixed(1) +
-           '" r="3" fill="var(--primary-500)" stroke="var(--bg-base)" stroke-width="1.5"/>';
+           '" r="3" fill="' + c + '" stroke="var(--bg-raised)" stroke-width="1.5"/>';
     svg += '<text x="' + padL + '" y="' + (H - 5) + '" text-anchor="start" class="mkt-hist-axis">' + pts[0].label + '</text>';
     svg += '<text x="' + (W - padR) + '" y="' + (H - 5) + '" text-anchor="end" class="mkt-hist-axis">' + pts[n - 1].label + '</text>';
     svg += '</svg>';
