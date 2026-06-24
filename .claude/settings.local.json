@@ -23,7 +23,18 @@
       "Bash(HOST=0.0.0.0 python3 main.py)",
       "Bash(jobs:*)",
       "Bash(pip3 install:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(ls:*)",
+      "Bash(PORT=8051 python3:*)",
+      "Bash(git checkout:*)",
+      "Bash(git status:*)",
+      "Bash(git:*)",
+      "Bash(open:*)",
+      "Bash(xargs -I{} basename {})",
+      "Skill(browse)",
+      "WebFetch(domain:api.anthropic.com)",
+      "Read(//private/tmp/iris_design/**)",
+      "Bash(tar -xzf design.gz)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

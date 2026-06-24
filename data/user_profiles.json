@@ -10,35 +10,133 @@
               "Financial Services",
               "Real Estate"
             ]
-          },
-          {
-            "column": "risk_category",
-            "values": [
-              "Criticized"
-            ]
           }
         ]
-      }
-    },
-    "custom_metrics": {},
-    "last_active_portfolio": "financial_sub"
-  },
-  "Jane Doe": {
-    "role": "Corp SCO",
-    "portfolios": {
-      "Test": {
+      },
+      "Test3": {
         "filters": [
           {
             "column": "industry",
             "values": [
               "Financial Services"
             ]
+          },
+          {
+            "column": "risk_category",
+            "values": [
+              "Pass Rated"
+            ]
+          }
+        ]
+      },
+      "test 12": {
+        "filters": [
+          {
+            "column": "industry",
+            "values": [
+              "Energy",
+              "Financial Services"
+            ]
+          }
+        ]
+      },
+      "Teste2": {
+        "filters": [
+          {
+            "column": "industry",
+            "values": [
+              "Telecommunications"
+            ]
+          },
+          {
+            "column": "risk_category",
+            "values": [
+              "Defaulted"
+            ]
+          }
+        ]
+      }
+    },
+    "custom_metrics": {
+      "Crit Bal (customized)": {
+        "dataset": "facilities",
+        "tokens": [
+          {
+            "type": "logic",
+            "value": "IF"
+          },
+          {
+            "type": "column",
+            "value": "obligor_rating"
+          },
+          {
+            "type": "operator",
+            "value": ">="
+          },
+          {
+            "type": "constant",
+            "value": "15"
+          },
+          {
+            "type": "operator",
+            "value": "AND"
+          },
+          {
+            "type": "column",
+            "value": "obligor_rating"
+          },
+          {
+            "type": "operator",
+            "value": "<"
+          },
+          {
+            "type": "constant",
+            "value": "17"
+          },
+          {
+            "type": "logic",
+            "value": "THEN"
+          },
+          {
+            "type": "column",
+            "value": "balance"
+          },
+          {
+            "type": "logic",
+            "value": "ELSE"
+          },
+          {
+            "type": "constant",
+            "value": "0"
+          }
+        ],
+        "metric_type": "numeric"
+      }
+    },
+    "last_active_portfolio": "Entire Commercial"
+  },
+  "Jane Doe": {
+    "role": "Corp SCO",
+    "portfolios": {
+      "Tech": {
+        "filters": [
+          {
+            "column": "lob",
+            "values": [
+              "Corporate Banking"
+            ]
+          },
+          {
+            "column": "industry",
+            "values": [
+              "Technology"
+            ]
           }
         ]
       }
     },
     "custom_metrics": {},
-    "last_active_portfolio": "Test"
+    "last_active_portfolio": "Entire Commercial"
   },
   "Bob Wilson": {
     "role": "CRE SCO",
