@@ -499,6 +499,69 @@ class PowerUserToggle(GlobalControl):
         return specs
 
 
+class CopilotToggle(GlobalControl):
+    """Enable / disable the Portfolio Intelligence Copilot (right-side AI panel).
+
+    When enabled the copilot is available as a collapsed right-edge rail that
+    expands into a slide-over panel; when disabled the whole feature is hidden.
+    State persists in localStorage. Mirrors the PowerUserToggle pattern.
+    """
+
+    id = "copilot-toggle"
+    label = "Copilot"
+    position = ControlPosition.RIGHT
+    order = 23  # just left of the power-user toggle (24)
+
+    def render(self, **kwargs) -> html.Button:
+        return html.Button(
+            html.Span("IQ", className="copilot-badge sm"),
+            id="copilot-toggle-btn",
+            n_clicks=0,
+            className="icon-btn copilot-toggle-btn",
+            title="Portfolio Copilot",
+        )
+
+    def callback_specs(self) -> list[CallbackSpec]:
+        specs = []
+
+        # 1. Store changes → toggle button look + show/hide the copilot root.
+        specs.append(CallbackSpec(
+            outputs=[("copilot-toggle-btn", "style")],
+            inputs=[("copilot-enabled-store", "data")],
+            client_side="""\
+            function(enabled){
+              var root = document.getElementById('copilot-root');
+              if (root){
+                root.style.display = enabled ? '' : 'none';
+                if (!enabled) root.classList.remove('copilot-open');
+                // content gutter may change → refit charts after a tick
+                setTimeout(function(){ window.dispatchEvent(new Event('resize')); }, 260);
+              }
+              if (enabled){
+                return {"opacity":"1","background":"var(--primary-tint)","color":"var(--primary-400)"};
+              }
+              return {"opacity":"0.55"};
+            }
+            """,
+        ))
+
+        # 2. Toggle click → flip the enabled store.
+        specs.append(CallbackSpec(
+            outputs=[("copilot-enabled-store", "data")],
+            inputs=[("copilot-toggle-btn", "n_clicks")],
+            states=[("copilot-enabled-store", "data")],
+            prevent_initial_call=True,
+            client_side="""\
+            function(n, enabled){
+              if (!n) return window.dash_clientside.no_update;
+              return !enabled;
+            }
+            """,
+        ))
+
+        return specs
+
+
 class ContactButton(GlobalControl):
     """Button that opens the contact/support modal."""
 
@@ -556,5 +619,6 @@ register_global_control(ThemeToggle())
 # desynced the CSS chrome from the (fixed-color) chart series. The app uses a
 # single accent (config.settings.ui.accent_color → injected --primary-*).
 register_global_control(CustomMetricButton())
+register_global_control(CopilotToggle())
 register_global_control(PowerUserToggle())
 register_global_control(ContactButton())

@@ -143,6 +143,73 @@ def create_command_palette():
     ], className="cmd-overlay", id="cmd-palette")
 
 
+def _copilot_ai_msg(text):
+    """One AI message bubble — same DOM shape copilot.js renders dynamically."""
+    return html.Div([
+        html.Div([
+            html.Span("IQ", className="copilot-badge sm"),
+            html.Span("Copilot", className="copilot-msg-role"),
+        ], className="copilot-msg-head"),
+        html.Div([
+            html.Div(text, className="copilot-msg-text"),
+        ], className="copilot-msg-body"),
+    ], className="copilot-msg ai")
+
+
+def _copilot_panel():
+    """Portfolio Intelligence Copilot — foldable right-side AI assistant.
+
+    Collapsed rail ↔ open 360px slide-over panel. All behaviour (open/collapse,
+    context-aware suggested prompts, the ask → thinking → answer flow) lives in
+    ``assets/copilot.js``. The backend is a placeholder: answers are
+    deterministic and client-side, referencing the portfolio / tab in view.
+    Whole feature is shown/hidden by the header ``CopilotToggle``.
+    """
+    from .controls import icon
+
+    greeting = (
+        "I'm your Portfolio Intelligence Copilot. Ask about exposure, "
+        "covenants, segment trends, or market risk — answers reference the "
+        "data currently in view."
+    )
+
+    rail = html.Button([
+        html.Span("IQ", className="copilot-badge"),
+        html.Span("Copilot", className="copilot-rail-label"),
+    ], id="copilot-rail", n_clicks=0, className="copilot-rail",
+       title="Open Copilot", **{"aria-label": "Open Portfolio Copilot"})
+
+    panel = html.Aside([
+        html.Div([
+            html.Span("IQ", className="copilot-badge lg"),
+            html.Div([
+                html.Div("Portfolio Copilot", className="copilot-title"),
+                html.Div(["Intelligence · ",
+                          html.Span("Overview", id="copilot-subtitle")],
+                         className="copilot-subtitle"),
+            ], className="copilot-headmeta"),
+            html.Button(icon("x", 13), id="copilot-collapse-btn", n_clicks=0,
+                        className="icon-btn", style={"width": "26px", "height": "26px"},
+                        title="Collapse", **{"aria-label": "Collapse Copilot"}),
+        ], className="copilot-head"),
+        html.Div([_copilot_ai_msg(greeting)], id="copilot-messages",
+                 className="copilot-messages"),
+        html.Div([
+            html.Div("Suggested", className="copilot-sugg-label"),
+            html.Div(id="copilot-suggestions", className="copilot-sugg-row"),
+        ], className="copilot-sugg"),
+        html.Div([
+            dcc.Input(id="copilot-input", className="copilot-input", type="text",
+                      placeholder="Ask the copilot…", autoComplete="off"),
+            html.Button("↑", id="copilot-send", n_clicks=0, className="copilot-send",
+                        **{"aria-label": "Send"}),
+        ], className="copilot-inputbar"),
+    ], id="copilot-panel", className="copilot-panel",
+       **{"aria-label": "Portfolio Copilot"})
+
+    return html.Div([rail, panel], id="copilot-root", className="copilot-root")
+
+
 def create_layout(selected_portfolio, app_index_string, available_portfolios=None):
     """Create the main app shell layout."""
     from .controls import ControlPosition, get_global_controls
@@ -223,6 +290,10 @@ def create_layout(selected_portfolio, app_index_string, available_portfolios=Non
 
         # ── Command palette (⌘K) ──────────────────────────────────────────────
         create_command_palette(),
+
+        # ── Portfolio Intelligence Copilot (foldable right-side panel) ────────
+        _copilot_panel(),
+        dcc.Store(id="copilot-enabled-store", data=True, storage_type="local"),
 
         # ── Power User ────────────────────────────────────────────────────────
         _power_user_confirm_modal(),

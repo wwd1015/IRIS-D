@@ -34,7 +34,15 @@
       "Skill(browse)",
       "WebFetch(domain:api.anthropic.com)",
       "Read(//private/tmp/iris_design/**)",
-      "Bash(tar -xzf design.gz)"
+      "Bash(tar -xzf design.gz)",
+      "Bash(/Users/alan/.claude/skills/gstack/browse/dist/browse goto *)",
+      "Bash(/Users/alan/.claude/skills/gstack/browse/dist/browse wait *)",
+      "Bash(/Users/alan/.claude/skills/gstack/browse/dist/browse is *)",
+      "Bash(/Users/alan/.claude/skills/gstack/browse/dist/browse js *)",
+      "Bash(/Users/alan/.claude/skills/gstack/browse/dist/browse console *)",
+      "Bash(/Users/alan/.claude/skills/gstack/browse/dist/browse screenshot *)",
+      "Bash(/Users/alan/.claude/skills/gstack/browse/dist/browse click *)",
+      "Bash(awk '/\\\\.icon-btn[ ,{]/{f=1} f{print NR\": \"$0} /}/{if\\(f\\)c++; if\\(c>=1 && f\\){f=0;c=0}}' assets/style.css)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
